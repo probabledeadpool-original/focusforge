@@ -223,13 +223,13 @@ export function validateAndExecuteTool(action: { type: string; [key: string]: an
         return false;
       }
       case 'PLAY_AUDIO': {
-        frequencyStore.play();
+        frequencyStore.setIsPlaying(true);
         jarvisStore.setLastAction('PLAYING FREQUENCY AUDIO');
         jarvisAudio.playExecute();
         return true;
       }
       case 'STOP_AUDIO': {
-        frequencyStore.pause();
+        frequencyStore.setIsPlaying(false);
         jarvisStore.setLastAction('AUDIO SILENCED');
         jarvisAudio.playExecute();
         return true;

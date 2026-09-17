@@ -239,7 +239,7 @@ export default function JarvisVoiceHUD() {
             >
               <div>
                 <span className="text-white/40 block uppercase tracking-wider">STATE / PHASE</span>
-                <span className="font-bold text-cyan-300">{telemetry.phase || telemetry.state}</span>
+                <span className="font-bold text-cyan-300">{telemetry.phase}</span>
               </div>
               <div>
                 <span className="text-white/40 block uppercase tracking-wider">SESSION ID</span>

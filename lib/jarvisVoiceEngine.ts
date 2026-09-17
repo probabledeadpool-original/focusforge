@@ -302,21 +302,21 @@ class JarvisVoiceEngine {
       case 'IDLE':
         return to === 'REQUESTING_MICROPHONE' || to === 'WAKE_WORD_LISTENING' || to === 'LISTENING_FOR_COMMAND';
       case 'REQUESTING_MICROPHONE':
-        return to === 'WAKE_WORD_LISTENING' || to === 'LISTENING_FOR_COMMAND' || to === 'ERROR' || to === 'IDLE';
+        return to === 'WAKE_WORD_LISTENING' || to === 'LISTENING_FOR_COMMAND';
       case 'WAKE_WORD_LISTENING':
-        return to === 'WAKE_WORD_DETECTED' || to === 'LISTENING_FOR_COMMAND' || to === 'IDLE';
+        return to === 'WAKE_WORD_DETECTED' || to === 'LISTENING_FOR_COMMAND';
       case 'WAKE_WORD_DETECTED':
-        return to === 'LISTENING_FOR_COMMAND' || to === 'WAKE_WORD_LISTENING' || to === 'IDLE';
+        return to === 'LISTENING_FOR_COMMAND' || to === 'WAKE_WORD_LISTENING';
       case 'LISTENING_FOR_COMMAND':
-        return to === 'PROCESSING_COMMAND' || to === 'WAKE_WORD_LISTENING' || to === 'IDLE';
+        return to === 'PROCESSING_COMMAND' || to === 'WAKE_WORD_LISTENING';
       case 'PROCESSING_COMMAND':
-        return to === 'EXECUTING_TOOL' || to === 'SPEAKING_RESPONSE' || to === 'WAKE_WORD_LISTENING' || to === 'IDLE';
+        return to === 'EXECUTING_TOOL' || to === 'SPEAKING_RESPONSE' || to === 'WAKE_WORD_LISTENING';
       case 'EXECUTING_TOOL':
-        return to === 'SPEAKING_RESPONSE' || to === 'PROCESSING_COMMAND' || to === 'WAKE_WORD_LISTENING' || to === 'IDLE';
+        return to === 'SPEAKING_RESPONSE' || to === 'PROCESSING_COMMAND' || to === 'WAKE_WORD_LISTENING';
       case 'SPEAKING_RESPONSE':
-        return to === 'WAKE_WORD_LISTENING' || to === 'LISTENING_FOR_COMMAND' || to === 'IDLE';
+        return to === 'WAKE_WORD_LISTENING' || to === 'LISTENING_FOR_COMMAND';
       case 'ERROR':
-        return to === 'REQUESTING_MICROPHONE' || to === 'WAKE_WORD_LISTENING' || to === 'LISTENING_FOR_COMMAND' || to === 'IDLE';
+        return to === 'REQUESTING_MICROPHONE' || to === 'WAKE_WORD_LISTENING' || to === 'LISTENING_FOR_COMMAND';
       default:
         return false;
     }
