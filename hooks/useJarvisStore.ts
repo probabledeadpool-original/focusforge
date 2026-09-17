@@ -101,7 +101,7 @@ export const useJarvisStore = create<JarvisStore>((set, get) => ({
   },
   openJarvis: (initialPrompt, targetMode) => {
     jarvisAudio.playActivate();
-    const mode = targetMode || get().displayMode || 'fullscreen';
+    const mode = targetMode || 'fullscreen';
     set({ 
       isOpen: true, 
       displayMode: mode, 
