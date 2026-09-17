@@ -25,7 +25,7 @@ export interface AiConfig {
 }
 
 export const AI_CONFIG: AiConfig = {
-  textModel: "gemini-2.5-flash",
+  textModel: "gemma-4-26b-a4b-it",
   liveModel: "gemini-2.0-flash-exp",
   embeddingModel: "text-embedding-004"
 };
@@ -35,7 +35,7 @@ export const AVAILABLE_MODELS: ModelDefinition[] = [
     id: "gemma-4-26b-a4b-it",
     name: "Gemma 4 26B Instruct",
     category: "text",
-    description: "High-capacity open-weights instruction model with generous quota for text reasoning, summarization, and direct command execution.",
+    description: "Google's high-capacity Gemma 4 instruction model with generous quota for text reasoning, summarization, and direct command execution.",
     capabilities: {
       textReasoning: true,
       toolRouting: true,
@@ -43,7 +43,22 @@ export const AVAILABLE_MODELS: ModelDefinition[] = [
       liveAudio: false,
       vision: false,
     },
-    recommendedFor: "Daily text reasoning, commands, search & tool routing (High Quota Open Weights)",
+    recommendedFor: "Default model: high-speed text reasoning, commands & tool routing",
+    quotaTier: "High"
+  },
+  {
+    id: "gemma-4-31b-it",
+    name: "Gemma 4 31B Instruct",
+    category: "text",
+    description: "Flagship Gemma 4 model with maximum parameter capacity for nuanced reasoning and complex multi-step instructions.",
+    capabilities: {
+      textReasoning: true,
+      toolRouting: true,
+      searchSummarization: true,
+      liveAudio: false,
+      vision: false,
+    },
+    recommendedFor: "Complex reasoning & deep analytical queries",
     quotaTier: "High"
   },
   {
@@ -59,6 +74,21 @@ export const AVAILABLE_MODELS: ModelDefinition[] = [
       vision: false,
     },
     recommendedFor: "Concise responses & open weights reasoning",
+    quotaTier: "High"
+  },
+  {
+    id: "gemma-2-9b-it",
+    name: "Gemma 2 9B Instruct",
+    category: "text",
+    description: "Ultra-lean Gemma model optimized for low-latency command parsing and instant responses.",
+    capabilities: {
+      textReasoning: true,
+      toolRouting: true,
+      searchSummarization: true,
+      liveAudio: false,
+      vision: false,
+    },
+    recommendedFor: "Ultra-fast response times & lightweight operations",
     quotaTier: "High"
   },
   {
@@ -138,9 +168,11 @@ const USAGE_STORAGE_KEY = 'focusforge-ai-session-usage';
 
 export function getSelectedTextModel(): string {
   if (typeof window === 'undefined') return AI_CONFIG.textModel;
-  return localStorage.getItem('focusforge-selected-text-model') || 
-         localStorage.getItem('gemini-model') || 
-         AI_CONFIG.textModel;
+  const saved = localStorage.getItem('focusforge-selected-text-model') || localStorage.getItem('gemini-model');
+  if (!saved || saved.includes('1.5-flash') || saved.includes('1.5-pro')) {
+    return AI_CONFIG.textModel;
+  }
+  return saved;
 }
 
 export function setSelectedTextModel(modelId: string): void {

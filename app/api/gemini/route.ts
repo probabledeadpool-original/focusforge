@@ -51,7 +51,7 @@ export async function POST(req: Request) {
     }
 
     // Default model if unspecified
-    const rawModel = model?.trim() || process.env.GEMINI_MODEL || 'gemini-2.5-flash';
+    const rawModel = model?.trim() || process.env.GEMINI_MODEL || 'gemma-4-26b-a4b-it';
     let selectedModel = rawModel.replace(/^models\//, '');
     
     // Normalize aliases while retaining Gemma access
@@ -61,9 +61,6 @@ export async function POST(req: Request) {
       selectedModel = 'gemini-2.5-pro';
     } else if (selectedModel.includes('3.7-flash') || selectedModel.includes('3.6-flash')) {
       selectedModel = 'gemini-2.5-flash';
-    } else if (selectedModel === 'gemma-4-26b-a4b-it' || selectedModel.startsWith('gemma-4')) {
-      // Map to available Gemma 2 27B or try Gemma
-      selectedModel = 'gemma-2-27b-it';
     }
 
     const buildEndpoint = (m: string) => 
