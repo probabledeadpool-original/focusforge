@@ -25,62 +25,17 @@ export interface AiConfig {
 }
 
 export const AI_CONFIG: AiConfig = {
-  textModel: "gemma-4-26b-a4b-it",
+  textModel: "gemini-2.5-flash",
   liveModel: "gemini-2.0-flash-exp",
   embeddingModel: "text-embedding-004"
 };
 
 export const AVAILABLE_MODELS: ModelDefinition[] = [
   {
-    id: "gemma-4-26b-a4b-it",
-    name: "Gemma 4 26B Instruct",
-    category: "text",
-    description: "High-capacity open-weights instruction model with generous quota for text reasoning, summarization, and tool routing.",
-    capabilities: {
-      textReasoning: true,
-      toolRouting: true,
-      searchSummarization: true,
-      liveAudio: false,
-      vision: false,
-    },
-    recommendedFor: "Daily text reasoning, command classification, search & tool routing (Primary High Quota)",
-    quotaTier: "High"
-  },
-  {
-    id: "gemini-3.7-flash",
-    name: "Gemini 3.7 Flash",
-    category: "text",
-    description: "Google's hybrid reasoning flagship with ultra-fast execution and multimodal context comprehension.",
-    capabilities: {
-      textReasoning: true,
-      toolRouting: true,
-      searchSummarization: true,
-      liveAudio: false,
-      vision: true,
-    },
-    recommendedFor: "Complex analytical logic and vision inspection",
-    quotaTier: "Standard"
-  },
-  {
-    id: "gemini-3.6-flash",
-    name: "Gemini 3.6 Flash",
-    category: "text",
-    description: "High-throughput turbo model designed for quick responses and iterative multi-step workflows.",
-    capabilities: {
-      textReasoning: true,
-      toolRouting: true,
-      searchSummarization: true,
-      liveAudio: false,
-      vision: true,
-    },
-    recommendedFor: "Fast text summarization and rapid drafts",
-    quotaTier: "Standard"
-  },
-  {
     id: "gemini-2.5-flash",
     name: "Gemini 2.5 Flash",
     category: "text",
-    description: "Lightweight and efficient fallback model with low latency and balanced resource consumption.",
+    description: "Ultra-fast flagship model with exceptional reasoning, low latency, and direct response generation.",
     capabilities: {
       textReasoning: true,
       toolRouting: true,
@@ -88,7 +43,37 @@ export const AVAILABLE_MODELS: ModelDefinition[] = [
       liveAudio: false,
       vision: true,
     },
-    recommendedFor: "Reliable fallback text reasoning",
+    recommendedFor: "Instant voice commands, direct query answers & tool execution (Primary Recommended)",
+    quotaTier: "High"
+  },
+  {
+    id: "gemini-2.5-pro",
+    name: "Gemini 2.5 Pro",
+    category: "text",
+    description: "Google's premier deep reasoning model for complex multifaceted problem solving.",
+    capabilities: {
+      textReasoning: true,
+      toolRouting: true,
+      searchSummarization: true,
+      liveAudio: false,
+      vision: true,
+    },
+    recommendedFor: "Complex academic problem solving & deep research",
+    quotaTier: "Standard"
+  },
+  {
+    id: "gemini-2.0-flash",
+    name: "Gemini 2.0 Flash",
+    category: "text",
+    description: "High-throughput turbo model designed for quick responses and lightweight tasks.",
+    capabilities: {
+      textReasoning: true,
+      toolRouting: true,
+      searchSummarization: true,
+      liveAudio: false,
+      vision: true,
+    },
+    recommendedFor: "Fast text operations & rapid summaries",
     quotaTier: "Standard"
   },
   {

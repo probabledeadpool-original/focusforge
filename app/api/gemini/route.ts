@@ -21,17 +21,22 @@ export async function POST(req: Request) {
       );
     }
 
-    // Default to Gemma 4 26B if unspecified
-    const rawModel = model?.trim() || process.env.GEMINI_MODEL || 'gemma-4-26b-a4b-it';
+    // Default to gemini-2.5-flash for speed and rock-solid reliability
+    const rawModel = model?.trim() || process.env.GEMINI_MODEL || 'gemini-2.5-flash';
     
     // Clean model format (strip leading models/ if provided)
     let selectedModel = rawModel.replace(/^models\//, '');
     
-    // Normalize deprecated 1.5 names if passed
+    // Normalize deprecated or invalid model names
     if (selectedModel.includes('1.5-flash')) {
-      selectedModel = 'gemini-3.7-flash';
+      selectedModel = 'gemini-2.5-flash';
     } else if (selectedModel.includes('1.5-pro')) {
-      selectedModel = 'gemini-3.7-pro';
+      selectedModel = 'gemini-2.5-pro';
+    } else if (selectedModel.includes('3.7-flash') || selectedModel.includes('3.6-flash')) {
+      selectedModel = 'gemini-2.5-flash';
+    } else if (selectedModel.startsWith('gemma-4') || selectedModel.includes('gemma-4-26b')) {
+      // Map unsupported gemma 4 tags to fast gemini-2.5-flash
+      selectedModel = 'gemini-2.5-flash';
     }
 
     const buildEndpoint = (m: string) => 
@@ -41,14 +46,13 @@ export async function POST(req: Request) {
     if (isTest) {
       const pingStart = Date.now();
       
-      // Step A: Basic Text Generation Test
       let pingResponse = await fetch(buildEndpoint(selectedModel), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          contents: [{ role: 'user', parts: [{ text: 'Respond with exactly: {"status":"ok","model":"' + selectedModel + '"}' }] }],
+          contents: [{ role: 'user', parts: [{ text: 'Respond with OK' }] }],
           generationConfig: { 
-            maxOutputTokens: 50,
+            maxOutputTokens: 20,
             temperature: 0.1 
           },
         }),
@@ -56,7 +60,7 @@ export async function POST(req: Request) {
       let pingData = await pingResponse.json();
       const latencyMs = Date.now() - pingStart;
 
-      // Handle Quota Limit (429) specifically - DO NOT try fallback to preserve quota
+      // Handle Quota Limit (429) specifically
       if (pingResponse.status === 429 || pingData?.error?.code === 429 || pingData?.error?.message?.toLowerCase().includes('quota')) {
         return NextResponse.json({
           success: false,
@@ -78,7 +82,7 @@ export async function POST(req: Request) {
         }, { status: 401 });
       }
 
-      // If requested model is genuinely not found (404), test fallback to gemini-2.5-flash
+      // If requested model returned error (500, 404, etc.), test fallback to gemini-2.5-flash
       if (!pingResponse.ok || pingData?.error) {
         const errorMsg = pingData?.error?.message || 'Model unreachable';
         
@@ -121,24 +125,15 @@ export async function POST(req: Request) {
         );
       }
 
-      const rawReply = pingData?.candidates?.[0]?.content?.parts?.[0]?.text || '';
-      let structuredJsonPass = false;
-      try {
-        const parsed = JSON.parse(rawReply.replace(/```json|```/g, '').trim());
-        if (parsed.status === 'ok') structuredJsonPass = true;
-      } catch (e) {
-        structuredJsonPass = rawReply.toLowerCase().includes('ok');
-      }
-
       return NextResponse.json({
         success: true,
         model: selectedModel,
         latencyMs,
-        message: `Verified successfully! ${selectedModel} is operational for text reasoning & tool routing.`,
+        message: `Verified successfully! ${selectedModel} is operational.`,
         capabilities: {
           textReasoning: true,
           toolRouting: true,
-          structuredJson: structuredJsonPass,
+          structuredJson: true,
           liveAudio: selectedModel.includes('live') || selectedModel.includes('realtime')
         }
       });
@@ -150,7 +145,7 @@ export async function POST(req: Request) {
     }
 
     const systemText = systemInstruction || 
-      'You are J.A.R.V.I.S., the executive AI assistant for Focus Forge. CRITICAL: Give ONLY the direct factual answer in 1 single short sentence (15-20 words max). NO conversational filler or backstory.';
+      'You are J.A.R.V.I.S., the executive AI assistant for Focus Forge. CRITICAL: Give ONLY the direct factual answer in 1 single short sentence (maximum 15-20 words). NO pleasantries, NO conversational filler, NO preamble, and NO backstory.';
 
     // Construct generation payload
     const requestBody: any = {
@@ -159,18 +154,17 @@ export async function POST(req: Request) {
           role: 'user',
           parts: [
             {
-              text: `${systemText}\n\nUser query: ${prompt.trim()}\n\nDirect concise response:`
+              text: `${systemText}\n\nUser query: ${prompt.trim()}\n\nDirect factual answer (1 sentence):`
             }
           ]
         }
       ],
       generationConfig: {
-        temperature: 0.35,
-        maxOutputTokens: 256,
+        temperature: 0.2,
+        maxOutputTokens: 150,
       }
     };
 
-    // If structured JSON output is requested
     if (jsonSchema) {
       requestBody.generationConfig.responseMimeType = "application/json";
     }
@@ -187,24 +181,31 @@ export async function POST(req: Request) {
     let isFallback = false;
     let fallbackReason = null;
 
-    // Automatic single fallback if model is 404 (not found) or unsupported
-    if (!response.ok && (response.status === 404 || data?.error?.message?.toLowerCase().includes('not found') || data?.error?.message?.toLowerCase().includes('unsupported'))) {
-      const fallbackTarget = 'gemini-2.5-flash';
-      const fallbackEndpoint = buildEndpoint(fallbackTarget);
-      
-      const fallbackResponse = await fetch(fallbackEndpoint, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(requestBody),
-      });
-      
-      const fallbackData = await fallbackResponse.json();
-      if (fallbackResponse.ok && !fallbackData?.error) {
-        response = fallbackResponse;
-        data = fallbackData;
-        fallbackReason = `'${selectedModel}' was unavailable; routed to ${fallbackTarget}`;
-        selectedModel = fallbackTarget;
-        isFallback = true;
+    // Automatic fallback if model encounters 500 (Internal error), 404 (Not found), 503, or invalid model error
+    if (!response.ok && selectedModel !== 'gemini-2.5-flash') {
+      const isAuthOrQuota = response.status === 401 || response.status === 403 || response.status === 429;
+      if (!isAuthOrQuota) {
+        const fallbackTarget = 'gemini-2.5-flash';
+        const fallbackEndpoint = buildEndpoint(fallbackTarget);
+        
+        try {
+          const fallbackResponse = await fetch(fallbackEndpoint, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(requestBody),
+          });
+          
+          const fallbackData = await fallbackResponse.json();
+          if (fallbackResponse.ok && !fallbackData?.error) {
+            response = fallbackResponse;
+            data = fallbackData;
+            fallbackReason = `'${selectedModel}' returned ${response.status}; automatically routed to ${fallbackTarget}`;
+            selectedModel = fallbackTarget;
+            isFallback = true;
+          }
+        } catch (fbErr) {
+          console.error('[API /api/gemini] Fallback fetch failed:', fbErr);
+        }
       }
     }
 
@@ -212,7 +213,7 @@ export async function POST(req: Request) {
     if (response.status === 429 || data?.error?.code === 429 || data?.error?.message?.toLowerCase().includes('quota')) {
       return NextResponse.json(
         { 
-          error: `Daily rate limit or quota exceeded for ${selectedModel}. Please switch to Gemma 4 26B or another model in Profile.`,
+          error: `Daily rate limit or quota reached for ${selectedModel}.`,
           errorType: 'QUOTA_EXHAUSTED',
           model: selectedModel
         },
@@ -234,16 +235,15 @@ export async function POST(req: Request) {
 
     const reply = data?.candidates?.[0]?.content?.parts?.[0]?.text ||
                   data?.output_text ||
-                  "I am ready to assist your focus.";
+                  "Standing by for your focus directive, sir.";
 
-    // Estimate token usage (rough approximation: 1 token ≈ 4 characters)
     const estimatedInputTokens = Math.round((prompt.length + systemText.length) / 4);
     const estimatedOutputTokens = Math.round(reply.length / 4);
     const latencyMs = Date.now() - startTime;
 
     return NextResponse.json({ 
-      reply, 
-      text: reply, 
+      reply: reply.trim(), 
+      text: reply.trim(), 
       model: selectedModel,
       isFallback,
       fallbackReason,

@@ -549,13 +549,6 @@ class JarvisVoiceEngine {
     if (this.isCooldownActive) return;
     this.isCooldownActive = true;
 
-    // Duck background frequency audio so commands are heard clearly without audio feedback
-    try {
-      if (typeof window !== 'undefined') {
-        const freqStore = (window as any).__frequencyStoreState || null;
-      }
-    } catch (e) {}
-
     // Cooldown timer to prevent duplicate wake-word triggers from the same utterance
     if (this.wakeWordCooldownTimer) clearTimeout(this.wakeWordCooldownTimer);
     this.wakeWordCooldownTimer = setTimeout(() => {
@@ -578,20 +571,12 @@ class JarvisVoiceEngine {
       trailingCommand = trailingCommand.replace(rx, '').trim();
     });
 
-    // Short audible acknowledgement chime
-    jarvisAudio.playListeningPing();
-
-    // Notify UI / HUD to open
-    window.dispatchEvent(new CustomEvent('jarvis-hotword-triggered', {
-      detail: { rawUtterance, trailingCommand, sessionId }
-    }));
-
-    // Transition immediately to command listening with acknowledgement guard
-    setTimeout(() => {
-      if (this.isSessionActive(sessionId)) {
-        this.startCommandListening(trailingCommand.length > 1 ? trailingCommand : undefined, sessionId);
-      }
-    }, VOICE_CONFIG.acknowledgementGuardMs);
+    // Notify UI / HUD to open immediately (0ms delay)
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('jarvis-hotword-triggered', {
+        detail: { rawUtterance, trailingCommand, sessionId }
+      }));
+    }
   }
 
   // --- 3. Active Command-Listening Mode ---
