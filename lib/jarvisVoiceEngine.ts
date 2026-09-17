@@ -839,7 +839,15 @@ class JarvisVoiceEngine {
           voiceLog("TTS_PLAYBACK_FINISHED");
           this.activeUtterance = null;
           if (onComplete) onComplete();
-          // Short delay to avoid audio feedback triggering hotword
+
+          // Auto-minimize full screen to dynamic island after responding so user workspace is visible
+          try {
+            if (typeof window !== 'undefined') {
+              window.dispatchEvent(new CustomEvent('jarvis-auto-minimize'));
+            }
+          } catch (e) {}
+
+          // Immediate return to continuous wake-word listening
           setTimeout(() => {
             if (this.isSessionActive(sessionId)) {
               this.transitionTo('WAKE_WORD_LISTENING', 'Speech playback completed');
@@ -854,6 +862,11 @@ class JarvisVoiceEngine {
         if (this.isSessionActive(sessionId)) {
           this.activeUtterance = null;
           if (onComplete) onComplete();
+          try {
+            if (typeof window !== 'undefined') {
+              window.dispatchEvent(new CustomEvent('jarvis-auto-minimize'));
+            }
+          } catch (err) {}
           this.transitionTo('WAKE_WORD_LISTENING', 'TTS error/interrupted');
           this.startWakeWordDetection();
         }

@@ -150,7 +150,7 @@ export async function POST(req: Request) {
     }
 
     const systemText = systemInstruction || 
-      'You are J.A.R.V.I.S., an elite executive cognitive intelligence and workflow orchestrator for Focus Forge. Be precise, concise, and structured.';
+      'You are J.A.R.V.I.S., the executive AI assistant for Focus Forge. CRITICAL: Give ONLY the direct factual answer in 1 single short sentence (15-20 words max). NO conversational filler or backstory.';
 
     // Construct generation payload
     const requestBody: any = {
@@ -159,14 +159,14 @@ export async function POST(req: Request) {
           role: 'user',
           parts: [
             {
-              text: `${systemText}\n\nUser request: ${prompt.trim()}`
+              text: `${systemText}\n\nUser query: ${prompt.trim()}\n\nDirect concise response:`
             }
           ]
         }
       ],
       generationConfig: {
-        temperature: 0.6,
-        maxOutputTokens: 1024,
+        temperature: 0.35,
+        maxOutputTokens: 256,
       }
     };
 

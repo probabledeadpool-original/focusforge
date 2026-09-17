@@ -256,4 +256,12 @@ if (typeof window !== 'undefined') {
       isHotwordActive: phase === 'WAKE_WORD_LISTENING'
     });
   });
+
+  window.addEventListener('jarvis-auto-minimize', () => {
+    const s = useJarvisStore.getState();
+    if (s.isOpen && s.displayMode === 'fullscreen') {
+      s.setDisplayMode('minimized');
+    }
+  });
 }
+
