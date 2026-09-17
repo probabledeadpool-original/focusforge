@@ -104,7 +104,7 @@ const PALETTES: Record<'deepBass' | 'warmVocals' | 'etherealAir' | 'energeticEle
   energeticElectronic: {
     primary: [0.52, 0.98, 0.50],   // Cyan Neon
     secondary: [0.70, 0.90, 0.55], // Electric Violet
-    tertiary: [0.45, 0.95, 0.46],  // Emerald Mint
+    tertiary: [0.58, 0.90, 0.42],  // Electric Deep Blue
   },
   minimalAmbient: {
     primary: [0.58, 0.45, 0.35],   // Soft Slate Teal
@@ -157,6 +157,61 @@ export interface ExtractedCoverPalette {
 
 const artworkPaletteCache = new Map<string, ExtractedCoverPalette>();
 
+/**
+ * Creates a cohesive harmonic palette directly from a base color.
+ * Eliminates artificial wide-angle hue rotations (+0.28, -0.22, +0.5) that previously
+ * generated unwanted green and pink halos on blue/purple/amber tracks.
+ */
+function createHarmonicCoverPalette(rawHsl: HSL, isSourceGreen = false): ExtractedCoverPalette {
+  const [h, s, l] = rawHsl;
+
+  // Filter out unwanted green hue band (0.20 to 0.44) unless the source media is genuinely green
+  const isGreenBand = (hue: number) => hue >= 0.20 && hue <= 0.44;
+  const sanitizeHue = (hue: number) => {
+    let norm = ((hue % 1.0) + 1.0) % 1.0;
+    if (!isSourceGreen && isGreenBand(norm)) {
+      norm = Math.abs(norm - 0.20) < Math.abs(norm - 0.44) ? 0.12 : 0.54;
+    }
+    return norm;
+  };
+
+  const primaryHue = sanitizeHue(h);
+  const primarySat = Math.min(0.95, Math.max(0.42, s));
+  const primaryLight = Math.min(0.60, Math.max(0.35, l));
+
+  const primary: HSL = [primaryHue, primarySat, primaryLight];
+
+  // Secondary: A subtle, rich analogous tonal shift (staying locked in same color family)
+  const secondary: HSL = [
+    sanitizeHue(primaryHue + 0.025),
+    Math.min(0.96, primarySat * 1.04),
+    Math.min(0.56, Math.max(0.30, primaryLight * 0.95))
+  ];
+
+  // Accent: Vibrant luminous specular tone of the same primary color family
+  const accent: HSL = [
+    sanitizeHue(primaryHue + 0.015),
+    Math.min(0.98, Math.max(0.70, primarySat * 1.1)),
+    Math.min(0.65, Math.max(0.48, primaryLight * 1.15))
+  ];
+
+  // Ambient: Deep, luxurious atmospheric undertone of the SAME hue family (never shifted into green)
+  const ambient: HSL = [
+    sanitizeHue(primaryHue - 0.02),
+    Math.min(0.85, primarySat * 0.88),
+    Math.max(0.20, primaryLight * 0.65)
+  ];
+
+  // Highlight: Specular shimmer tint
+  const highlight: HSL = [
+    primaryHue,
+    Math.min(0.80, primarySat * 0.75),
+    Math.min(0.82, Math.max(0.68, primaryLight * 1.35))
+  ];
+
+  return { primary, secondary, accent, ambient, highlight };
+}
+
 // ============================================================================
 // CONTINUOUS EDGE LIGHTING ENGINE COMPONENT
 // ============================================================================
@@ -187,14 +242,14 @@ export default function ScreenEdgeLighting() {
 
     // Smooth OKLab/HSL Color State with Heavy Inertia Memory
     primaryHsl: [0.65, 0.85, 0.45] as HSL,
-    secondaryHsl: [0.72, 0.90, 0.50] as HSL,
-    tertiaryHsl: [0.60, 0.90, 0.25] as HSL,
-    accentHsl: [0.52, 0.95, 0.50] as HSL,
+    secondaryHsl: [0.68, 0.88, 0.43] as HSL,
+    tertiaryHsl: [0.63, 0.75, 0.28] as HSL,
+    accentHsl: [0.66, 0.95, 0.52] as HSL,
 
     targetPrimaryHsl: [0.65, 0.85, 0.45] as HSL,
-    targetSecondaryHsl: [0.72, 0.90, 0.50] as HSL,
-    targetTertiaryHsl: [0.60, 0.90, 0.25] as HSL,
-    targetAccentHsl: [0.52, 0.95, 0.50] as HSL,
+    targetSecondaryHsl: [0.68, 0.88, 0.43] as HSL,
+    targetTertiaryHsl: [0.63, 0.75, 0.28] as HSL,
+    targetAccentHsl: [0.66, 0.95, 0.52] as HSL,
 
     // Cover Art 5-Color Extracted Cache
     currentCoverPalette: null as ExtractedCoverPalette | null,
@@ -221,6 +276,27 @@ export default function ScreenEdgeLighting() {
       simRef.current.targetAccentHsl = p.secondary;
       return;
     }
+
+    const toHex = (hsl: HSL) => {
+      const [r, g, b] = hslToRgb(...hsl);
+      return `#${((1 << 24) + (r << 16) + (g << 8) + b).toString(16).slice(1)}`;
+    };
+
+    const applyCoverPalette = (pal: ExtractedCoverPalette) => {
+      simRef.current.currentCoverPalette = pal;
+      simRef.current.targetPrimaryHsl = pal.primary;
+      simRef.current.targetSecondaryHsl = pal.secondary;
+      simRef.current.targetTertiaryHsl = pal.ambient;
+      simRef.current.targetAccentHsl = pal.accent;
+
+      store.setCoverPalette({
+        primary: toHex(pal.primary),
+        secondary: toHex(pal.secondary),
+        accent: toHex(pal.accent),
+        ambient: toHex(pal.ambient),
+        highlight: toHex(pal.highlight),
+      });
+    };
 
     const sampleContentDominantColor = () => {
       if (typeof window === 'undefined') return;
@@ -253,44 +329,9 @@ export default function ScreenEdgeLighting() {
 
             const primeRgb: RGB = maxSat > 0.25 ? [vibR, vibG, vibB] : [rSum / count, gSum / count, bSum / count];
             const rawHsl = rgbToHsl(...primeRgb);
-            const primary: HSL = [
-              rawHsl[0],
-              Math.min(0.95, Math.max(0.50, rawHsl[1])),
-              Math.min(0.60, Math.max(0.35, rawHsl[2]))
-            ];
-            const secondary: HSL = [
-              ((primary[0] + 0.28) % 1.0 + 1.0) % 1.0,
-              Math.min(0.95, primary[1]),
-              Math.min(0.55, Math.max(0.30, primary[2]))
-            ];
-            const ambient: HSL = [
-              ((primary[0] - 0.22) % 1.0 + 1.0) % 1.0,
-              primary[1] * 0.85,
-              Math.max(0.22, primary[2] * 0.7)
-            ];
-            const accent: HSL = [
-              ((primary[0] + 0.5) % 1.0 + 1.0) % 1.0,
-              0.95,
-              0.55
-            ];
-
-            simRef.current.targetPrimaryHsl = primary;
-            simRef.current.targetSecondaryHsl = secondary;
-            simRef.current.targetTertiaryHsl = ambient;
-            simRef.current.targetAccentHsl = accent;
-
-            const toHex = (hsl: HSL) => {
-              const [r, g, b] = hslToRgb(...hsl);
-              return `#${((1 << 24) + (r << 16) + (g << 8) + b).toString(16).slice(1)}`;
-            };
-
-            store.setCoverPalette({
-              primary: toHex(primary),
-              secondary: toHex(secondary),
-              accent: toHex(accent),
-              ambient: toHex(ambient),
-              highlight: toHex([primary[0], 0.8, 0.72]),
-            });
+            const isSourceGreen = rawHsl[0] >= 0.20 && rawHsl[0] <= 0.44 && rawHsl[1] > 0.30;
+            const pal = createHarmonicCoverPalette(rawHsl, isSourceGreen);
+            applyCoverPalette(pal);
             return;
           }
         } catch {
@@ -303,6 +344,12 @@ export default function ScreenEdgeLighting() {
       const dominantHex = currentTrack?.dominantColor;
 
       if (thumbUrl) {
+        const cached = artworkPaletteCache.get(thumbUrl);
+        if (cached) {
+          applyCoverPalette(cached);
+          return;
+        }
+
         const img = new Image();
         img.crossOrigin = 'Anonymous';
         img.src = thumbUrl;
@@ -316,7 +363,7 @@ export default function ScreenEdgeLighting() {
               ctx.drawImage(img, 0, 0, 24, 24);
               const data = ctx.getImageData(0, 0, 24, 24).data;
               let rSum = 0, gSum = 0, bSum = 0, count = 0;
-              let maxSat = 0, vibR = 99, vibG = 102, vibB = 241, maxLight = 0, brightR = 120, brightG = 150, brightB = 250;
+              let maxSat = 0, vibR = 99, vibG = 102, vibB = 241;
 
               for (let i = 0; i < data.length; i += 4) {
                 const r = data[i], g = data[i + 1], b = data[i + 2];
@@ -326,81 +373,34 @@ export default function ScreenEdgeLighting() {
                   maxSat = s;
                   vibR = r; vibG = g; vibB = b;
                 }
-                if (l > maxLight && l < 0.95 && s > 0.15) {
-                  maxLight = l;
-                  brightR = r; brightG = g; brightB = b;
-                }
               }
 
               const primeRgb: RGB = maxSat > 0.25 ? [vibR, vibG, vibB] : [rSum / count, gSum / count, bSum / count];
               const rawPrimary = rgbToHsl(...primeRgb);
+              const isSourceGreen = rawPrimary[0] >= 0.20 && rawPrimary[0] <= 0.44 && rawPrimary[1] > 0.30;
+              const pal = createHarmonicCoverPalette(rawPrimary, isSourceGreen);
               
-              const primary: HSL = [
-                rawPrimary[0],
-                Math.min(0.92, Math.max(0.45, rawPrimary[1])),
-                Math.min(0.58, Math.max(0.32, rawPrimary[2]))
-              ];
-
-              const secondary: HSL = [
-                ((primary[0] + 0.28) % 1.0 + 1.0) % 1.0,
-                Math.min(0.95, primary[1] * 1.05),
-                Math.min(0.55, Math.max(0.30, primary[2] * 0.95))
-              ];
-
-              const accent: HSL = [
-                rgbToHsl(vibR, vibG, vibB)[0],
-                Math.min(0.98, Math.max(0.65, maxSat)),
-                0.55
-              ];
-
-              const ambient: HSL = [
-                ((primary[0] - 0.22) % 1.0 + 1.0) % 1.0,
-                Math.min(0.75, primary[1] * 0.85),
-                Math.max(0.22, primary[2] * 0.65)
-              ];
-
-              const highlight: HSL = [
-                rgbToHsl(brightR, brightG, brightB)[0],
-                Math.min(0.85, primary[1]),
-                0.72
-              ];
-
-              const pal: ExtractedCoverPalette = { primary, secondary, accent, ambient, highlight };
               artworkPaletteCache.set(thumbUrl, pal);
-              simRef.current.currentCoverPalette = pal;
-              simRef.current.targetPrimaryHsl = primary;
-              simRef.current.targetSecondaryHsl = secondary;
-              simRef.current.targetTertiaryHsl = ambient;
-              simRef.current.targetAccentHsl = accent;
-
-              const toHex = (hsl: HSL) => {
-                const [r, g, b] = hslToRgb(...hsl);
-                return `#${((1 << 24) + (r << 16) + (g << 8) + b).toString(16).slice(1)}`;
-              };
-
-              store.setCoverPalette({
-                primary: toHex(primary),
-                secondary: toHex(secondary),
-                accent: toHex(accent),
-                ambient: toHex(ambient),
-                highlight: toHex(highlight),
-              });
+              applyCoverPalette(pal);
             }
           } catch {
             const fallback = rgbToHsl(...hexToRgb(dominantHex || '#6366f1'));
-            simRef.current.targetPrimaryHsl = fallback;
+            const isSourceGreen = fallback[0] >= 0.20 && fallback[0] <= 0.44 && fallback[1] > 0.30;
+            const pal = createHarmonicCoverPalette(fallback, isSourceGreen);
+            applyCoverPalette(pal);
           }
         };
         img.onerror = () => {
           const fallback = rgbToHsl(...hexToRgb(dominantHex || '#6366f1'));
-          simRef.current.targetPrimaryHsl = fallback;
+          const isSourceGreen = fallback[0] >= 0.20 && fallback[0] <= 0.44 && fallback[1] > 0.30;
+          const pal = createHarmonicCoverPalette(fallback, isSourceGreen);
+          applyCoverPalette(pal);
         };
       } else {
         const base = rgbToHsl(...hexToRgb(dominantHex || (isVideoPlaying ? '#00f0ff' : '#6366f1')));
-        simRef.current.targetPrimaryHsl = base;
-        simRef.current.targetSecondaryHsl = [((base[0] + 0.3) % 1.0 + 1.0) % 1.0, base[1], base[2]];
-        simRef.current.targetTertiaryHsl = [((base[0] - 0.25) % 1.0 + 1.0) % 1.0, base[1] * 0.8, base[2] * 0.7];
-        simRef.current.targetAccentHsl = [((base[0] + 0.5) % 1.0 + 1.0) % 1.0, 0.9, 0.55];
+        const isSourceGreen = base[0] >= 0.20 && base[0] <= 0.44 && base[1] > 0.30;
+        const pal = createHarmonicCoverPalette(base, isSourceGreen);
+        applyCoverPalette(pal);
       }
     };
 
