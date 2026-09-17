@@ -1,5 +1,34 @@
 import { NextResponse } from 'next/server';
 
+function cleanAiResponse(raw: string): string {
+  if (!raw) return "Standing by for your directive, sir.";
+  let text = raw.trim();
+
+  // 1. Strip thinking tags if any model outputs <thought>...</thought>
+  text = text.replace(/<thought>[\s\S]*?<\/thought>/gi, '').trim();
+
+  // 2. If Gemma or reasoning model leaked draft monologue (e.g. * Draft 2 (Applying Persona Constraints): ...)
+  const draftMatches = [...text.matchAll(/(?:^|\n)\s*\*?\s*\*?Draft\s*\d+[^:\n]*:\*?\s*([\s\S]*?)(?=(?:\n\s*\*?\s*\*?Draft\s*\d+|$))/gi)];
+  if (draftMatches.length > 0) {
+    const lastDraft = draftMatches[draftMatches.length - 1][1].trim();
+    if (lastDraft) {
+      text = lastDraft;
+    }
+  }
+
+  // 3. Strip internal persona breakdown headers if present (e.g. "* Persona: ... \n * User Query: ...")
+  text = text.replace(/^\s*\*?\s*Persona\s*:[\s\S]*?(?=\n\n|\n[A-Z]|\n\s*\*?\s*Draft|\nDirect|$)/i, '').trim();
+  text = text.replace(/^\s*\*?\s*User Query\s*:[\s\S]*?(?=\n\n|\n[A-Z]|$)/i, '').trim();
+  text = text.replace(/^\s*\*?\s*Attributes\s*:[\s\S]*?(?=\n\n|\n[A-Z]|$)/i, '').trim();
+  text = text.replace(/^\s*\*?\s*Format\s*:[\s\S]*?(?=\n\n|\n[A-Z]|$)/i, '').trim();
+  text = text.replace(/^\s*\*?\s*Draft\s*\d+[\s\S]*?:\s*/i, '').trim();
+
+  // 4. Remove any remaining raw internal monologue prefixes
+  text = text.replace(/^(Internal Monologue|Thought Process|Thinking Process|Draft \d+):\s*[\s\S]*?\n/i, '').trim();
+
+  return text || raw.trim();
+}
+
 export async function POST(req: Request) {
   const startTime = Date.now();
   try {
@@ -21,26 +50,26 @@ export async function POST(req: Request) {
       );
     }
 
-    // Default to gemini-2.5-flash for speed and rock-solid reliability
+    // Default model if unspecified
     const rawModel = model?.trim() || process.env.GEMINI_MODEL || 'gemini-2.5-flash';
-    
-    // Clean model format (strip leading models/ if provided)
     let selectedModel = rawModel.replace(/^models\//, '');
     
-    // Normalize deprecated or invalid model names
+    // Normalize aliases while retaining Gemma access
     if (selectedModel.includes('1.5-flash')) {
       selectedModel = 'gemini-2.5-flash';
     } else if (selectedModel.includes('1.5-pro')) {
       selectedModel = 'gemini-2.5-pro';
     } else if (selectedModel.includes('3.7-flash') || selectedModel.includes('3.6-flash')) {
       selectedModel = 'gemini-2.5-flash';
-    } else if (selectedModel.startsWith('gemma-4') || selectedModel.includes('gemma-4-26b')) {
-      // Map unsupported gemma 4 tags to fast gemini-2.5-flash
-      selectedModel = 'gemini-2.5-flash';
+    } else if (selectedModel === 'gemma-4-26b-a4b-it' || selectedModel.startsWith('gemma-4')) {
+      // Map to available Gemma 2 27B or try Gemma
+      selectedModel = 'gemma-2-27b-it';
     }
 
     const buildEndpoint = (m: string) => 
       `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(m.replace(/^models\//, ''))}:generateContent?key=${encodeURIComponent(key)}`;
+
+    const isGemmaModel = selectedModel.toLowerCase().includes('gemma');
 
     // --- 1. MODEL CAPABILITY & PING TEST MODE ---
     if (isTest) {
@@ -60,7 +89,7 @@ export async function POST(req: Request) {
       let pingData = await pingResponse.json();
       const latencyMs = Date.now() - pingStart;
 
-      // Handle Quota Limit (429) specifically
+      // Handle Quota Limit (429)
       if (pingResponse.status === 429 || pingData?.error?.code === 429 || pingData?.error?.message?.toLowerCase().includes('quota')) {
         return NextResponse.json({
           success: false,
@@ -82,11 +111,10 @@ export async function POST(req: Request) {
         }, { status: 401 });
       }
 
-      // If requested model returned error (500, 404, etc.), test fallback to gemini-2.5-flash
+      // If requested model returned error, test fallback to gemini-2.5-flash
       if (!pingResponse.ok || pingData?.error) {
         const errorMsg = pingData?.error?.message || 'Model unreachable';
         
-        // Attempt fallback probe to gemini-2.5-flash
         const fallbackEndpoint = buildEndpoint('gemini-2.5-flash');
         const fallbackRes = await fetch(fallbackEndpoint, {
           method: 'POST',
@@ -144,26 +172,51 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Prompt is required.' }, { status: 400 });
     }
 
-    const systemText = systemInstruction || 
-      'You are J.A.R.V.I.S., the executive AI assistant for Focus Forge. CRITICAL: Give ONLY the direct factual answer in 1 single short sentence (maximum 15-20 words). NO pleasantries, NO conversational filler, NO preamble, and NO backstory.';
+    const defaultSystem = 'You are J.A.R.V.I.S., the executive AI assistant for Focus Forge. Answer directly in 1 short sentence (15-20 words max). NO conversational filler, NO pleasantries, and NO internal drafts.';
+    const systemText = systemInstruction || defaultSystem;
 
-    // Construct generation payload
-    const requestBody: any = {
-      contents: [
-        {
-          role: 'user',
-          parts: [
-            {
-              text: `${systemText}\n\nUser query: ${prompt.trim()}\n\nDirect factual answer (1 sentence):`
-            }
-          ]
+    // Construct model-specific generation payload
+    let requestBody: any;
+    if (isGemmaModel) {
+      // Gemma format: clean direct user content without system_instruction object
+      requestBody = {
+        contents: [
+          {
+            role: 'user',
+            parts: [
+              {
+                text: `${systemText}\n\nUser Question: ${prompt.trim()}\n\nDirect Answer:`
+              }
+            ]
+          }
+        ],
+        generationConfig: {
+          temperature: 0.2,
+          maxOutputTokens: 200,
         }
-      ],
-      generationConfig: {
-        temperature: 0.2,
-        maxOutputTokens: 150,
-      }
-    };
+      };
+    } else {
+      // Gemini format: native system_instruction support
+      requestBody = {
+        system_instruction: {
+          parts: [{ text: systemText }]
+        },
+        contents: [
+          {
+            role: 'user',
+            parts: [
+              {
+                text: prompt.trim()
+              }
+            ]
+          }
+        ],
+        generationConfig: {
+          temperature: 0.2,
+          maxOutputTokens: 200,
+        }
+      };
+    }
 
     if (jsonSchema) {
       requestBody.generationConfig.responseMimeType = "application/json";
@@ -181,7 +234,7 @@ export async function POST(req: Request) {
     let isFallback = false;
     let fallbackReason = null;
 
-    // Automatic fallback if model encounters 500 (Internal error), 404 (Not found), 503, or invalid model error
+    // Automatic fallback if model encounters error (e.g. 500, 404, 400)
     if (!response.ok && selectedModel !== 'gemini-2.5-flash') {
       const isAuthOrQuota = response.status === 401 || response.status === 403 || response.status === 429;
       if (!isAuthOrQuota) {
@@ -189,10 +242,16 @@ export async function POST(req: Request) {
         const fallbackEndpoint = buildEndpoint(fallbackTarget);
         
         try {
+          const fallbackBody = {
+            system_instruction: { parts: [{ text: systemText }] },
+            contents: [{ role: 'user', parts: [{ text: prompt.trim() }] }],
+            generationConfig: { temperature: 0.2, maxOutputTokens: 200 }
+          };
+
           const fallbackResponse = await fetch(fallbackEndpoint, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(requestBody),
+            body: JSON.stringify(fallbackBody),
           });
           
           const fallbackData = await fallbackResponse.json();
@@ -209,7 +268,7 @@ export async function POST(req: Request) {
       }
     }
 
-    // Handle Quota Limit (429) specifically
+    // Handle Quota Limit (429)
     if (response.status === 429 || data?.error?.code === 429 || data?.error?.message?.toLowerCase().includes('quota')) {
       return NextResponse.json(
         { 
@@ -233,17 +292,20 @@ export async function POST(req: Request) {
       );
     }
 
-    const reply = data?.candidates?.[0]?.content?.parts?.[0]?.text ||
-                  data?.output_text ||
-                  "Standing by for your focus directive, sir.";
+    const rawReply = data?.candidates?.[0]?.content?.parts?.[0]?.text ||
+                     data?.output_text ||
+                     "Standing by for your focus directive, sir.";
+
+    // Clean any leaked thoughts, persona headers, or Draft 1/Draft 2 monologues
+    const cleanReply = cleanAiResponse(rawReply);
 
     const estimatedInputTokens = Math.round((prompt.length + systemText.length) / 4);
-    const estimatedOutputTokens = Math.round(reply.length / 4);
+    const estimatedOutputTokens = Math.round(cleanReply.length / 4);
     const latencyMs = Date.now() - startTime;
 
     return NextResponse.json({ 
-      reply: reply.trim(), 
-      text: reply.trim(), 
+      reply: cleanReply, 
+      text: cleanReply, 
       model: selectedModel,
       isFallback,
       fallbackReason,

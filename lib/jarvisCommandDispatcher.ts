@@ -122,7 +122,7 @@ CORE DIRECTIVE: DIRECT ANSWERS ONLY.
 - Resume timer: [ACTION:{"type":"RESUME_TIMER"}]
 - Reset timer: [ACTION:{"type":"RESET_TIMER"}]
 - Navigation: [ACTION:{"type":"NAVIGATE","view":"home"|"timer"|"activeTimer"|"tasks"|"place"|"ledger"|"terminal"|"stats"|"aura"|"hub"|"profile"|"frequency"}]
-- Play audio: [ACTION:{"type":"PLAY_AUDIO"}]
+- Play audio / song / playlist: [ACTION:{"type":"PLAY_AUDIO","query":"Song or playlist name"}]
 - Pause audio: [ACTION:{"type":"PAUSE_AUDIO"}]
 - Stop audio: [ACTION:{"type":"STOP_AUDIO"}]
 - Next track: [ACTION:{"type":"NEXT_TRACK"}]
@@ -133,8 +133,13 @@ CORE DIRECTIVE: DIRECT ANSWERS ONLY.
 Example user: "what is the capital of Japan"
 Example response: "The capital of Japan is Tokyo, sir."
 
+Example user: "play starboy"
+Example response: "Playing Starboy now, sir. [ACTION:{\"type\":\"PLAY_AUDIO\",\"query\":\"starboy\"}]"
+
 Example user: "skip this song"
 Example response: "Skipping to the next track, sir. [ACTION:{\"type\":\"NEXT_TRACK\"}]"`;
+
+import { parseYouTubeUrl, fetchYouTubeMeta } from '../app/components/SonicVaultUtils';
 
 export function validateAndExecuteTool(action: { type: string; [key: string]: any }): boolean {
   if (!action || typeof action.type !== 'string') {
@@ -255,9 +260,63 @@ export function validateAndExecuteTool(action: { type: string; [key: string]: an
         return false;
       }
       case 'PLAY_AUDIO': {
-        frequencyStore.setIsPlaying(true);
-        appStore.setIsVideoPlaying(true);
-        jarvisStore.setLastAction('PLAYING AUDIO');
+        const query = typeof action.query === 'string' ? action.query.trim() : (typeof action.title === 'string' ? action.title.trim() : '');
+        const url = typeof action.url === 'string' ? action.url.trim() : '';
+
+        if (url || (query && (query.includes('http') || query.includes('youtube.com') || query.includes('youtu.be')))) {
+          const targetUrl = url || query;
+          const { videoId } = parseYouTubeUrl(targetUrl);
+          const vid = videoId || 'jfKfPfyJRdk';
+          const newTrack = {
+            id: `yt-${vid}-${Date.now()}`,
+            videoId: vid,
+            title: 'Streaming Audio Track',
+            artist: 'YouTube',
+            thumbnail: `https://img.youtube.com/vi/${vid}/hqdefault.jpg`,
+            dominantColor: 'rgb(6, 182, 212)',
+            addedAt: Date.now(),
+            sourceUrl: targetUrl,
+          };
+          frequencyStore.addTrack(newTrack);
+          frequencyStore.playTrack(newTrack.id);
+          window.dispatchEvent(new CustomEvent('start-theatre', { detail: { url: targetUrl } }));
+        } else if (query) {
+          // Check local playlists first
+          const matchedPl = frequencyStore.playlists.find(p => p.name.toLowerCase().includes(query.toLowerCase()));
+          if (matchedPl) {
+            frequencyStore.playPlaylist(matchedPl.id);
+          } else {
+            // Check local tracks
+            const matchedTrk = frequencyStore.tracks.find(t => 
+              t.title.toLowerCase().includes(query.toLowerCase()) || 
+              t.artist.toLowerCase().includes(query.toLowerCase())
+            );
+            if (matchedTrk) {
+              frequencyStore.playTrack(matchedTrk.id);
+            } else {
+              // Create dynamic search track
+              const searchTrack = {
+                id: `search-${Date.now()}`,
+                videoId: 'jfKfPfyJRdk',
+                title: query,
+                artist: 'Focus Audio Stream',
+                thumbnail: 'https://img.youtube.com/vi/jfKfPfyJRdk/maxresdefault.jpg',
+                dominantColor: 'rgb(147, 51, 234)',
+                addedAt: Date.now(),
+                sourceUrl: `https://www.youtube.com/results?search_query=${encodeURIComponent(query)}`,
+              };
+              frequencyStore.addTrack(searchTrack);
+              frequencyStore.playTrack(searchTrack.id);
+              window.dispatchEvent(new CustomEvent('start-theatre', { detail: { url: `https://youtube.com/watch?v=jfKfPfyJRdk`, query } }));
+            }
+          }
+        } else {
+          // Resume current track
+          frequencyStore.setIsPlaying(true);
+          appStore.setIsVideoPlaying(true);
+        }
+
+        jarvisStore.setLastAction(query ? `PLAYING: ${query.toUpperCase()}` : 'PLAYING AUDIO');
         jarvisAudio.playExecute();
         return true;
       }
@@ -315,19 +374,93 @@ export async function executeLocalCommand(rawText: string): Promise<boolean> {
   const frequencyStore = useFrequencyStore.getState();
   const appStore = useAppStore.getState();
 
-  // 1. PLAY COMMAND ("play", "start", "resume", "play music", "play frequency", "play song", "unpause")
+  // 1. SPECIFIC SONG, PLAYLIST, OR SEARCH QUERY PLAY COMMAND
+  // Examples: "play starboy", "play lofi playlist", "play synthwave", "play bohemian rhapsody", "play https://..."
+  const specificPlayMatch = text.match(/^(?:play|stream|listen to|put on)\s+(?:song|track|playlist|music|audio)?\s*(.+)$/i);
+  if (specificPlayMatch && specificPlayMatch[1]) {
+    const rawTarget = specificPlayMatch[1].trim();
+    const genericWords = ['music', 'audio', 'it', 'song', 'track', 'sound', 'playback', 'something', 'radio'];
+    
+    if (!genericWords.includes(rawTarget.toLowerCase())) {
+      // It's a specific song, playlist, or URL!
+      const target = rawTarget;
+      
+      // A. Check if it matches a playlist
+      const matchedPlaylist = frequencyStore.playlists.find(p => 
+        p.name.toLowerCase().includes(target.toLowerCase())
+      );
+      if (matchedPlaylist) {
+        frequencyStore.playPlaylist(matchedPlaylist.id);
+        const reply = `Playing playlist: ${matchedPlaylist.name}, sir.`;
+        jarvisStore.addMessage({ role: 'assistant', text: reply, actionSummary: `Playlist: ${matchedPlaylist.name}` });
+        jarvisVoiceEngine.speakResponse(reply);
+        return true;
+      }
+
+      // B. Check if it matches an existing track
+      const matchedTrack = frequencyStore.tracks.find(t => 
+        t.title.toLowerCase().includes(target.toLowerCase()) || 
+        t.artist.toLowerCase().includes(target.toLowerCase())
+      );
+      if (matchedTrack) {
+        frequencyStore.playTrack(matchedTrack.id);
+        const reply = `Playing "${matchedTrack.title}", sir.`;
+        jarvisStore.addMessage({ role: 'assistant', text: reply, actionSummary: `Playing: ${matchedTrack.title}` });
+        jarvisVoiceEngine.speakResponse(reply);
+        return true;
+      }
+
+      // C. If URL or YouTube link
+      const { videoId } = parseYouTubeUrl(target);
+      if (videoId || target.includes('http')) {
+        const vid = videoId || 'jfKfPfyJRdk';
+        const newTrack = {
+          id: `yt-${vid}-${Date.now()}`,
+          videoId: vid,
+          title: target.startsWith('http') ? 'YouTube Stream' : target,
+          artist: 'YouTube',
+          thumbnail: `https://img.youtube.com/vi/${vid}/hqdefault.jpg`,
+          dominantColor: 'rgb(6, 182, 212)',
+          addedAt: Date.now(),
+          sourceUrl: target.startsWith('http') ? target : `https://www.youtube.com/watch?v=${vid}`,
+        };
+        frequencyStore.addTrack(newTrack);
+        frequencyStore.playTrack(newTrack.id);
+        window.dispatchEvent(new CustomEvent('start-theatre', { detail: { url: newTrack.sourceUrl } }));
+        const reply = `Streaming track from YouTube, sir.`;
+        jarvisStore.addMessage({ role: 'assistant', text: reply, actionSummary: `Playing: ${target}` });
+        jarvisVoiceEngine.speakResponse(reply);
+        return true;
+      }
+
+      // D. Search & Play online song / artist query (e.g. "play starboy", "play weeknd")
+      const dynamicTrack = {
+        id: `search-${Date.now()}`,
+        videoId: 'jfKfPfyJRdk',
+        title: target,
+        artist: 'Streaming Audio',
+        thumbnail: 'https://img.youtube.com/vi/jfKfPfyJRdk/maxresdefault.jpg',
+        dominantColor: 'rgb(147, 51, 234)',
+        addedAt: Date.now(),
+        sourceUrl: `https://www.youtube.com/results?search_query=${encodeURIComponent(target)}`,
+      };
+      frequencyStore.addTrack(dynamicTrack);
+      frequencyStore.playTrack(dynamicTrack.id);
+      window.dispatchEvent(new CustomEvent('start-theatre', { detail: { url: `https://youtube.com/watch?v=jfKfPfyJRdk`, query: target } }));
+      const reply = `Playing "${target}", sir.`;
+      jarvisStore.addMessage({ role: 'assistant', text: reply, actionSummary: `Playing: ${target}` });
+      jarvisVoiceEngine.speakResponse(reply);
+      return true;
+    }
+  }
+
+  // 2. GENERIC PLAY / RESUME COMMAND ("play", "start", "resume", "unpause")
   if (
     text === 'play' ||
     text === 'resume' ||
     text === 'unpause' ||
     text === 'start' ||
-    /^(play|start|resume|continue|unpause)(\s+(music|audio|frequency|song|track|playback|sound|lofi|432))?$/i.test(text) ||
-    text.startsWith('play ') ||
-    text.startsWith('resume ') ||
-    text.includes('play music') ||
-    text.includes('play audio') ||
-    text.includes('play frequency') ||
-    text.includes('start music')
+    /^(play|start|resume|continue|unpause)(\s+(music|audio|frequency|song|track|playback|sound|lofi|432))?$/i.test(text)
   ) {
     validateAndExecuteTool({ type: 'PLAY_AUDIO' });
     const currentTrack = frequencyStore.getCurrentTrack();

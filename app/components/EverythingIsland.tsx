@@ -1061,8 +1061,8 @@ export default function EverythingIsland() {
       else if (activeMode === 'Task Atomizer') modePrompt = "Decompose any objective into atomic, actionable, 15-to-45 minute steps.";
       else if (activeMode === 'Strategy') modePrompt = "Provide executive, high-conviction decision frameworks and clarity.";
 
-      const systemInstruction = `You are Aura Copilot, the elite cognitive intelligence of Focus Forge. ${modePrompt}
-Be precise, inspiring, and exceptionally concise. Format key takeaways with clean bullet points.`;
+      const systemInstruction = `You are an executive AI assistant for Focus Forge. ${modePrompt}
+Answer directly, clearly, and concisely in normal natural language. Provide direct factual responses without internal thinking drafts, persona breakdowns, or conversational fluff.`;
 
       const response = await fetch('/api/gemini', {
         method: 'POST',

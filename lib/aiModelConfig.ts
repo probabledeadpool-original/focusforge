@@ -32,6 +32,36 @@ export const AI_CONFIG: AiConfig = {
 
 export const AVAILABLE_MODELS: ModelDefinition[] = [
   {
+    id: "gemma-4-26b-a4b-it",
+    name: "Gemma 4 26B Instruct",
+    category: "text",
+    description: "High-capacity open-weights instruction model with generous quota for text reasoning, summarization, and direct command execution.",
+    capabilities: {
+      textReasoning: true,
+      toolRouting: true,
+      searchSummarization: true,
+      liveAudio: false,
+      vision: false,
+    },
+    recommendedFor: "Daily text reasoning, commands, search & tool routing (High Quota Open Weights)",
+    quotaTier: "High"
+  },
+  {
+    id: "gemma-2-27b-it",
+    name: "Gemma 2 27B Instruct",
+    category: "text",
+    description: "Google's powerful open-weights language model optimized for conversational reasoning and exact answers.",
+    capabilities: {
+      textReasoning: true,
+      toolRouting: true,
+      searchSummarization: true,
+      liveAudio: false,
+      vision: false,
+    },
+    recommendedFor: "Concise responses & open weights reasoning",
+    quotaTier: "High"
+  },
+  {
     id: "gemini-2.5-flash",
     name: "Gemini 2.5 Flash",
     category: "text",
@@ -43,7 +73,7 @@ export const AVAILABLE_MODELS: ModelDefinition[] = [
       liveAudio: false,
       vision: true,
     },
-    recommendedFor: "Instant voice commands, direct query answers & tool execution (Primary Recommended)",
+    recommendedFor: "Instant voice commands, direct query answers & tool execution",
     quotaTier: "High"
   },
   {
