@@ -1,0 +1,5 @@
+{
+  "name": "FOCUSFORGE",
+  "description": "A focus app with youtube player and focus cam",
+  "requestFramePermissions": ["camera"]
+}
