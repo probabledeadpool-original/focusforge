@@ -455,24 +455,19 @@ class JarvisVoiceEngine {
       const recognition = new SpeechRecognition();
       recognition.continuous = true;
       recognition.interimResults = true;
-      recognition.maxAlternatives = 5; // Multi-hypothesis acoustic alternatives for maximum sensitivity
+      recognition.maxAlternatives = 5;
       recognition.lang = 'en-US';
 
-      const currentSession = this.currentSessionId;
-
       recognition.onstart = () => {
-        if (!this.isSessionActive(currentSession)) return;
-        this.transitionTo('WAKE_WORD_LISTENING', 'Wake-word detector online (Max Sensitivity)');
+        this.transitionTo('WAKE_WORD_LISTENING', 'Wake-word detector online');
       };
 
       recognition.onresult = (event: any) => {
-        if (!this.isSessionActive(currentSession)) return;
         if (this.isCooldownActive) return;
         if (this.phase !== 'WAKE_WORD_LISTENING') return;
 
         for (let i = event.resultIndex; i < event.results.length; i++) {
           const item = event.results[i];
-          // Check all phonetic alternatives provided by the speech recognition engine
           for (let k = 0; k < item.length; k++) {
             const transcript = (item[k].transcript || '').trim();
             if (!transcript) continue;
@@ -503,28 +498,29 @@ class JarvisVoiceEngine {
           this.transitionTo('ERROR', 'Microphone permission denied');
           return;
         }
-        // Non-fatal error; allow onend to restart immediately
         voiceLog("WAKE_WORD_RECOGNITION_NOTE", { error: e.error });
       };
 
       recognition.onend = () => {
-        if (this.isWakeWordEnabled) {
-          // Reconnect instantly without a deaf window
+        if (this.isWakeWordEnabled && this.phase === 'WAKE_WORD_LISTENING') {
           if (this.restartTimer) clearTimeout(this.restartTimer);
           this.restartTimer = setTimeout(() => {
-            if (this.isWakeWordEnabled && (this.phase === 'WAKE_WORD_LISTENING' || this.phase === 'IDLE' || this.phase === 'ERROR')) {
+            if (this.isWakeWordEnabled && (this.phase === 'WAKE_WORD_LISTENING' || this.phase === 'IDLE')) {
               this.startWakeWordDetection();
             }
           }, VOICE_CONFIG.reconnectDelayMs);
         }
       };
 
-      recognition.start();
+      try {
+        recognition.start();
+      } catch (err) {
+        voiceLog("WAKE_WORD_ALREADY_STARTED_NOTE");
+      }
       this.wakeWordRecognition = recognition;
     } catch (err: any) {
       voiceLog("WAKE_WORD_START_ERROR", { error: err?.message });
       this.lastError = err?.message || 'Failed to start microphone listener';
-      // Retry starting rather than staying permanently dead
       if (this.restartTimer) clearTimeout(this.restartTimer);
       this.restartTimer = setTimeout(() => {
         if (this.isWakeWordEnabled) this.startWakeWordDetection();
@@ -549,29 +545,22 @@ class JarvisVoiceEngine {
     if (this.isCooldownActive) return;
     this.isCooldownActive = true;
 
-    // Cooldown timer to prevent duplicate wake-word triggers from the same utterance
     if (this.wakeWordCooldownTimer) clearTimeout(this.wakeWordCooldownTimer);
     this.wakeWordCooldownTimer = setTimeout(() => {
       this.isCooldownActive = false;
       this.wakeWordCooldownTimer = null;
     }, VOICE_CONFIG.wakeWordCooldownMs);
 
-    // Stop wake word recognition immediately to avoid audio contention
     this.cleanupWakeWordRecognition();
 
-    // Create unique session ID with strict guard
     const sessionId = this.generateSessionId();
     this.currentSessionId = sessionId;
 
     this.transitionTo('WAKE_WORD_DETECTED', `Wake word matched: "${rawUtterance}"`);
 
-    // Clean any remainder of the phrase following "Jarvis" (e.g. "Jarvis play")
-    let trailingCommand = rawUtterance;
-    this.activeHotwordPatterns.forEach((rx) => {
-      trailingCommand = trailingCommand.replace(rx, '').trim();
-    });
+    // Clean leading wake word if user spoke full phrase in one breath
+    let trailingCommand = rawUtterance.replace(/^(hey|ok|okay|yo|hi|hello)?\s*(jarvis|javis)\s*/i, '').trim();
 
-    // Notify UI / HUD to open immediately (0ms delay)
     if (typeof window !== 'undefined') {
       window.dispatchEvent(new CustomEvent('jarvis-hotword-triggered', {
         detail: { rawUtterance, trailingCommand, sessionId }
@@ -589,23 +578,20 @@ class JarvisVoiceEngine {
     const sessionId = existingSessionId || this.generateSessionId();
     this.currentSessionId = sessionId;
 
-    const cleanInitial = (initialBuffer || '').trim();
+    const cleanInitial = (initialBuffer || '').replace(/^(hey|ok|okay|yo|hi|hello)?\s*(jarvis|javis)\s*/i, '').trim();
     this.accumulatedCommandText = cleanInitial;
     this.liveInterimTranscript = cleanInitial;
     this.commandStartedAt = Date.now();
     this.lastError = null;
 
     this.transitionTo('LISTENING_FOR_COMMAND', 'Started active command listening session');
+    this.notifyTelemetry();
 
-    // If the user already provided a command in the same breath (e.g. "Jarvis play radio"),
-    // schedule a silence timer immediately so that if no more speech comes, it commits cleanly!
     if (cleanInitial.length > 2) {
       this.silenceTimer = setTimeout(() => {
-        if (this.isSessionActive(sessionId) && this.phase === 'LISTENING_FOR_COMMAND') {
-          if (this.accumulatedCommandText.trim()) {
-            voiceLog("INITIAL_BUFFER_SILENCE_FINALIZED", { command: this.accumulatedCommandText });
-            this.commitCommand(this.accumulatedCommandText.trim());
-          }
+        if (this.phase === 'LISTENING_FOR_COMMAND' && this.accumulatedCommandText.trim()) {
+          voiceLog("INITIAL_BUFFER_SILENCE_FINALIZED", { command: this.accumulatedCommandText });
+          this.commitCommand(this.accumulatedCommandText.trim());
         }
       }, VOICE_CONFIG.commandSilenceTimeoutMs);
     }
@@ -625,19 +611,19 @@ class JarvisVoiceEngine {
       recognition.interimResults = true;
       recognition.lang = 'en-US';
 
-      // 6-second fallback timeout if user triggers wake-word and never says anything
+      // 8-second fallback timeout if user triggers wake-word and never says anything
       this.noSpeechTimer = setTimeout(() => {
-        if (this.isSessionActive(sessionId) && this.phase === 'LISTENING_FOR_COMMAND') {
+        if (this.phase === 'LISTENING_FOR_COMMAND') {
           if (!this.accumulatedCommandText.trim()) {
             voiceLog("NO_SPEECH_TIMEOUT_STANDBY");
             this.resetVoiceSession();
           }
         }
-      }, 6000);
+      }, 8000);
 
       // Max command duration timeout
       this.maxDurationTimer = setTimeout(() => {
-        if (this.isSessionActive(sessionId) && this.phase === 'LISTENING_FOR_COMMAND') {
+        if (this.phase === 'LISTENING_FOR_COMMAND') {
           if (this.accumulatedCommandText.trim()) {
             voiceLog("MAX_DURATION_EXCEEDED_FINALIZED");
             this.commitCommand(this.accumulatedCommandText.trim());
@@ -648,9 +634,6 @@ class JarvisVoiceEngine {
       }, VOICE_CONFIG.maxCommandDurationMs);
 
       recognition.onresult = (event: any) => {
-        if (!this.isSessionActive(sessionId)) return;
-        if (this.phase !== 'LISTENING_FOR_COMMAND') return;
-
         let interim = '';
         let final = '';
 
@@ -666,14 +649,10 @@ class JarvisVoiceEngine {
         let combined = (final + interim).trim();
         if (!combined && initialBuffer) {
           combined = initialBuffer;
-        } else if (initialBuffer && !combined.toLowerCase().includes(initialBuffer.toLowerCase())) {
-          combined = `${initialBuffer} ${combined}`.trim();
         }
 
-        // Clean out any hotword text that user might repeat
-        this.activeHotwordPatterns.forEach((rx) => {
-          combined = combined.replace(rx, '').trim();
-        });
+        // Clean out leading wake word only
+        combined = combined.replace(/^(hey|ok|okay|yo|hi|hello)?\s*(jarvis|javis)\s*/i, '').trim();
 
         this.accumulatedCommandText = combined;
         this.liveInterimTranscript = combined;
@@ -695,7 +674,7 @@ class JarvisVoiceEngine {
         // When meaningful speech is present, start the silence countdown
         if (combined.length > 1) {
           this.silenceTimer = setTimeout(() => {
-            if (this.isSessionActive(sessionId) && this.phase === 'LISTENING_FOR_COMMAND') {
+            if (this.phase === 'LISTENING_FOR_COMMAND') {
               const duration = this.commandStartedAt ? Date.now() - this.commandStartedAt : 0;
               if (duration >= VOICE_CONFIG.minimumCommandDurationMs && this.accumulatedCommandText.trim()) {
                 voiceLog("SILENCE_FINALIZED_COMMAND", { command: this.accumulatedCommandText });
@@ -720,15 +699,18 @@ class JarvisVoiceEngine {
       };
 
       recognition.onend = () => {
-        if (this.isSessionActive(sessionId) && this.phase === 'LISTENING_FOR_COMMAND') {
-          // If recognition stops unexpectedly while we are still listening, restart it
+        if (this.phase === 'LISTENING_FOR_COMMAND') {
           try {
             recognition.start();
           } catch (e) {}
         }
       };
 
-      recognition.start();
+      try {
+        recognition.start();
+      } catch (e) {
+        voiceLog("COMMAND_RECOGNITION_ALREADY_ACTIVE");
+      }
       this.commandRecognition = recognition;
     } catch (err: any) {
       voiceLog("COMMAND_INIT_ERROR", { error: err?.message });
@@ -761,10 +743,8 @@ class JarvisVoiceEngine {
     if (this.commandHandler) {
       this.commandHandler(textToProcess, sessionId).catch((err) => {
         voiceLog("COMMAND_HANDLER_ERROR", { error: err?.message });
-        if (this.isSessionActive(sessionId)) {
-          this.lastError = err?.message || 'Command processing failed';
-          this.transitionTo('ERROR', 'Command handler failed');
-        }
+        this.lastError = err?.message || 'Command processing failed';
+        this.transitionTo('ERROR', 'Command handler failed');
       });
     }
   }
@@ -906,7 +886,8 @@ class JarvisVoiceEngine {
       try {
         this.wakeWordRecognition.onend = null;
         this.wakeWordRecognition.onerror = null;
-        this.wakeWordRecognition.stop();
+        this.wakeWordRecognition.onresult = null;
+        this.wakeWordRecognition.abort();
       } catch (e) {}
       this.wakeWordRecognition = null;
     }
@@ -917,7 +898,8 @@ class JarvisVoiceEngine {
       try {
         this.commandRecognition.onend = null;
         this.commandRecognition.onerror = null;
-        this.commandRecognition.stop();
+        this.commandRecognition.onresult = null;
+        this.commandRecognition.abort();
       } catch (e) {}
       this.commandRecognition = null;
     }
