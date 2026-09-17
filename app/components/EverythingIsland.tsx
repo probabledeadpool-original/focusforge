@@ -665,7 +665,7 @@ export default function EverythingIsland() {
       const mode = e?.detail?.mode;
       if (mode === 'expanded') {
         setIslandState('ai');
-      } else if (mode === 'minimized') {
+      } else if (mode === 'minimized' || mode === 'fullscreen') {
         setIslandState('mini');
       }
     };
