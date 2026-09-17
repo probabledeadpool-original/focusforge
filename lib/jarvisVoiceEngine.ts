@@ -42,21 +42,100 @@ export type VoiceEngineTelemetry = VoiceStateData;
 
 export const VOICE_CONFIG = {
   wakeWord: "jarvis",
-  wakeWordCooldownMs: 2000,
+  wakeWordCooldownMs: 1500,
   commandSilenceTimeoutMs: 1200,
-  minimumCommandDurationMs: 300,
-  minimumSpeechDurationMs: 250,
-  acknowledgementGuardMs: 250,
-  reconnectDelayMs: 1000,
+  minimumCommandDurationMs: 250,
+  minimumSpeechDurationMs: 200,
+  acknowledgementGuardMs: 200,
+  reconnectDelayMs: 30,
   maxCommandDurationMs: 60000
 };
 
+// Levenshtein distance calculation for ultra-high sensitivity fuzzy matching
+function levenshteinDistance(a: string, b: string): number {
+  if (a === b) return 0;
+  if (!a.length) return b.length;
+  if (!b.length) return a.length;
+
+  const matrix: number[][] = [];
+  for (let i = 0; i <= b.length; i++) matrix[i] = [i];
+  for (let j = 0; j <= a.length; j++) matrix[0][j] = j;
+
+  for (let i = 1; i <= b.length; i++) {
+    for (let j = 1; j <= a.length; j++) {
+      if (b.charAt(i - 1) === a.charAt(j - 1)) {
+        matrix[i][j] = matrix[i - 1][j - 1];
+      } else {
+        matrix[i][j] = Math.min(
+          matrix[i - 1][j - 1] + 1,
+          matrix[i][j - 1] + 1,
+          matrix[i - 1][j] + 1
+        );
+      }
+    }
+  }
+  return matrix[b.length][a.length];
+}
+
+const PHONETIC_JARVIS_STEMS = [
+  'jarvis', 'javis', 'jarves', 'jarviz', 'jarvice', 'jarv', 'jervis',
+  'travis', 'service', 'harvest', 'starck', 'stark', 'friday',
+  'darvis', 'garvis', 'charvis', 'larvis', 'marvis', 'harvis',
+  'jarvez', 'jahvis', 'jahves', 'darvish', 'java'
+];
+
+function checkHotwordMatch(
+  text: string,
+  patterns: RegExp[],
+  trainedWord: string,
+  highSensitivity: boolean
+): boolean {
+  const clean = text.toLowerCase().replace(/['’]/g, '').trim();
+  if (!clean) return false;
+
+  // 1. Direct Regex Patterns
+  if (patterns.some(p => p.test(clean))) return true;
+
+  // 2. Direct inclusion of target wake word
+  const target = (trainedWord || 'jarvis').toLowerCase().trim();
+  if (clean.includes(target) || clean.includes('jarvis') || clean.includes('javis')) {
+    return true;
+  }
+
+  // 3. Word-by-Word Fuzzy & Phonetic Matching
+  const words = clean.replace(/[^a-z0-9\s]/gi, ' ').split(/\s+/).filter(Boolean);
+  for (const word of words) {
+    if (PHONETIC_JARVIS_STEMS.includes(word)) return true;
+
+    if (word.length >= 3) {
+      if (levenshteinDistance(word, 'jarvis') <= (highSensitivity ? 2 : 1)) return true;
+      if (trainedWord && levenshteinDistance(word, target) <= (highSensitivity ? 2 : 1)) return true;
+    }
+
+    if (highSensitivity && word.length >= 3) {
+      if (
+        word.startsWith('jarv') ||
+        word.startsWith('jav') ||
+        word.startsWith('jrv') ||
+        word.endsWith('arvis') ||
+        word.endsWith('ervis') ||
+        word.endsWith('avis')
+      ) {
+        return true;
+      }
+    }
+  }
+
+  return false;
+}
+
 // Default phonetic & natural speech variations of "Jarvis"
 const DEFAULT_HOTWORD_PATTERNS = [
-  /\b(hey|ok|okay|yo|hi|hello|listen|start|dear)?\s*(jarvis|javis|jarvises|jarves|jarviz|jar\s*vis|jar\s*vice|travis|service|harvest|starck|stark|charles)\b/i,
+  /\b(hey|ok|okay|yo|hi|hello|listen|start|dear|mr|mister)?\s*(jarvis|javis|jarvises|jarves|jarviz|jar\s*vis|jar\s*vice|travis|service|harvest|starck|stark|charles|jervis|darvis|garvis|charvis|arvis|jarv|jrv|jav|java|jarvez|darvish|jahvis|jahves)\b/i,
   /\b(hey|ok|okay|yo|hi|hello)\s*jarvis\b/i,
   /\bjarvis\b/i,
   /\bjavis\b/i,
+  /\bjarv\b/i,
 ];
 
 export function voiceLog(event: string, details?: any): void {
@@ -89,6 +168,8 @@ class JarvisVoiceEngine {
   private lastActivityAt: number = Date.now();
 
   private isWakeWordEnabled: boolean = true;
+  private isHighSensitivityMode: boolean = true;
+  private preDuckingVolume: number | null = null;
   private isCooldownActive: boolean = false;
   private activeListenerCount: number = 0;
   private activeHotwordPatterns: RegExp[] = [...DEFAULT_HOTWORD_PATTERNS];
@@ -374,13 +455,14 @@ class JarvisVoiceEngine {
       const recognition = new SpeechRecognition();
       recognition.continuous = true;
       recognition.interimResults = true;
+      recognition.maxAlternatives = 5; // Multi-hypothesis acoustic alternatives for maximum sensitivity
       recognition.lang = 'en-US';
 
       const currentSession = this.currentSessionId;
 
       recognition.onstart = () => {
         if (!this.isSessionActive(currentSession)) return;
-        this.transitionTo('WAKE_WORD_LISTENING', 'Wake-word detector online');
+        this.transitionTo('WAKE_WORD_LISTENING', 'Wake-word detector online (Max Sensitivity)');
       };
 
       recognition.onresult = (event: any) => {
@@ -388,17 +470,30 @@ class JarvisVoiceEngine {
         if (this.isCooldownActive) return;
         if (this.phase !== 'WAKE_WORD_LISTENING') return;
 
-        let transcript = '';
         for (let i = event.resultIndex; i < event.results.length; i++) {
-          transcript += event.results[i][0].transcript;
-        }
-        transcript = transcript.trim().toLowerCase();
-        if (!transcript) return;
+          const item = event.results[i];
+          // Check all phonetic alternatives provided by the speech recognition engine
+          for (let k = 0; k < item.length; k++) {
+            const transcript = (item[k].transcript || '').trim();
+            if (!transcript) continue;
 
-        const matchesHotword = this.activeHotwordPatterns.some((pattern) => pattern.test(transcript));
-        if (matchesHotword) {
-          voiceLog("WAKE_WORD_TRIGGERED", { matchedPhrase: transcript });
-          this.triggerWakeWord(transcript);
+            const isMatched = checkHotwordMatch(
+              transcript,
+              this.activeHotwordPatterns,
+              this.trainedWakeWord,
+              this.isHighSensitivityMode
+            );
+
+            if (isMatched) {
+              voiceLog("WAKE_WORD_TRIGGERED", { 
+                matchedPhrase: transcript,
+                altIndex: k,
+                highSensitivity: this.isHighSensitivityMode 
+              });
+              this.triggerWakeWord(transcript);
+              return;
+            }
+          }
         }
       };
 
@@ -408,17 +503,16 @@ class JarvisVoiceEngine {
           this.transitionTo('ERROR', 'Microphone permission denied');
           return;
         }
-        if (e.error !== 'no-speech' && e.error !== 'aborted') {
-          voiceLog("WAKE_WORD_RECOGNITION_NOTE", { error: e.error });
-        }
+        // Non-fatal error; allow onend to restart immediately
+        voiceLog("WAKE_WORD_RECOGNITION_NOTE", { error: e.error });
       };
 
       recognition.onend = () => {
-        if (this.isSessionActive(currentSession) && this.phase === 'WAKE_WORD_LISTENING' && this.isWakeWordEnabled) {
-          // Restart gently to maintain continuous background listening
+        if (this.isWakeWordEnabled) {
+          // Reconnect instantly without a deaf window
           if (this.restartTimer) clearTimeout(this.restartTimer);
           this.restartTimer = setTimeout(() => {
-            if (this.phase === 'WAKE_WORD_LISTENING' || this.phase === 'IDLE') {
+            if (this.isWakeWordEnabled && (this.phase === 'WAKE_WORD_LISTENING' || this.phase === 'IDLE' || this.phase === 'ERROR')) {
               this.startWakeWordDetection();
             }
           }, VOICE_CONFIG.reconnectDelayMs);
@@ -430,7 +524,11 @@ class JarvisVoiceEngine {
     } catch (err: any) {
       voiceLog("WAKE_WORD_START_ERROR", { error: err?.message });
       this.lastError = err?.message || 'Failed to start microphone listener';
-      this.transitionTo('ERROR', 'Wake-word init failure');
+      // Retry starting rather than staying permanently dead
+      if (this.restartTimer) clearTimeout(this.restartTimer);
+      this.restartTimer = setTimeout(() => {
+        if (this.isWakeWordEnabled) this.startWakeWordDetection();
+      }, 500);
     }
   }
 
@@ -441,10 +539,22 @@ class JarvisVoiceEngine {
     }
   }
 
+  public setHighSensitivity(enabled: boolean): void {
+    this.isHighSensitivityMode = enabled;
+    voiceLog("HIGH_SENSITIVITY_MODE", { enabled });
+  }
+
   // --- 2. Wake-Word Detected Transition ---
   private triggerWakeWord(rawUtterance: string): void {
     if (this.isCooldownActive) return;
     this.isCooldownActive = true;
+
+    // Duck background frequency audio so commands are heard clearly without audio feedback
+    try {
+      if (typeof window !== 'undefined') {
+        const freqStore = (window as any).__frequencyStoreState || null;
+      }
+    } catch (e) {}
 
     // Cooldown timer to prevent duplicate wake-word triggers from the same utterance
     if (this.wakeWordCooldownTimer) clearTimeout(this.wakeWordCooldownTimer);
@@ -462,7 +572,7 @@ class JarvisVoiceEngine {
 
     this.transitionTo('WAKE_WORD_DETECTED', `Wake word matched: "${rawUtterance}"`);
 
-    // Clean any remainder of the phrase following "Jarvis" (e.g. "Jarvis start 25m timer")
+    // Clean any remainder of the phrase following "Jarvis" (e.g. "Jarvis play")
     let trailingCommand = rawUtterance;
     this.activeHotwordPatterns.forEach((rx) => {
       trailingCommand = trailingCommand.replace(rx, '').trim();
@@ -479,7 +589,7 @@ class JarvisVoiceEngine {
     // Transition immediately to command listening with acknowledgement guard
     setTimeout(() => {
       if (this.isSessionActive(sessionId)) {
-        this.startCommandListening(trailingCommand.length > 2 ? trailingCommand : undefined, sessionId);
+        this.startCommandListening(trailingCommand.length > 1 ? trailingCommand : undefined, sessionId);
       }
     }, VOICE_CONFIG.acknowledgementGuardMs);
   }

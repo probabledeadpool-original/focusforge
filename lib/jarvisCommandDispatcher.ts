@@ -67,13 +67,37 @@ export const JARVIS_TOOLS: Record<string, ToolDefinition> = {
   PLAY_AUDIO: {
     name: 'PLAY_AUDIO',
     category: 'READ_ONLY',
-    description: 'Start acoustic frequency or lofi playback.',
+    description: 'Start acoustic frequency or music playback.',
+    parameters: {}
+  },
+  PAUSE_AUDIO: {
+    name: 'PAUSE_AUDIO',
+    category: 'READ_ONLY',
+    description: 'Pause music or frequency playback.',
     parameters: {}
   },
   STOP_AUDIO: {
     name: 'STOP_AUDIO',
     category: 'READ_ONLY',
-    description: 'Silence background audio.',
+    description: 'Silence background audio and stop playback.',
+    parameters: {}
+  },
+  NEXT_TRACK: {
+    name: 'NEXT_TRACK',
+    category: 'READ_ONLY',
+    description: 'Skip to next music track.',
+    parameters: {}
+  },
+  PREVIOUS_TRACK: {
+    name: 'PREVIOUS_TRACK',
+    category: 'READ_ONLY',
+    description: 'Return to previous music track.',
+    parameters: {}
+  },
+  CLOSE_JARVIS: {
+    name: 'CLOSE_JARVIS',
+    category: 'READ_ONLY',
+    description: 'Close the J.A.R.V.I.S. voice HUD interface.',
     parameters: {}
   },
   ADD_COINS: {
@@ -97,12 +121,16 @@ Guidelines:
 - Pause timer: [ACTION:{"type":"PAUSE_TIMER"}]
 - Resume timer: [ACTION:{"type":"RESUME_TIMER"}]
 - Reset timer: [ACTION:{"type":"RESET_TIMER"}]
-- Navigation: [ACTION:{"type":"NAVIGATE","view":"home"|"timer"|"activeTimer"|"tasks"|"place"|"ledger"|"terminal"|"stats"|"aura"|"hub"|"profile"}]
+- Navigation: [ACTION:{"type":"NAVIGATE","view":"home"|"timer"|"activeTimer"|"tasks"|"place"|"ledger"|"terminal"|"stats"|"aura"|"hub"|"profile"|"frequency"}]
 - Play audio: [ACTION:{"type":"PLAY_AUDIO"}]
+- Pause audio: [ACTION:{"type":"PAUSE_AUDIO"}]
 - Stop audio: [ACTION:{"type":"STOP_AUDIO"}]
+- Next track: [ACTION:{"type":"NEXT_TRACK"}]
+- Previous track: [ACTION:{"type":"PREVIOUS_TRACK"}]
+- Close Jarvis: [ACTION:{"type":"CLOSE_JARVIS"}]
 - Award coins: [ACTION:{"type":"ADD_COINS","amount":50}]
 
-Example: "Right away, sir. I've logged 'Complete physics assignment' to your active tasks. [ACTION:{\"type\":\"CREATE_TASK\",\"title\":\"Complete physics assignment\",\"priority\":\"high\"}]"`;
+Example: "Right away, sir. Skipping to the next track. [ACTION:{\"type\":\"NEXT_TRACK\"}]"`;
 
 export function validateAndExecuteTool(action: { type: string; [key: string]: any }): boolean {
   if (!action || typeof action.type !== 'string') {
@@ -224,14 +252,41 @@ export function validateAndExecuteTool(action: { type: string; [key: string]: an
       }
       case 'PLAY_AUDIO': {
         frequencyStore.setIsPlaying(true);
-        jarvisStore.setLastAction('PLAYING FREQUENCY AUDIO');
+        appStore.setIsVideoPlaying(true);
+        jarvisStore.setLastAction('PLAYING AUDIO');
+        jarvisAudio.playExecute();
+        return true;
+      }
+      case 'PAUSE_AUDIO': {
+        frequencyStore.setIsPlaying(false);
+        appStore.setIsVideoPlaying(false);
+        jarvisStore.setLastAction('AUDIO PAUSED');
         jarvisAudio.playExecute();
         return true;
       }
       case 'STOP_AUDIO': {
         frequencyStore.setIsPlaying(false);
-        jarvisStore.setLastAction('AUDIO SILENCED');
+        appStore.setIsVideoPlaying(false);
+        jarvisStore.setLastAction('AUDIO STOPPED');
         jarvisAudio.playExecute();
+        return true;
+      }
+      case 'NEXT_TRACK': {
+        frequencyStore.next();
+        jarvisStore.setLastAction('SKIPPED TO NEXT TRACK');
+        jarvisAudio.playExecute();
+        return true;
+      }
+      case 'PREVIOUS_TRACK': {
+        frequencyStore.previous();
+        jarvisStore.setLastAction('PREVIOUS TRACK');
+        jarvisAudio.playExecute();
+        return true;
+      }
+      case 'CLOSE_JARVIS': {
+        jarvisStore.closeJarvis();
+        jarvisStore.setLastAction('JARVIS CLOSED');
+        jarvisAudio.playDeactivate();
         return true;
       }
       case 'ADD_COINS': {
@@ -254,8 +309,137 @@ export async function executeLocalCommand(rawText: string): Promise<boolean> {
   const text = rawText.toLowerCase().trim();
   const jarvisStore = useJarvisStore.getState();
   const frequencyStore = useFrequencyStore.getState();
+  const appStore = useAppStore.getState();
 
-  // 1. TIMER COMMANDS
+  // 1. PLAY COMMAND ("play", "start", "resume", "play music", "play frequency", "play song", "unpause")
+  if (
+    text === 'play' ||
+    text === 'resume' ||
+    text === 'unpause' ||
+    text === 'start' ||
+    /^(play|start|resume|continue|unpause)(\s+(music|audio|frequency|song|track|playback|sound|lofi|432))?$/i.test(text) ||
+    text.startsWith('play ') ||
+    text.startsWith('resume ') ||
+    text.includes('play music') ||
+    text.includes('play audio') ||
+    text.includes('play frequency') ||
+    text.includes('start music')
+  ) {
+    validateAndExecuteTool({ type: 'PLAY_AUDIO' });
+    const currentTrack = frequencyStore.getCurrentTrack();
+    const trackName = currentTrack?.title ? ` "${currentTrack.title}"` : ' audio playback';
+    const reply = `Resuming${trackName}, sir.`;
+    jarvisStore.addMessage({ role: 'assistant', text: reply, actionSummary: 'Playing Audio' });
+    jarvisVoiceEngine.speakResponse(reply);
+    return true;
+  }
+
+  // 2. PAUSE COMMAND ("pause", "hold", "pause music", "pause audio", "pause song", "pause playback")
+  if (
+    text === 'pause' ||
+    text === 'hold' ||
+    text === 'freeze' ||
+    /^(pause|hold|freeze)(\s+(music|audio|frequency|song|track|playback|sound))?$/i.test(text) ||
+    text.includes('pause music') ||
+    text.includes('pause audio') ||
+    text.includes('pause playback') ||
+    text.includes('pause song')
+  ) {
+    validateAndExecuteTool({ type: 'PAUSE_AUDIO' });
+    const reply = "Playback paused, sir.";
+    jarvisStore.addMessage({ role: 'assistant', text: reply, actionSummary: 'Paused Audio' });
+    jarvisVoiceEngine.speakResponse(reply);
+    return true;
+  }
+
+  // 3. STOP COMMAND ("stop", "stop music", "silence", "mute", "stop audio", "stop playback", "cut audio")
+  if (
+    text === 'stop' ||
+    text === 'silence' ||
+    text === 'mute' ||
+    text === 'shut up' ||
+    text === 'quiet' ||
+    /^(stop|silence|mute|turn off|cut)(\s+(music|audio|frequency|song|track|playback|sound|playing))?$/i.test(text) ||
+    text.includes('stop music') ||
+    text.includes('stop audio') ||
+    text.includes('stop playback') ||
+    text.includes('stop playing') ||
+    text.includes('mute audio')
+  ) {
+    validateAndExecuteTool({ type: 'STOP_AUDIO' });
+    const reply = "Audio and media output stopped.";
+    jarvisStore.addMessage({ role: 'assistant', text: reply, actionSummary: 'Audio Stopped' });
+    jarvisVoiceEngine.speakResponse(reply);
+    return true;
+  }
+
+  // 4. NEXT COMMAND ("next", "next track", "next song", "skip", "skip track", "skip song", "forward")
+  if (
+    text === 'next' ||
+    text === 'skip' ||
+    text === 'forward' ||
+    /^(next|skip|forward)(\s+(track|song|music|audio|frequency))?$/i.test(text) ||
+    text.includes('next song') ||
+    text.includes('next track') ||
+    text.includes('skip song') ||
+    text.includes('skip track') ||
+    text.includes('play next')
+  ) {
+    validateAndExecuteTool({ type: 'NEXT_TRACK' });
+    const currentTrack = frequencyStore.getCurrentTrack();
+    const reply = currentTrack ? `Skipping to next track: ${currentTrack.title}.` : "Skipping to next track, sir.";
+    jarvisStore.addMessage({ role: 'assistant', text: reply, actionSummary: 'Next Track' });
+    jarvisVoiceEngine.speakResponse(reply);
+    return true;
+  }
+
+  // 5. BACK / PREVIOUS COMMAND ("back", "previous", "prev", "previous track", "previous song", "last song", "go back", "replay")
+  if (
+    text === 'back' ||
+    text === 'previous' ||
+    text === 'prev' ||
+    text === 'last' ||
+    text === 'replay' ||
+    /^(back|previous|prev|replay|last|go back)(\s+(track|song|music|audio|frequency))?$/i.test(text) ||
+    text.includes('previous song') ||
+    text.includes('previous track') ||
+    text.includes('last song') ||
+    text.includes('last track') ||
+    text.includes('go back')
+  ) {
+    validateAndExecuteTool({ type: 'PREVIOUS_TRACK' });
+    const currentTrack = frequencyStore.getCurrentTrack();
+    const reply = currentTrack ? `Playing previous track: ${currentTrack.title}.` : "Returning to previous track, sir.";
+    jarvisStore.addMessage({ role: 'assistant', text: reply, actionSummary: 'Previous Track' });
+    jarvisVoiceEngine.speakResponse(reply);
+    return true;
+  }
+
+  // 6. CLOSE JARVIS COMMAND ("close jarvis", "close", "exit jarvis", "exit", "dismiss", "hide jarvis", "hide", "bye", "goodbye")
+  if (
+    text === 'close jarvis' ||
+    text === 'exit jarvis' ||
+    text === 'close' ||
+    text === 'exit' ||
+    text === 'dismiss' ||
+    text === 'dismiss jarvis' ||
+    text === 'hide jarvis' ||
+    text === 'hide' ||
+    text === 'bye' ||
+    text === 'goodbye' ||
+    text === 'close interface' ||
+    text === 'close hud' ||
+    text === 'cancel' ||
+    /^(close|exit|dismiss|hide|cancel|bye|goodbye)(\s+(jarvis|hud|interface|window|screen|menu|assistant))?$/i.test(text)
+  ) {
+    const reply = "Closing J.A.R.V.I.S. interface. Standing by in the background.";
+    jarvisStore.addMessage({ role: 'assistant', text: reply, actionSummary: 'Closed Jarvis' });
+    jarvisVoiceEngine.speakResponse(reply);
+    setTimeout(() => jarvisStore.closeJarvis(), 800);
+    return true;
+  }
+
+  // 7. TIMER COMMANDS
   if (text.includes('start timer') || text.includes('start focus') || text.includes('set timer') || text.includes('pomodoro') || text.includes('sprint')) {
     let durationMinutes = 25;
     let timerName = 'Deep Focus Block';
@@ -301,7 +485,7 @@ export async function executeLocalCommand(rawText: string): Promise<boolean> {
     return true;
   }
 
-  // 2. TASK OBJECTIVES
+  // 8. TASK OBJECTIVES
   if (text.startsWith('add task') || text.startsWith('create task') || text.startsWith('new task') || text.startsWith('remind me to')) {
     let taskTitle = text
       .replace(/^(add task|create task|new task|remind me to|schedule task)\s*(:|to|-)?\s*/i, '')
@@ -341,7 +525,7 @@ export async function executeLocalCommand(rawText: string): Promise<boolean> {
     } catch (e) {}
   }
 
-  // 3. NAVIGATION
+  // 9. NAVIGATION
   if (text.includes('open pomodoro') || text.includes('go to timer') || text.includes('show timer')) {
     validateAndExecuteTool({ type: 'NAVIGATE', view: 'timer' });
     const reply = "Navigating to Pomodoro Forge.";
@@ -366,29 +550,19 @@ export async function executeLocalCommand(rawText: string): Promise<boolean> {
     return true;
   }
 
-  // 4. AUDIO CONTROLS
-  if (text.includes('play music') || text.includes('start audio') || text.includes('play frequency') || text.includes('play 432') || text.includes('play lofi')) {
-    validateAndExecuteTool({ type: 'PLAY_AUDIO' });
-    const currentTrack = frequencyStore.getCurrentTrack();
-    const reply = `Streaming acoustic frequency: ${currentTrack?.title || '432 Hz Alpha Waves'}.`;
-    jarvisStore.addMessage({ role: 'assistant', text: reply, actionSummary: `Playing: ${currentTrack?.title}` });
+  if (text.includes('open place') || text.includes('go to place') || text.includes('the place')) {
+    validateAndExecuteTool({ type: 'NAVIGATE', view: 'place' });
+    const reply = "Entering The Place immersive environment.";
+    jarvisStore.addMessage({ role: 'assistant', text: reply, actionSummary: 'Navigated: The Place' });
     jarvisVoiceEngine.speakResponse(reply);
     return true;
   }
 
-  if (text.includes('stop music') || text.includes('pause music') || text.includes('stop audio') || text.includes('mute music')) {
-    validateAndExecuteTool({ type: 'STOP_AUDIO' });
-    const reply = "Audio output silenced.";
-    jarvisStore.addMessage({ role: 'assistant', text: reply, actionSummary: 'Audio Silenced' });
+  if (text.includes('open frequency') || text.includes('go to music') || text.includes('the frequency')) {
+    validateAndExecuteTool({ type: 'NAVIGATE', view: 'frequency' });
+    const reply = "Opening The Frequency acoustic studio.";
+    jarvisStore.addMessage({ role: 'assistant', text: reply, actionSummary: 'Navigated: Frequency' });
     jarvisVoiceEngine.speakResponse(reply);
-    return true;
-  }
-
-  // 5. HUD & VIEW CONTROLS
-  if (text.includes('close jarvis') || text.includes('exit jarvis') || text.includes('goodbye jarvis') || text.includes('dismiss')) {
-    const reply = "Standing by in background, sir. Say 'JARVIS' whenever needed.";
-    jarvisVoiceEngine.speakResponse(reply);
-    setTimeout(() => jarvisStore.closeJarvis(), 1200);
     return true;
   }
 

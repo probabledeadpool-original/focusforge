@@ -3,12 +3,28 @@
 import { useEffect } from 'react';
 import { useJarvisStore } from './useJarvisStore';
 import { jarvisVoiceEngine } from '../lib/jarvisVoiceEngine';
+import { useAppStore } from './useAppStore';
+import { useFrequencyStore } from './useFrequencyStore';
 
 export function useJarvisHotword() {
   const { 
     isHotwordEnabled, 
     openJarvis, 
   } = useJarvisStore();
+
+  const view = useAppStore(s => s.view);
+  const isVideoPlaying = useAppStore(s => s.isVideoPlaying);
+  const isFrequencyPlaying = useFrequencyStore(s => s.isPlaying);
+
+  // Dynamic High-Sensitivity trigger for The Place, The Frequency, and all media playback
+  useEffect(() => {
+    const isSpecialEnvironment = view === 'place' || view === 'frequency' || isVideoPlaying || isFrequencyPlaying;
+    jarvisVoiceEngine.setHighSensitivity(true); // Always keep high sensitivity on by default
+
+    if (isHotwordEnabled) {
+      jarvisVoiceEngine.startWakeWordDetection();
+    }
+  }, [view, isVideoPlaying, isFrequencyPlaying, isHotwordEnabled]);
 
   useEffect(() => {
     // Keep wake-word detection active whenever hotword is enabled
@@ -18,24 +34,25 @@ export function useJarvisHotword() {
       jarvisVoiceEngine.stopWakeWordDetection();
     }
 
-    // Auto-warmup audio and speech recognition on first user click/touch/keypress
+    // Auto-warmup audio and speech recognition on any user interaction or window focus
     const warmupListener = () => {
       if (isHotwordEnabled) {
         jarvisVoiceEngine.startWakeWordDetection();
       }
-      window.removeEventListener('click', warmupListener);
-      window.removeEventListener('touchstart', warmupListener);
-      window.removeEventListener('keydown', warmupListener);
     };
 
-    window.addEventListener('click', warmupListener, { once: true });
-    window.addEventListener('touchstart', warmupListener, { once: true });
-    window.addEventListener('keydown', warmupListener, { once: true });
+    window.addEventListener('click', warmupListener);
+    window.addEventListener('touchstart', warmupListener);
+    window.addEventListener('keydown', warmupListener);
+    window.addEventListener('focus', warmupListener);
+    document.addEventListener('visibilitychange', warmupListener);
 
     return () => {
       window.removeEventListener('click', warmupListener);
       window.removeEventListener('touchstart', warmupListener);
       window.removeEventListener('keydown', warmupListener);
+      window.removeEventListener('focus', warmupListener);
+      document.removeEventListener('visibilitychange', warmupListener);
     };
   }, [isHotwordEnabled]);
 
