@@ -24,6 +24,7 @@ import Ledger from './components/Ledger';
 import FrequencyAudioEngine from './components/TheFrequency/FrequencyAudioEngine';
 import WakeWordTraining from './components/WakeWordTraining';
 import AiModelSelector from './components/AiModelSelector';
+import { SiriWave } from '@/components/ui/siri-wave';
 
 
 
@@ -2704,11 +2705,18 @@ export default function FocusForge() {
                   whileHover={{ scale: 1.08 }}
                   whileTap={{ scale: 0.92 }}
                   onClick={() => useJarvisStore.getState().toggleJarvis()}
-                  className="relative h-10 md:h-12 w-10 md:w-12 rounded-full flex items-center justify-center bg-cyan-500/10 hover:bg-cyan-400 border border-cyan-500/40 hover:border-cyan-300 text-cyan-400 hover:text-black transition-all duration-300 shadow-[0_0_20px_rgba(34,211,238,0.25)] hover:shadow-[0_0_30px_rgba(34,211,238,0.6)] group"
+                  className="relative h-10 md:h-12 w-10 md:w-12 rounded-full flex items-center justify-center bg-cyan-500/10 hover:bg-cyan-400 border border-cyan-500/40 hover:border-cyan-300 text-cyan-400 hover:text-black transition-all duration-300 shadow-[0_0_20px_rgba(34,211,238,0.25)] hover:shadow-[0_0_30px_rgba(34,211,238,0.6)] group overflow-hidden"
                   title="J.A.R.V.I.S. Voice AI Mode (Say 'JARVIS')"
                 >
-                  <Sparkles size={18} className="group-hover:rotate-12 transition-transform animate-pulse" />
-                  <span className="absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full bg-cyan-400 shadow-[0_0_8px_#22d3ee] border border-black" />
+                  <div className="absolute inset-0 flex items-center justify-center scale-90 group-hover:scale-105 transition-transform duration-300 pointer-events-none">
+                    <SiriWave 
+                      size={44} 
+                      renderScale={0.7}
+                      variant={useJarvisStore.getState().aiState === 'thinking' ? 'fluid-dots' : 'wave'} 
+                      className="pointer-events-none"
+                    />
+                  </div>
+                  <span className="absolute top-0.5 right-0.5 w-2 h-2 rounded-full bg-cyan-400 shadow-[0_0_8px_#22d3ee] border border-black z-10" />
                 </motion.button>
 
                 {activeTimer && (

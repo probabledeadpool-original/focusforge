@@ -264,34 +264,44 @@ const FRAGMENT_SHADERS: Record<SiriWaveVariant, string> = {
   "fluid-dots": FLUID_DOTS_SHADER,
 }
 
-export interface SiriWaveProps
-  extends Omit<React.HTMLAttributes<HTMLCanvasElement>, "children"> {
-  /** Which shader to render. */
-  variant?: SiriWaveVariant
-  /** CSS display size of the square canvas, in px. */
-  size?: number
-  /** Internal render resolution multiplier (lower = cheaper/blurrier). */
-  renderScale?: number
+interface ShaderCanvasLayerProps {
+  shaderVariant: SiriWaveVariant
+  size: number
+  renderScale: number
+  isActive: boolean
 }
 
-export function SiriWave({
-  variant = "wave",
-  size = 420,
-  renderScale = 0.75,
-  className,
-  style,
-  ...props
-}: SiriWaveProps) {
+function ShaderCanvasLayer({
+  shaderVariant,
+  size,
+  renderScale,
+  isActive,
+}: ShaderCanvasLayerProps) {
   const canvasRef = React.useRef<HTMLCanvasElement>(null)
+  const [shouldRender, setShouldRender] = React.useState(isActive)
+
+  // Keep rendering during transition, pause when fully hidden to save GPU cycles
+  React.useEffect(() => {
+    if (isActive) {
+      setShouldRender(true)
+    } else {
+      const timer = setTimeout(() => {
+        setShouldRender(false)
+      }, 700)
+      return () => clearTimeout(timer)
+    }
+  }, [isActive])
 
   React.useEffect(() => {
+    if (!shouldRender) return
+
     const canvas = canvasRef.current
     if (!canvas) return
-    const gl = canvas.getContext("webgl", { 
-      alpha: true, 
+    const gl = canvas.getContext("webgl", {
+      alpha: true,
       premultipliedAlpha: false,
       antialias: true,
-      preserveDrawingBuffer: false
+      preserveDrawingBuffer: false,
     })
     if (!gl) return
 
@@ -320,7 +330,7 @@ export function SiriWave({
     try {
       program = gl.createProgram()!
       vs = compile(gl.VERTEX_SHADER, VERTEX_SHADER)
-      fs = compile(gl.FRAGMENT_SHADER, FRAGMENT_SHADERS[variant])
+      fs = compile(gl.FRAGMENT_SHADER, FRAGMENT_SHADERS[shaderVariant])
       gl.attachShader(program, vs)
       gl.attachShader(program, fs)
       gl.linkProgram(program)
@@ -347,7 +357,7 @@ export function SiriWave({
 
       const start =
         typeof performance !== "undefined" ? performance.now() : Date.now()
-      
+
       const frame = () => {
         const now =
           typeof performance !== "undefined" ? performance.now() : Date.now()
@@ -360,7 +370,7 @@ export function SiriWave({
       }
       frame()
     } catch (err) {
-      console.warn("WebGL SiriWave shader init error:", err)
+      console.warn(`WebGL ${shaderVariant} init error:`, err)
     }
 
     return () => {
@@ -372,15 +382,66 @@ export function SiriWave({
         if (buffer) gl.deleteBuffer(buffer)
       }
     }
-  }, [variant, size, renderScale])
+  }, [shouldRender, shaderVariant, size, renderScale])
 
   return (
     <canvas
       ref={canvasRef}
-      className={cn("block pointer-events-none", className)}
-      style={{ width: size, height: size, background: "transparent", ...style }}
-      {...props}
+      className="absolute inset-0 block w-full h-full pointer-events-none"
+      style={{
+        opacity: isActive ? 1 : 0,
+        filter: isActive ? "blur(0px)" : "blur(18px)",
+        transform: isActive ? "scale(1)" : "scale(0.92)",
+        transition:
+          "opacity 0.6s cubic-bezier(0.16, 1, 0.3, 1), filter 0.6s cubic-bezier(0.16, 1, 0.3, 1), transform 0.6s cubic-bezier(0.16, 1, 0.3, 1)",
+        willChange: "opacity, filter, transform",
+      }}
     />
+  )
+}
+
+export interface SiriWaveProps
+  extends Omit<React.HTMLAttributes<HTMLDivElement>, "children"> {
+  /** Which shader to render. */
+  variant?: SiriWaveVariant
+  /** CSS display size of the square canvas, in px. */
+  size?: number
+  /** Internal render resolution multiplier (lower = cheaper/blurrier). */
+  renderScale?: number
+}
+
+export function SiriWave({
+  variant = "wave",
+  size = 420,
+  renderScale = 0.75,
+  className,
+  style,
+  ...props
+}: SiriWaveProps) {
+  return (
+    <div
+      className={cn("relative flex items-center justify-center pointer-events-none select-none", className)}
+      style={{
+        width: size,
+        height: size,
+        background: "transparent",
+        ...style,
+      }}
+      {...props}
+    >
+      <ShaderCanvasLayer
+        shaderVariant="wave"
+        size={size}
+        renderScale={renderScale}
+        isActive={variant === "wave"}
+      />
+      <ShaderCanvasLayer
+        shaderVariant="fluid-dots"
+        size={size}
+        renderScale={renderScale}
+        isActive={variant === "fluid-dots"}
+      />
+    </div>
   )
 }
 

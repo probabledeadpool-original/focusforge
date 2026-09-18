@@ -78,10 +78,7 @@ export const useJarvisStore = create<JarvisStore>((set, get) => ({
   isMinimized: false,
   setDisplayMode: (displayMode) => {
     const isMinimized = displayMode === 'minimized';
-    set({ displayMode, isMinimized, isOpen: true, aiState: 'listening' });
-    if (isMinimized) {
-      jarvisVoiceEngine.startCommandListening();
-    }
+    set({ displayMode, isMinimized, isOpen: true });
     if (typeof window !== 'undefined') {
       window.dispatchEvent(new CustomEvent('jarvis-display-mode', { detail: { mode: displayMode } }));
     }
@@ -89,9 +86,6 @@ export const useJarvisStore = create<JarvisStore>((set, get) => ({
   setIsOpen: (isOpen) => {
     if (isOpen) {
       jarvisAudio.playActivate();
-      if (get().displayMode === 'minimized' || get().isMinimized) {
-        jarvisVoiceEngine.startCommandListening();
-      }
     } else {
       jarvisAudio.playDeactivate();
       jarvisVoiceEngine.cancelCurrentAction();
@@ -100,10 +94,7 @@ export const useJarvisStore = create<JarvisStore>((set, get) => ({
   },
   setIsMinimized: (isMinimized) => {
     const displayMode: JarvisDisplayMode = isMinimized ? 'minimized' : 'fullscreen';
-    set({ isMinimized, displayMode, isOpen: true, aiState: 'listening' });
-    if (isMinimized) {
-      jarvisVoiceEngine.startCommandListening();
-    }
+    set({ isMinimized, displayMode });
     if (typeof window !== 'undefined') {
       window.dispatchEvent(new CustomEvent('jarvis-display-mode', { detail: { mode: displayMode } }));
     }
