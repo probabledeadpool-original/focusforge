@@ -7,7 +7,7 @@ import {
   Music, ListMusic, Shuffle, Repeat, Repeat1, Volume2, VolumeX, Volume1,
   Maximize2, X, Sparkles, SlidersHorizontal, Check, Disc, 
   Clock, Share2, MoreHorizontal, ExternalLink, Cast, Heart, Eye,
-  FolderPlus, Waves, Radio, Activity, ArrowRight, Zap, RefreshCw, Layers
+  FolderPlus, Waves, Radio, Activity, ArrowRight, ArrowLeft, Headphones, Zap, RefreshCw, Layers
 } from 'lucide-react';
 import { useFrequencyStore, Track, Playlist, AudioEnhancementPreset } from '../../../hooks/useFrequencyStore';
 import FrequencyPlayer from './FrequencyPlayer';
@@ -27,13 +27,15 @@ export default function TheFrequency() {
   const [addError, setAddError] = useState<string | null>(null);
   const [addSuccess, setAddSuccess] = useState<string | null>(null);
 
-  // Playlist Modals & State
+  // Playlist Modals & Detailed View State
+  const [selectedPlaylistDetailId, setSelectedPlaylistDetailId] = useState<string | null>(null);
   const [showNewPlaylistModal, setShowNewPlaylistModal] = useState(false);
   const [newPlaylistName, setNewPlaylistName] = useState('');
   const [newPlaylistDesc, setNewPlaylistDesc] = useState('');
   const [showAddToPlaylistModal, setShowAddToPlaylistModal] = useState(false);
   const [trackToAddToPlaylist, setTrackToAddToPlaylist] = useState<Track | null>(null);
   const [showAllSongsModal, setShowAllSongsModal] = useState(false);
+  const [showQuickAddModal, setShowQuickAddModal] = useState(false);
 
   // Creatives Tab State
   const [creativeVibeInput, setCreativeVibeInput] = useState('');
@@ -187,10 +189,11 @@ export default function TheFrequency() {
               <button
                 onClick={() => {
                   store.setActivePlaylistId(null);
+                  setSelectedPlaylistDetailId(null);
                   store.setActiveTab('home');
                 }}
                 className={`w-full text-left px-3.5 py-2.5 rounded-xl font-heading text-sm font-semibold transition-all flex items-center gap-3 cursor-pointer ${
-                  store.activeTab === 'home' && !store.activePlaylistId
+                  store.activeTab === 'home'
                     ? 'text-white bg-white/10 shadow-sm'
                     : 'text-white/50 hover:text-white hover:bg-white/5'
                 }`}
@@ -198,7 +201,10 @@ export default function TheFrequency() {
                 Home
               </button>
               <button
-                onClick={() => store.setActiveTab('playlists')}
+                onClick={() => {
+                  setSelectedPlaylistDetailId(null);
+                  store.setActiveTab('playlists');
+                }}
                 className={`w-full text-left px-3.5 py-2.5 rounded-xl font-heading text-sm font-semibold transition-all flex items-center gap-3 cursor-pointer ${
                   store.activeTab === 'playlists'
                     ? 'text-white bg-white/10 shadow-sm'
@@ -248,15 +254,16 @@ export default function TheFrequency() {
                   </div>
                 ) : (
                   store.playlists.map((playlist) => {
-                    const isSelected = activePlaylist?.id === playlist.id && store.activeTab === 'home';
+                    const isSelected = selectedPlaylistDetailId === playlist.id && store.activeTab === 'playlists';
+                    const isPlaying = store.activePlaylistId === playlist.id && store.isPlaying;
                     const trackCount = playlist.trackIds.length;
 
                     return (
                       <button
                         key={playlist.id}
                         onClick={() => {
-                          store.setActivePlaylistId(playlist.id);
-                          store.setActiveTab('home');
+                          setSelectedPlaylistDetailId(playlist.id);
+                          store.setActiveTab('playlists');
                         }}
                         className={`w-full text-left p-2 rounded-2xl flex items-center gap-3 transition-all relative group cursor-pointer ${
                           isSelected
@@ -264,9 +271,9 @@ export default function TheFrequency() {
                             : 'hover:bg-white/[0.04] text-white/70 hover:text-white'
                         }`}
                       >
-                        {/* Left Active Line Indicator (Gold) */}
+                        {/* Left Active Line Indicator (Cyan) */}
                         {isSelected && (
-                          <div className="absolute left-0 top-2 bottom-2 w-1 rounded-r-full bg-yellow-400 shadow-[0_0_10px_rgba(250,204,21,0.8)]" />
+                          <div className="absolute left-0 top-2 bottom-2 w-1 rounded-r-full bg-cyan-400 shadow-[0_0_10px_rgba(6,182,212,0.8)]" />
                         )}
 
                         {/* Circular Artwork Avatar */}
@@ -282,9 +289,9 @@ export default function TheFrequency() {
                               <Music size={14} />
                             </div>
                           )}
-                          {isSelected && store.isPlaying && (
+                          {isPlaying && (
                             <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
-                              <div className="w-2 h-2 rounded-full bg-yellow-400 animate-ping" />
+                              <div className="w-2 h-2 rounded-full bg-cyan-400 animate-ping" />
                             </div>
                           )}
                         </div>
@@ -555,99 +562,395 @@ export default function TheFrequency() {
             </div>
           )}
 
-          {/* TAB 2: PLAYLISTS PAGE INTERFACE */}
+          {/* TAB 2: PLAYLISTS PAGE INTERFACE (Dedicated Studio & Luxury Vault) */}
           {store.activeTab === 'playlists' && (
-            <div className="space-y-6 pb-20">
-              <div className="flex items-center justify-between border-b border-white/10 pb-4">
-                <div>
-                  <h1 className="text-4xl font-heading font-extrabold text-white tracking-tight">Playlists Vault</h1>
-                  <p className="text-xs font-sans text-white/40 mt-1">Organize your study sessions and sonic moodboards</p>
-                </div>
-                <button
-                  onClick={() => setShowNewPlaylistModal(true)}
-                  className="px-5 py-2.5 rounded-full bg-white text-black font-sans font-bold text-xs uppercase tracking-wider hover:bg-white/90 transition-all flex items-center gap-2 cursor-pointer shadow-lg"
-                >
-                  <Plus size={14} />
-                  <span>Create Playlist</span>
-                </button>
-              </div>
+            <div className="space-y-8 pb-24 relative">
+              
+              {/* Background ambient lighting auras for mad premium aesthetic */}
+              <div className="absolute top-10 left-1/4 w-96 h-96 bg-cyan-500/10 rounded-full blur-[120px] pointer-events-none -z-10" />
+              <div className="absolute top-40 right-1/4 w-96 h-96 bg-amber-500/10 rounded-full blur-[140px] pointer-events-none -z-10" />
 
-              {store.playlists.length === 0 ? (
-                <div className="p-12 rounded-3xl bg-white/[0.02] border border-white/10 text-center space-y-4">
-                  <FolderPlus size={36} className="text-white/30 mx-auto" />
-                  <div className="space-y-1">
-                    <h3 className="text-lg font-heading font-bold text-white">No Custom Playlists Yet</h3>
-                    <p className="text-xs font-sans text-white/40">Create a playlist to group your favorite songs for deep focus.</p>
-                  </div>
-                  <button
-                    onClick={() => setShowNewPlaylistModal(true)}
-                    className="px-4 py-2 rounded-xl bg-white/10 hover:bg-white/20 text-white font-sans text-xs font-semibold transition-all"
-                  >
-                    + Create First Playlist
-                  </button>
-                </div>
-              ) : (
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
-                  {store.playlists.map((playlist) => {
-                    const tracksInPlaylist = playlist.trackIds
-                      .map(id => store.tracks.find(t => t.id === id))
-                      .filter((t): t is Track => Boolean(t));
+              {/* VIEW A: DEDICATED PLAYLIST STUDIO (When a playlist is opened for detailed inspection) */}
+              {selectedPlaylistDetailId && store.playlists.some(p => p.id === selectedPlaylistDetailId) ? (() => {
+                const targetPlaylist = store.playlists.find(p => p.id === selectedPlaylistDetailId)!;
+                const playlistTracks = targetPlaylist.trackIds
+                  .map(id => store.tracks.find(t => t.id === id))
+                  .filter((t): t is Track => Boolean(t));
+                const playlistDurationSec = playlistTracks.reduce((acc, t) => acc + (t.duration || 180), 0);
+                const isThisPlaylistPlaying = store.activePlaylistId === targetPlaylist.id && store.isPlaying;
 
-                    return (
-                      <div
-                        key={playlist.id}
-                        className="group p-4 rounded-3xl bg-white/[0.03] hover:bg-white/[0.06] border border-white/10 hover:border-white/20 transition-all flex flex-col justify-between gap-4 shadow-xl"
+                return (
+                  <div className="space-y-8">
+                    {/* Navigation Top Bar */}
+                    <div className="flex items-center justify-between">
+                      <button
+                        onClick={() => setSelectedPlaylistDetailId(null)}
+                        className="flex items-center gap-2 px-4 py-2 rounded-xl bg-white/5 hover:bg-white/10 text-white/70 hover:text-white border border-white/10 text-xs font-sans font-semibold transition-all cursor-pointer group"
                       >
-                        <div className="space-y-3">
-                          <div className="relative aspect-video w-full rounded-2xl overflow-hidden bg-black/60 border border-white/10">
-                            {playlist.coverThumbnail ? (
-                              <img src={playlist.coverThumbnail} alt={playlist.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
+                        <ArrowLeft size={14} className="group-hover:-translate-x-1 transition-transform text-cyan-400" />
+                        <span>Back to Playlists Vault</span>
+                      </button>
+
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={() => setShowQuickAddModal(true)}
+                          className="px-4 py-2 rounded-xl bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-300 border border-cyan-400/30 text-xs font-sans font-bold transition-all flex items-center gap-1.5 cursor-pointer shadow-[0_0_15px_rgba(6,182,212,0.2)]"
+                        >
+                          <Plus size={14} />
+                          <span>+ Add Songs from Vault</span>
+                        </button>
+                        <button
+                          onClick={() => {
+                            store.deletePlaylist(targetPlaylist.id);
+                            setSelectedPlaylistDetailId(null);
+                          }}
+                          className="p-2 rounded-xl bg-white/5 hover:bg-rose-500/20 text-white/40 hover:text-rose-400 border border-white/10 transition-colors cursor-pointer"
+                          title="Delete Playlist"
+                        >
+                          <Trash2 size={14} />
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Playlist Hero Studio Banner */}
+                    <div className="relative p-6 md:p-8 rounded-3xl bg-gradient-to-r from-white/[0.05] via-white/[0.02] to-transparent border border-white/10 backdrop-blur-2xl overflow-hidden shadow-2xl">
+                      <div className="flex flex-col md:flex-row items-center md:items-end gap-6 md:gap-8 relative z-10">
+                        
+                        {/* Vinyl Disc & Sleeve Visual */}
+                        <div className="relative group shrink-0">
+                          {/* Rotating Vinyl Disc Behind Sleeve */}
+                          <div className={`absolute -top-2 -right-4 w-36 h-36 md:w-44 md:h-44 rounded-full bg-black border-2 border-zinc-800 flex items-center justify-center shadow-2xl transition-transform duration-700 ${
+                            isThisPlaylistPlaying ? 'animate-spin-slow' : 'group-hover:translate-x-4'
+                          }`}>
+                            <div className="w-16 h-16 rounded-full border border-zinc-700/50 flex items-center justify-center">
+                              <div className="w-6 h-6 rounded-full bg-cyan-400/80 border border-black" />
+                            </div>
+                          </div>
+
+                          {/* Square Sleeve Artwork */}
+                          <div className="relative w-36 h-36 md:w-44 md:h-44 rounded-2xl overflow-hidden border border-white/20 bg-black/80 shadow-2xl z-10">
+                            {targetPlaylist.coverThumbnail ? (
+                              <img
+                                src={targetPlaylist.coverThumbnail}
+                                alt={targetPlaylist.name}
+                                className="w-full h-full object-cover"
+                              />
                             ) : (
-                              <div className="w-full h-full flex items-center justify-center text-white/20">
-                                <Disc size={32} />
+                              <div className="w-full h-full bg-gradient-to-br from-cyan-900/50 to-purple-900/50 flex flex-col items-center justify-center text-white/40 gap-2">
+                                <Disc size={36} className="text-cyan-400" />
+                                <span className="text-[9px] font-mono tracking-widest uppercase">STUDIO</span>
                               </div>
                             )}
-                            <button
-                              onClick={() => store.playPlaylist(playlist.id)}
-                              className="absolute bottom-3 right-3 w-10 h-10 rounded-full bg-white text-black flex items-center justify-center shadow-2xl hover:scale-110 active:scale-95 transition-transform cursor-pointer"
-                              title="Play Playlist"
-                            >
-                              <Play size={16} fill="black" className="ml-0.5" />
-                            </button>
-                          </div>
-
-                          <div className="space-y-1">
-                            <h3 className="text-base font-heading font-bold text-white truncate">{playlist.name}</h3>
-                            <p className="text-xs font-sans text-white/40 line-clamp-2">{playlist.description || "Custom Focus Forge playlist."}</p>
                           </div>
                         </div>
 
-                        <div className="flex items-center justify-between pt-3 border-t border-white/5">
-                          <span className="text-[10px] font-mono text-white/40 uppercase tracking-wider">{tracksInPlaylist.length} Tracks</span>
-                          <div className="flex items-center gap-2">
+                        {/* Title, Details & Play Triggers */}
+                        <div className="flex-1 space-y-3 text-center md:text-left min-w-0">
+                          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-cyan-400/10 border border-cyan-400/20 text-cyan-300 text-[10px] font-mono uppercase tracking-widest font-bold">
+                            <Sparkles size={11} />
+                            <span>CURATED STUDIO PLAYLIST</span>
+                          </div>
+
+                          <h1 className="text-3xl md:text-4xl lg:text-5xl font-heading font-extrabold text-white tracking-tight leading-tight truncate">
+                            {targetPlaylist.name}
+                          </h1>
+
+                          <p className="text-xs md:text-sm font-sans text-white/60 line-clamp-2 max-w-2xl">
+                            {targetPlaylist.description || "Bespoke sonic curation compiled for high-performance deep work and cognitive flow."}
+                          </p>
+
+                          <div className="flex flex-wrap items-center justify-center md:justify-start gap-4 pt-2 text-xs font-mono text-white/50">
+                            <span className="text-white font-bold">{playlistTracks.length} tracks</span>
+                            <span>•</span>
+                            <span>{Math.max(1, Math.round(playlistDurationSec / 60))} mins runtime</span>
+                            <span>•</span>
+                            <span className="text-cyan-300 font-semibold">DSP Synchronized</span>
+                          </div>
+
+                          {/* Action Button Row */}
+                          <div className="flex items-center justify-center md:justify-start gap-3 pt-3">
+                            <button
+                              onClick={() => store.playPlaylist(targetPlaylist.id)}
+                              className="px-6 py-3 rounded-2xl bg-white text-black font-sans font-bold text-xs uppercase tracking-wider hover:bg-white/90 active:scale-95 transition-all flex items-center gap-2 cursor-pointer shadow-[0_4px_25px_rgba(255,255,255,0.2)]"
+                            >
+                              {isThisPlaylistPlaying ? (
+                                <>
+                                  <Pause size={15} fill="black" />
+                                  <span>Playing Playlist</span>
+                                </>
+                              ) : (
+                                <>
+                                  <Play size={15} fill="black" className="ml-0.5" />
+                                  <span>Play Studio Session</span>
+                                </>
+                              )}
+                            </button>
+
                             <button
                               onClick={() => {
-                                store.setActivePlaylistId(playlist.id);
-                                store.setActiveTab('home');
+                                store.playPlaylist(targetPlaylist.id);
+                                if (!store.shuffle) store.toggleShuffle();
                               }}
-                              className="px-3 py-1 rounded-lg bg-white/5 hover:bg-white/10 text-white/70 hover:text-white text-xs font-sans transition-all cursor-pointer"
+                              className="px-4 py-3 rounded-2xl bg-white/10 hover:bg-white/15 border border-white/15 text-white font-sans text-xs font-bold transition-all flex items-center gap-2 cursor-pointer"
                             >
-                              Open
-                            </button>
-                            <button
-                              onClick={() => store.deletePlaylist(playlist.id)}
-                              className="p-1.5 rounded-lg text-white/30 hover:text-rose-400 hover:bg-rose-500/10 transition-colors cursor-pointer"
-                              title="Delete Playlist"
-                            >
-                              <Trash2 size={13} />
+                              <Shuffle size={14} className={store.shuffle ? "text-yellow-400" : ""} />
+                              <span>Shuffle</span>
                             </button>
                           </div>
                         </div>
+
                       </div>
-                    );
-                  })}
+                    </div>
+
+                    {/* Playlist Tracklist Section */}
+                    <div className="space-y-4">
+                      <div className="flex items-center justify-between border-b border-white/10 pb-3">
+                        <div className="flex items-center gap-2">
+                          <ListMusic size={16} className="text-cyan-400" />
+                          <h2 className="text-base font-heading font-bold text-white tracking-tight">Curated Tracklist</h2>
+                        </div>
+                        <span className="text-xs font-mono text-white/40">{playlistTracks.length} Tracks Enrolled</span>
+                      </div>
+
+                      {playlistTracks.length === 0 ? (
+                        <div className="p-12 rounded-3xl bg-white/[0.02] border border-white/10 text-center space-y-4">
+                          <Music size={32} className="text-white/20 mx-auto" />
+                          <div className="space-y-1">
+                            <h4 className="text-base font-heading font-bold text-white">This Playlist is Empty</h4>
+                            <p className="text-xs font-sans text-white/40">Add tracks from your vault library to populate this studio session.</p>
+                          </div>
+                          <button
+                            onClick={() => setShowQuickAddModal(true)}
+                            className="px-5 py-2.5 rounded-full bg-cyan-400 text-black font-sans font-bold text-xs uppercase tracking-wider hover:bg-cyan-300 transition-all cursor-pointer shadow-lg"
+                          >
+                            + Add Songs from Vault
+                          </button>
+                        </div>
+                      ) : (
+                        <div className="space-y-1.5">
+                          {playlistTracks.map((track, idx) => {
+                            const isPlayingThis = currentTrack?.id === track.id && store.isPlaying;
+
+                            return (
+                              <div
+                                key={track.id}
+                                onClick={() => store.playTrack(track.id)}
+                                className={`flex items-center justify-between p-3 rounded-2xl transition-all cursor-pointer group border ${
+                                  isPlayingThis
+                                    ? 'bg-cyan-500/10 border-cyan-400/30 text-white shadow-[0_0_20px_rgba(6,182,212,0.15)]'
+                                    : 'bg-white/[0.02] hover:bg-white/[0.06] border-white/5 hover:border-white/15 text-white/80'
+                                }`}
+                              >
+                                <div className="flex items-center gap-4 min-w-0 flex-1">
+                                  
+                                  {/* Index or Live Audio Visualizer Equalizer */}
+                                  <div className="w-7 text-center shrink-0 flex items-center justify-center">
+                                    {isPlayingThis ? (
+                                      <div className="flex items-end gap-0.5 h-4">
+                                        <span className="w-1 bg-cyan-400 rounded-full animate-[bounce_0.8s_infinite_100ms] h-full" />
+                                        <span className="w-1 bg-cyan-400 rounded-full animate-[bounce_0.6s_infinite_200ms] h-3/4" />
+                                        <span className="w-1 bg-cyan-400 rounded-full animate-[bounce_0.9s_infinite_300ms] h-full" />
+                                      </div>
+                                    ) : (
+                                      <span className="text-xs font-mono text-white/30 group-hover:hidden">
+                                        {String(idx + 1).padStart(2, '0')}
+                                      </span>
+                                    )}
+                                    <Play size={12} fill="white" className="hidden group-hover:block text-white" />
+                                  </div>
+
+                                  {/* Artwork */}
+                                  <div className="relative w-11 h-11 rounded-xl overflow-hidden shrink-0 border border-white/10 bg-black">
+                                    <img src={track.thumbnail} alt={track.title} className="w-full h-full object-cover" />
+                                  </div>
+
+                                  {/* Title & Artist */}
+                                  <div className="flex flex-col min-w-0 flex-1">
+                                    <span className={`text-xs font-heading font-bold truncate ${
+                                      isPlayingThis ? 'text-cyan-300' : 'text-white'
+                                    }`}>
+                                      {track.title}
+                                    </span>
+                                    <span className="text-[11px] font-sans text-white/40 truncate">
+                                      {track.artist} {track.year ? `• ${track.year}` : ''}
+                                    </span>
+                                  </div>
+                                </div>
+
+                                {/* Duration & Remove Action */}
+                                <div className="flex items-center gap-3 pl-3">
+                                  <span className="text-xs font-mono text-white/40">
+                                    {formatTime(track.duration || 180)}
+                                  </span>
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      store.removeFromPlaylist(targetPlaylist.id, track.id);
+                                    }}
+                                    className="opacity-0 group-hover:opacity-100 p-1.5 text-white/30 hover:text-rose-400 hover:bg-rose-500/10 rounded-lg transition-all cursor-pointer"
+                                    title="Remove from playlist"
+                                  >
+                                    <Trash2 size={13} />
+                                  </button>
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                );
+              })() : (
+                
+                /* VIEW B: PLAYLISTS SHOWCASE VAULT (High-Level Overview Grid) */
+                <div className="space-y-8">
+                  {/* Premium HUD Header with Statistics */}
+                  <div className="p-6 md:p-8 rounded-3xl bg-gradient-to-r from-cyan-950/30 via-black to-[#0c0e14] border border-white/10 backdrop-blur-2xl relative overflow-hidden shadow-2xl">
+                    <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 relative z-10">
+                      
+                      <div className="space-y-2">
+                        <div className="flex items-center gap-2">
+                          <div className="w-2 h-2 rounded-full bg-cyan-400 animate-ping" />
+                          <span className="text-[10px] font-mono text-cyan-300 font-bold uppercase tracking-widest">
+                            STUDIO ARCHIVE • CURATOR SUITE
+                          </span>
+                        </div>
+                        <h1 className="text-3xl md:text-5xl font-heading font-extrabold text-white tracking-tight">
+                          Playlists Vault
+                        </h1>
+                        <p className="text-xs md:text-sm font-sans text-white/50 max-w-xl">
+                          Architect dedicated moodboards, study sprints, and binaural session playlists with high-fidelity mastering.
+                        </p>
+                      </div>
+
+                      {/* Stat Metrics & Create Action */}
+                      <div className="flex flex-wrap items-center gap-3">
+                        <div className="px-4 py-2.5 rounded-2xl bg-white/[0.04] border border-white/10 text-center">
+                          <span className="text-[9px] font-mono text-white/40 block uppercase tracking-wider">Playlists</span>
+                          <span className="text-base font-mono font-bold text-white">{store.playlists.length}</span>
+                        </div>
+                        <div className="px-4 py-2.5 rounded-2xl bg-white/[0.04] border border-white/10 text-center">
+                          <span className="text-[9px] font-mono text-white/40 block uppercase tracking-wider">Tracks</span>
+                          <span className="text-base font-mono font-bold text-cyan-300">
+                            {store.playlists.reduce((acc, p) => acc + p.trackIds.length, 0)}
+                          </span>
+                        </div>
+                        <button
+                          onClick={() => setShowNewPlaylistModal(true)}
+                          className="px-6 py-3 rounded-2xl bg-white text-black font-sans font-bold text-xs uppercase tracking-wider hover:bg-white/90 active:scale-95 transition-all flex items-center gap-2 cursor-pointer shadow-[0_4px_25px_rgba(255,255,255,0.25)]"
+                        >
+                          <Plus size={15} />
+                          <span>Create Playlist</span>
+                        </button>
+                      </div>
+
+                    </div>
+                  </div>
+
+                  {/* Playlists 3D Showcase Grid */}
+                  {store.playlists.length === 0 ? (
+                    <div className="p-12 md:p-16 rounded-3xl bg-white/[0.02] border border-white/10 text-center space-y-4 max-w-lg mx-auto">
+                      <div className="w-16 h-16 rounded-full bg-cyan-500/10 border border-cyan-400/20 flex items-center justify-center mx-auto text-cyan-400 shadow-inner">
+                        <FolderPlus size={28} />
+                      </div>
+                      <div className="space-y-1">
+                        <h3 className="text-xl font-heading font-bold text-white">No Playlists Created Yet</h3>
+                        <p className="text-xs font-sans text-white/40">
+                          Create custom playlists to group and sequence tracks from your master audio vault.
+                        </p>
+                      </div>
+                      <button
+                        onClick={() => setShowNewPlaylistModal(true)}
+                        className="px-6 py-2.5 rounded-full bg-white text-black font-sans font-bold text-xs uppercase tracking-wider hover:bg-white/90 transition-all cursor-pointer shadow-lg"
+                      >
+                        + Create First Playlist
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+                      {store.playlists.map((playlist) => {
+                        const tracksInPlaylist = playlist.trackIds
+                          .map(id => store.tracks.find(t => t.id === id))
+                          .filter((t): t is Track => Boolean(t));
+                        const isPlayingThis = store.activePlaylistId === playlist.id && store.isPlaying;
+
+                        return (
+                          <div
+                            key={playlist.id}
+                            className="group relative p-5 rounded-3xl bg-gradient-to-b from-white/[0.04] to-white/[0.01] hover:from-white/[0.08] hover:to-white/[0.03] border border-white/10 hover:border-white/20 transition-all duration-300 flex flex-col justify-between gap-4 shadow-2xl overflow-hidden"
+                          >
+                            {/* Card Glow Layer */}
+                            <div className="absolute -top-12 -right-12 w-32 h-32 bg-cyan-500/10 group-hover:bg-cyan-500/20 rounded-full blur-2xl transition-all pointer-events-none" />
+
+                            <div className="space-y-4">
+                              {/* Vinyl Disc Sticking Out Effect */}
+                              <div className="relative aspect-[16/10] w-full rounded-2xl overflow-hidden bg-black/60 border border-white/10">
+                                {playlist.coverThumbnail ? (
+                                  <img
+                                    src={playlist.coverThumbnail}
+                                    alt={playlist.name}
+                                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700"
+                                  />
+                                ) : (
+                                  <div className="w-full h-full bg-gradient-to-br from-zinc-900 to-black flex items-center justify-center text-white/20">
+                                    <Disc size={36} className={isPlayingThis ? "animate-spin-slow text-cyan-400" : ""} />
+                                  </div>
+                                )}
+
+                                <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent" />
+
+                                {/* Play Trigger Floating Button */}
+                                <button
+                                  onClick={() => store.playPlaylist(playlist.id)}
+                                  className="absolute bottom-3 right-3 w-11 h-11 rounded-full bg-white text-black flex items-center justify-center shadow-2xl hover:scale-110 active:scale-95 transition-transform cursor-pointer"
+                                  title="Play Playlist"
+                                >
+                                  {isPlayingThis ? <Pause size={16} fill="black" /> : <Play size={16} fill="black" className="ml-0.5" />}
+                                </button>
+
+                                <div className="absolute top-3 left-3 px-2.5 py-1 rounded-full bg-black/60 backdrop-blur-md border border-white/10 text-[9px] font-mono text-cyan-300 font-bold uppercase tracking-wider">
+                                  {tracksInPlaylist.length} {tracksInPlaylist.length === 1 ? 'TRACK' : 'TRACKS'}
+                                </div>
+                              </div>
+
+                              {/* Info */}
+                              <div className="space-y-1">
+                                <h3 className="text-lg font-heading font-bold text-white tracking-tight truncate group-hover:text-cyan-300 transition-colors">
+                                  {playlist.name}
+                                </h3>
+                                <p className="text-xs font-sans text-white/40 line-clamp-2 leading-relaxed">
+                                  {playlist.description || "Custom study moodboard and focus sequence."}
+                                </p>
+                              </div>
+                            </div>
+
+                            {/* Card Footer Actions */}
+                            <div className="flex items-center justify-between pt-3 border-t border-white/10">
+                              <button
+                                onClick={() => setSelectedPlaylistDetailId(playlist.id)}
+                                className="px-4 py-1.5 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-white font-sans text-xs font-semibold transition-all flex items-center gap-1.5 cursor-pointer"
+                              >
+                                <span>Open Studio</span>
+                                <ArrowRight size={12} className="text-cyan-400" />
+                              </button>
+
+                              <button
+                                onClick={() => store.deletePlaylist(playlist.id)}
+                                className="p-2 rounded-xl text-white/30 hover:text-rose-400 hover:bg-rose-500/10 transition-colors cursor-pointer"
+                                title="Delete Playlist"
+                              >
+                                <Trash2 size={13} />
+                              </button>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
                 </div>
               )}
+
             </div>
           )}
 
@@ -1110,6 +1413,101 @@ export default function TheFrequency() {
                 ))}
               </div>
             </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Quick Add Songs to Active Playlist Modal */}
+      <AnimatePresence>
+        {showQuickAddModal && selectedPlaylistDetailId && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 md:p-8 bg-black/80 backdrop-blur-xl">
+            {(() => {
+              const targetPlaylist = store.playlists.find(p => p.id === selectedPlaylistDetailId);
+              if (!targetPlaylist) return null;
+
+              return (
+                <motion.div
+                  initial={{ scale: 0.95, opacity: 0 }}
+                  animate={{ scale: 1, opacity: 1 }}
+                  exit={{ scale: 0.95, opacity: 0 }}
+                  className="bg-[#0e0f15] border border-white/15 rounded-3xl p-6 max-w-2xl w-full max-h-[85vh] flex flex-col shadow-2xl"
+                >
+                  <div className="flex items-center justify-between border-b border-white/10 pb-4 mb-4">
+                    <div>
+                      <h3 className="font-heading text-lg font-bold text-white">Add Songs to "{targetPlaylist.name}"</h3>
+                      <p className="text-xs font-sans text-white/40">Select tracks from your vault library to include in this playlist</p>
+                    </div>
+                    <button onClick={() => setShowQuickAddModal(false)} className="text-white/40 hover:text-white p-2 cursor-pointer">
+                      <X size={18} />
+                    </button>
+                  </div>
+
+                  <div className="flex-1 overflow-y-auto no-scrollbar space-y-2 pr-1">
+                    {store.tracks.length === 0 ? (
+                      <p className="text-xs text-white/40 text-center py-8">No tracks found in your library vault.</p>
+                    ) : (
+                      store.tracks.map((track) => {
+                        const isAlreadyIn = targetPlaylist.trackIds.includes(track.id);
+
+                        return (
+                          <div
+                            key={track.id}
+                            onClick={() => {
+                              if (isAlreadyIn) {
+                                store.removeFromPlaylist(targetPlaylist.id, track.id);
+                              } else {
+                                store.addToPlaylist(targetPlaylist.id, track.id);
+                              }
+                            }}
+                            className={`flex items-center justify-between p-3 rounded-2xl border transition-all cursor-pointer ${
+                              isAlreadyIn
+                                ? 'bg-cyan-500/10 border-cyan-400/30 text-white'
+                                : 'bg-white/[0.03] hover:bg-white/[0.08] border-white/5 text-white/80'
+                            }`}
+                          >
+                            <div className="flex items-center gap-3 min-w-0 flex-1">
+                              <div className="w-10 h-10 rounded-xl overflow-hidden shrink-0 border border-white/10">
+                                <img src={track.thumbnail} alt={track.title} className="w-full h-full object-cover" />
+                              </div>
+                              <div className="flex flex-col min-w-0 flex-1">
+                                <span className={`text-xs font-heading font-bold truncate ${isAlreadyIn ? 'text-cyan-300' : 'text-white'}`}>
+                                  {track.title}
+                                </span>
+                                <span className="text-[11px] font-sans text-white/40 truncate">
+                                  {track.artist}
+                                </span>
+                              </div>
+                            </div>
+
+                            <div className="flex items-center gap-3 pl-3">
+                              <span className="text-xs font-mono text-white/40">
+                                {formatTime(track.duration || 180)}
+                              </span>
+                              <div className={`w-7 h-7 rounded-full flex items-center justify-center transition-all ${
+                                isAlreadyIn
+                                  ? 'bg-cyan-400 text-black shadow-[0_0_10px_rgba(6,182,212,0.5)]'
+                                  : 'bg-white/10 text-white/50 hover:bg-white/20 hover:text-white'
+                              }`}>
+                                {isAlreadyIn ? <Check size={14} /> : <Plus size={14} />}
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })
+                    )}
+                  </div>
+
+                  <div className="pt-4 border-t border-white/10 flex justify-end">
+                    <button
+                      onClick={() => setShowQuickAddModal(false)}
+                      className="px-6 py-2.5 rounded-xl bg-white text-black font-sans font-bold text-xs uppercase tracking-wider hover:bg-white/90 transition-all cursor-pointer shadow-lg"
+                    >
+                      Done
+                    </button>
+                  </div>
+                </motion.div>
+              );
+            })()}
           </div>
         )}
       </AnimatePresence>
