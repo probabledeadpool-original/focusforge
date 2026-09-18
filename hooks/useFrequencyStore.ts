@@ -15,15 +15,18 @@ export interface Track {
   lastPlayedAt?: number;
   duration?: number;
   sourceUrl: string;
+  year?: string | number;
 }
 
 export interface Playlist {
   id: string;
   name: string;
   description?: string;
+  coverThumbnail?: string;
   trackIds: string[];
   createdAt: number;
   updatedAt: number;
+  curator?: string;
   linkedTimerId?: string;
 }
 
@@ -80,9 +83,9 @@ interface FrequencyState {
   edgeLightingColorSource: EdgeLightingColorSource;
   edgeLightingColorTheme: EdgeLightingColorTheme;
   coverPalette: CoverPalette | null;
-  edgeLightingIntensity: number;     // 10 to 100
-  edgeLightingSpread: number;        // 10 to 100
-  edgeLightingSensitivity: number;   // 10 to 100
+  edgeLightingIntensity: number;
+  edgeLightingSpread: number;
+  edgeLightingSensitivity: number;
   customLighting: CustomLightingConfig;
   setEdgeLighting: (enabled: boolean) => void;
   toggleEdgeLighting: () => void;
@@ -128,7 +131,7 @@ interface FrequencyState {
   reorderQueue: (trackIds: string[]) => void;
 
   // Playlist CRUD
-  createPlaylist: (name: string) => string;
+  createPlaylist: (name: string, description?: string) => string;
   deletePlaylist: (id: string) => void;
   renamePlaylist: (id: string, name: string) => void;
   addToPlaylist: (playlistId: string, trackId: string) => void;
@@ -142,50 +145,161 @@ interface FrequencyState {
   playbackTrigger: number;
 }
 
-const STORAGE_KEY = 'focusforge-frequency-v1';
+const STORAGE_KEY = 'focusforge-frequency-v2';
 const TRACKS_VAULT_KEY = 'focusforge-frequency-tracks-vault';
 const PLAYLISTS_VAULT_KEY = 'focusforge-frequency-playlists-vault';
 
-const DEFAULT_CURATED_TRACKS: Track[] = [
+export const DEFAULT_CURATED_TRACKS: Track[] = [
   {
-    id: 'curated-lofi-girl',
-    videoId: 'jfKfPfyJRdk',
-    title: 'lofi hip hop radio 📚 - beats to relax/study to',
-    artist: 'Lofi Girl',
-    thumbnail: 'https://img.youtube.com/vi/jfKfPfyJRdk/maxresdefault.jpg',
+    id: 'track-olafur-loom',
+    videoId: 'WPni755-Krg',
+    title: 'Loom - Piano Reworks',
+    artist: 'Ólafur Arnalds',
+    year: '2022',
+    thumbnail: 'https://images.unsplash.com/photo-1518709268805-4e9042af9f23?q=80&w=600&auto=format&fit=crop',
     dominantColor: 'rgb(147, 51, 234)',
     addedAt: 1700000000000,
-    sourceUrl: 'https://www.youtube.com/watch?v=jfKfPfyJRdk',
+    sourceUrl: 'https://www.youtube.com/watch?v=WPni755-Krg',
   },
   {
-    id: 'curated-synthwave-chill',
+    id: 'track-tycho-awalk',
     videoId: '4xDzrJKXOOY',
-    title: 'synthwave radio 🌌 - chill beats to relax/study to',
-    artist: 'Lofi Girl - Synthwave',
-    thumbnail: 'https://img.youtube.com/vi/4xDzrJKXOOY/maxresdefault.jpg',
-    dominantColor: 'rgb(6, 182, 212)',
+    title: 'A Walk',
+    artist: 'Tycho',
+    year: '2011',
+    thumbnail: 'https://images.unsplash.com/photo-1507525428034-b723cf961d3e?q=80&w=600&auto=format&fit=crop',
+    dominantColor: 'rgb(249, 115, 22)',
     addedAt: 1700000001000,
     sourceUrl: 'https://www.youtube.com/watch?v=4xDzrJKXOOY',
   },
   {
-    id: 'curated-deep-focus',
-    videoId: 'WPni755-Krg',
-    title: 'Deep Focus Music - 24/7 Study & Work Ambient Flow',
-    artist: 'Focus Music Lab',
-    thumbnail: 'https://img.youtube.com/vi/WPni755-Krg/maxresdefault.jpg',
-    dominantColor: 'rgb(59, 130, 246)',
+    id: 'track-hania-prayer',
+    videoId: 'jfKfPfyJRdk',
+    title: 'Prayer',
+    artist: 'Hania Rani',
+    year: '2021',
+    thumbnail: 'https://images.unsplash.com/photo-1550684848-fac1c5b4e853?q=80&w=600&auto=format&fit=crop',
+    dominantColor: 'rgb(239, 68, 68)',
     addedAt: 1700000002000,
-    sourceUrl: 'https://www.youtube.com/watch?v=WPni755-Krg',
+    sourceUrl: 'https://www.youtube.com/watch?v=jfKfPfyJRdk',
   },
   {
-    id: 'curated-tokyo-night',
+    id: 'track-einaudi-limine',
     videoId: 'S_MOd40zlSk',
-    title: 'Tokyo Night Drive - Cyberpunk Ambient Focus',
-    artist: 'Chillhop Music',
-    thumbnail: 'https://img.youtube.com/vi/S_MOd40zlSk/maxresdefault.jpg',
-    dominantColor: 'rgb(236, 72, 153)',
+    title: 'In Limine',
+    artist: 'L Einaudi',
+    year: '2025',
+    thumbnail: 'https://images.unsplash.com/photo-1579783902614-a3fb3927b675?q=80&w=600&auto=format&fit=crop',
+    dominantColor: 'rgb(16, 185, 129)',
     addedAt: 1700000003000,
     sourceUrl: 'https://www.youtube.com/watch?v=S_MOd40zlSk',
+  },
+  {
+    id: 'track-sigit-blackamp',
+    videoId: 'TIqsKXQHvFI',
+    title: 'Black Amplifier',
+    artist: 'The Sigit',
+    year: '2020',
+    thumbnail: 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?q=80&w=600&auto=format&fit=crop',
+    dominantColor: 'rgb(6, 182, 212)',
+    addedAt: 1700000004000,
+    sourceUrl: 'https://www.youtube.com/watch?v=TIqsKXQHvFI',
+  },
+  {
+    id: 'track-nujabes-luv',
+    videoId: 'Ui7Hb4cvamY',
+    title: 'Luv (Sic)',
+    artist: 'Nujabes',
+    year: '2015',
+    thumbnail: 'https://images.unsplash.com/photo-1470225620780-dba8ba36b745?q=80&w=600&auto=format&fit=crop',
+    dominantColor: 'rgb(234, 179, 8)',
+    addedAt: 1700000005000,
+    sourceUrl: 'https://www.youtube.com/watch?v=Ui7Hb4cvamY',
+  },
+  {
+    id: 'track-sigur-olsen',
+    videoId: 'df4p7bP_MaY',
+    title: 'Olsen Olsen',
+    artist: 'Sigur Ros',
+    year: '2018',
+    thumbnail: 'https://images.unsplash.com/photo-1498038432885-c6f3f1b912ee?q=80&w=600&auto=format&fit=crop',
+    dominantColor: 'rgb(34, 197, 94)',
+    addedAt: 1700000006000,
+    sourceUrl: 'https://www.youtube.com/watch?v=df4p7bP_MaY',
+  },
+  {
+    id: 'track-tame-happen',
+    videoId: '8ObcKYvrCpY',
+    title: 'Let it Happen',
+    artist: 'Tame Impala',
+    year: '2015',
+    thumbnail: 'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?q=80&w=600&auto=format&fit=crop',
+    dominantColor: 'rgb(168, 85, 247)',
+    addedAt: 1700000007000,
+    sourceUrl: 'https://www.youtube.com/watch?v=8ObcKYvrCpY',
+  }
+];
+
+export const DEFAULT_CURATED_PLAYLISTS: Playlist[] = [
+  {
+    id: 'pl-deep-focus',
+    name: 'Deep Focus',
+    description: 'Bespoke ambient acoustics engineered to maximize cognitive endurance and deep code flow.',
+    curator: 'FocusForge Core',
+    coverThumbnail: 'https://images.unsplash.com/photo-1518709268805-4e9042af9f23?q=80&w=600&auto=format&fit=crop',
+    trackIds: ['track-olafur-loom', 'track-tycho-awalk', 'track-hania-prayer', 'track-einaudi-limine'],
+    createdAt: 1700000000000,
+    updatedAt: 1700000000000,
+  },
+  {
+    id: 'pl-reading',
+    name: 'Reading',
+    description: 'Subtle neoclassical keys and non-intrusive melodic textures for research and reading comprehension.',
+    curator: 'Andrew Smith',
+    coverThumbnail: 'https://images.unsplash.com/photo-1550684848-fac1c5b4e853?q=80&w=600&auto=format&fit=crop',
+    trackIds: ['track-hania-prayer', 'track-einaudi-limine', 'track-sigur-olsen'],
+    createdAt: 1700000001000,
+    updatedAt: 1700000001000,
+  },
+  {
+    id: 'pl-moodboarding',
+    name: 'Moodboarding',
+    description: 'Finding clarity and concentration through music, even when everything around feels loud and distracting. Each note creates a small space of calm, helping me stay grounded, focused, and connected to what truly matters.',
+    curator: 'Andrew Smith',
+    coverThumbnail: 'https://images.unsplash.com/photo-1507525428034-b723cf961d3e?q=80&w=600&auto=format&fit=crop',
+    trackIds: ['track-olafur-loom', 'track-tycho-awalk', 'track-hania-prayer', 'track-einaudi-limine', 'track-sigit-blackamp', 'track-nujabes-luv', 'track-sigur-olsen', 'track-tame-happen'],
+    createdAt: 1700000002000,
+    updatedAt: 1700000002000,
+  },
+  {
+    id: 'pl-problem-solving',
+    name: 'Problem Solving',
+    description: 'High-frequency algorithmic synthwave to unlock state-of-the-art mental breakthroughs.',
+    curator: 'Neural Lab',
+    coverThumbnail: 'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?q=80&w=600&auto=format&fit=crop',
+    trackIds: ['track-tame-happen', 'track-sigit-blackamp', 'track-tycho-awalk'],
+    createdAt: 1700000003000,
+    updatedAt: 1700000003000,
+  },
+  {
+    id: 'pl-light-work',
+    name: 'Light Work',
+    description: 'Warm lo-fi grooves and gentle transient rhythms for organizing tasks and administrative workflows.',
+    curator: 'Chillhop Lab',
+    coverThumbnail: 'https://images.unsplash.com/photo-1470225620780-dba8ba36b745?q=80&w=600&auto=format&fit=crop',
+    trackIds: ['track-nujabes-luv', 'track-sigur-olsen', 'track-olafur-loom'],
+    createdAt: 1700000004000,
+    updatedAt: 1700000004000,
+  },
+  {
+    id: 'pl-designing',
+    name: 'Designing',
+    description: 'Fluid spatial soundscapes crafted for visual design, Figma craft, and high aesthetic immersion.',
+    curator: 'Creatives Playlist',
+    coverThumbnail: 'https://images.unsplash.com/photo-1579783902614-a3fb3927b675?q=80&w=600&auto=format&fit=crop',
+    trackIds: ['track-tycho-awalk', 'track-tame-happen', 'track-einaudi-limine', 'track-hania-prayer'],
+    createdAt: 1700000005000,
+    updatedAt: 1700000005000,
   }
 ];
 
@@ -201,8 +315,6 @@ function shuffleArray<T>(arr: T[]): T[] {
 }
 
 function saveToStorage(state: FrequencyState) {
-  // CRITICAL FIX: Never overwrite storage if the state has not been hydrated yet!
-  if (!state._hydrated) return;
   if (typeof window === 'undefined') return;
 
   try {
@@ -230,22 +342,89 @@ function saveToStorage(state: FrequencyState) {
       audioParams: state.audioParams,
     };
     localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
-    // Permanent vault backup
+    
+    // Permanent multi-vault sync
     if (state.tracks && state.tracks.length > 0) {
       localStorage.setItem(TRACKS_VAULT_KEY, JSON.stringify(state.tracks));
     }
-    if (state.playlists) {
+    if (state.playlists && state.playlists.length > 0) {
       localStorage.setItem(PLAYLISTS_VAULT_KEY, JSON.stringify(state.playlists));
     }
-  } catch {}
+  } catch (err) {
+    console.debug('Failed to save frequency store to localStorage:', err);
+  }
 }
 
+// Initial state loader to prevent hydration flash
+const getInitialStateFromStorage = () => {
+  if (typeof window === 'undefined') {
+    return {
+      tracks: DEFAULT_CURATED_TRACKS,
+      playlists: DEFAULT_CURATED_PLAYLISTS,
+      currentTrackId: DEFAULT_CURATED_TRACKS[0].id,
+      queue: DEFAULT_CURATED_TRACKS.map(t => t.id),
+      originalQueue: DEFAULT_CURATED_TRACKS.map(t => t.id),
+      activePlaylistId: DEFAULT_CURATED_PLAYLISTS[2].id, // Moodboarding default
+    };
+  }
+
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    const rawVaultTracks = localStorage.getItem(TRACKS_VAULT_KEY);
+    const rawVaultPlaylists = localStorage.getItem(PLAYLISTS_VAULT_KEY);
+
+    let tracks = DEFAULT_CURATED_TRACKS;
+    let playlists = DEFAULT_CURATED_PLAYLISTS;
+
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed.tracks) && parsed.tracks.length > 0) {
+        tracks = parsed.tracks;
+      }
+      if (Array.isArray(parsed.playlists) && parsed.playlists.length > 0) {
+        playlists = parsed.playlists;
+      }
+    } else if (rawVaultTracks) {
+      const parsedTracks = JSON.parse(rawVaultTracks);
+      if (Array.isArray(parsedTracks) && parsedTracks.length > 0) {
+        tracks = parsedTracks;
+      }
+      if (rawVaultPlaylists) {
+        const parsedPlaylists = JSON.parse(rawVaultPlaylists);
+        if (Array.isArray(parsedPlaylists) && parsedPlaylists.length > 0) {
+          playlists = parsedPlaylists;
+        }
+      }
+    }
+
+    return {
+      tracks,
+      playlists,
+      currentTrackId: tracks[0]?.id || null,
+      queue: tracks.map(t => t.id),
+      originalQueue: tracks.map(t => t.id),
+      activePlaylistId: playlists[2]?.id || playlists[0]?.id || null,
+    };
+  } catch {
+    return {
+      tracks: DEFAULT_CURATED_TRACKS,
+      playlists: DEFAULT_CURATED_PLAYLISTS,
+      currentTrackId: DEFAULT_CURATED_TRACKS[0].id,
+      queue: DEFAULT_CURATED_TRACKS.map(t => t.id),
+      originalQueue: DEFAULT_CURATED_TRACKS.map(t => t.id),
+      activePlaylistId: DEFAULT_CURATED_PLAYLISTS[2].id,
+    };
+  }
+};
+
+const initial = getInitialStateFromStorage();
+
 export const useFrequencyStore = create<FrequencyState>((set, get) => ({
-  tracks: DEFAULT_CURATED_TRACKS,
-  playlists: [],
-  currentTrackId: 'curated-lofi-girl',
-  queue: ['curated-lofi-girl', 'curated-synthwave-chill', 'curated-deep-focus', 'curated-tokyo-night'],
-  originalQueue: ['curated-lofi-girl', 'curated-synthwave-chill', 'curated-deep-focus', 'curated-tokyo-night'],
+  tracks: initial.tracks,
+  playlists: initial.playlists,
+  currentTrackId: initial.currentTrackId,
+  queue: initial.queue,
+  originalQueue: initial.originalQueue,
   queueIndex: 0,
   isPlaying: false,
   currentTime: 0,
@@ -256,8 +435,8 @@ export const useFrequencyStore = create<FrequencyState>((set, get) => ({
   isExpanded: false,
   isStudioOpen: false,
   activeTab: 'home',
-  activePlaylistId: null,
-  edgeLighting: false,
+  activePlaylistId: initial.activePlaylistId,
+  edgeLighting: true,
   edgeLightingMode: 'ambient',
   edgeLightingColorSource: 'cover',
   edgeLightingColorTheme: 'adaptive',
@@ -280,8 +459,118 @@ export const useFrequencyStore = create<FrequencyState>((set, get) => ({
     spatial: 60,
     intensity: 80,
   },
-  _hydrated: false,
+  _hydrated: typeof window !== 'undefined',
   playbackTrigger: 0,
+
+  hydrate: () => {
+    if (typeof window === 'undefined') return;
+    try {
+      let tracksToUse: Track[] = [];
+      let playlistsToUse: Playlist[] = [];
+      
+      const raw = localStorage.getItem(STORAGE_KEY);
+      const rawVaultTracks = localStorage.getItem(TRACKS_VAULT_KEY);
+      const rawVaultPlaylists = localStorage.getItem(PLAYLISTS_VAULT_KEY);
+
+      let data: any = {};
+      if (raw) {
+        try {
+          data = JSON.parse(raw);
+          if (Array.isArray(data.tracks) && data.tracks.length > 0) {
+            tracksToUse = data.tracks;
+          }
+          if (Array.isArray(data.playlists) && data.playlists.length > 0) {
+            playlistsToUse = data.playlists;
+          }
+        } catch {}
+      }
+
+      // Vault recovery
+      if (tracksToUse.length === 0 && rawVaultTracks) {
+        try {
+          const vaultTracks = JSON.parse(rawVaultTracks);
+          if (Array.isArray(vaultTracks) && vaultTracks.length > 0) {
+            tracksToUse = vaultTracks;
+          }
+        } catch {}
+      }
+
+      if (playlistsToUse.length === 0 && rawVaultPlaylists) {
+        try {
+          const vaultPlaylists = JSON.parse(rawVaultPlaylists);
+          if (Array.isArray(vaultPlaylists) && vaultPlaylists.length > 0) {
+            playlistsToUse = vaultPlaylists;
+          }
+        } catch {}
+      }
+
+      // First run fallback
+      if (tracksToUse.length === 0) {
+        tracksToUse = DEFAULT_CURATED_TRACKS;
+      }
+      if (playlistsToUse.length === 0) {
+        playlistsToUse = DEFAULT_CURATED_PLAYLISTS;
+      }
+
+      const preset = data.audioPreset || 'enhanced';
+      const params = data.audioParams || { bass: 70, clarity: 65, spatial: 60, intensity: 80 };
+      AudioEnhancementEngine.setPreset(preset);
+      AudioEnhancementEngine.setParams(params);
+
+      const queueToUse = Array.isArray(data.queue) && data.queue.length > 0 
+        ? data.queue 
+        : tracksToUse.map(t => t.id);
+      const currentTrackIdToUse = data.currentTrackId && tracksToUse.some(t => t.id === data.currentTrackId)
+        ? data.currentTrackId
+        : tracksToUse[0]?.id || null;
+
+      const activePlaylistIdToUse = data.activePlaylistId || playlistsToUse[2]?.id || playlistsToUse[0]?.id || null;
+
+      set({
+        tracks: tracksToUse,
+        playlists: playlistsToUse,
+        volume: data.volume ?? 80,
+        shuffle: data.shuffle ?? false,
+        repeat: data.repeat ?? 'none',
+        queue: queueToUse,
+        originalQueue: Array.isArray(data.originalQueue) && data.originalQueue.length > 0 ? data.originalQueue : queueToUse,
+        queueIndex: data.queueIndex ?? 0,
+        currentTrackId: currentTrackIdToUse,
+        activePlaylistId: activePlaylistIdToUse,
+        edgeLighting: data.edgeLighting ?? true,
+        edgeLightingMode: data.edgeLightingMode || 'ambient',
+        edgeLightingColorSource: data.edgeLightingColorSource || 'cover',
+        edgeLightingColorTheme: data.edgeLightingColorTheme || 'adaptive',
+        coverPalette: data.coverPalette || null,
+        edgeLightingIntensity: data.edgeLightingIntensity ?? 75,
+        edgeLightingSpread: data.edgeLightingSpread ?? 70,
+        edgeLightingSensitivity: data.edgeLightingSensitivity ?? 75,
+        customLighting: data.customLighting || {
+          intensity: 75,
+          motion: 60,
+          bassResponse: 70,
+          colorReactivity: 65,
+          glowSpread: 70,
+          speed: 50,
+        },
+        audioPreset: preset,
+        audioParams: params,
+        _hydrated: true,
+      });
+
+      // Synchronize back to vault
+      localStorage.setItem(STORAGE_KEY, JSON.stringify({
+        ...data,
+        tracks: tracksToUse,
+        playlists: playlistsToUse,
+        activePlaylistId: activePlaylistIdToUse
+      }));
+      localStorage.setItem(TRACKS_VAULT_KEY, JSON.stringify(tracksToUse));
+      localStorage.setItem(PLAYLISTS_VAULT_KEY, JSON.stringify(playlistsToUse));
+    } catch {
+      set({ _hydrated: true });
+    }
+  },
 
   setEdgeLighting: (enabled: boolean) => {
     set({ edgeLighting: enabled });
@@ -355,106 +644,6 @@ export const useFrequencyStore = create<FrequencyState>((set, get) => ({
     saveToStorage(get());
   },
 
-  hydrate: () => {
-    if (typeof window === 'undefined') return;
-    try {
-      let tracksToUse: Track[] = [];
-      let playlistsToUse: Playlist[] = [];
-      
-      const raw = localStorage.getItem(STORAGE_KEY);
-      const rawVaultTracks = localStorage.getItem(TRACKS_VAULT_KEY);
-      const rawVaultPlaylists = localStorage.getItem(PLAYLISTS_VAULT_KEY);
-
-      let data: any = {};
-      if (raw) {
-        try {
-          data = JSON.parse(raw);
-          if (Array.isArray(data.tracks) && data.tracks.length > 0) {
-            tracksToUse = data.tracks;
-          }
-          if (Array.isArray(data.playlists)) {
-            playlistsToUse = data.playlists;
-          }
-        } catch {}
-      }
-
-      // If tracks are missing from main key, restore from vault
-      if (tracksToUse.length === 0 && rawVaultTracks) {
-        try {
-          const vaultTracks = JSON.parse(rawVaultTracks);
-          if (Array.isArray(vaultTracks) && vaultTracks.length > 0) {
-            tracksToUse = vaultTracks;
-          }
-        } catch {}
-      }
-
-      // If playlists missing, restore from vault
-      if (playlistsToUse.length === 0 && rawVaultPlaylists) {
-        try {
-          const vaultPlaylists = JSON.parse(rawVaultPlaylists);
-          if (Array.isArray(vaultPlaylists)) {
-            playlistsToUse = vaultPlaylists;
-          }
-        } catch {}
-      }
-
-      // If still empty (first run ever), use curated focus default tracks
-      if (tracksToUse.length === 0) {
-        tracksToUse = DEFAULT_CURATED_TRACKS;
-      }
-
-      const preset = data.audioPreset || 'enhanced';
-      const params = data.audioParams || { bass: 70, clarity: 65, spatial: 60, intensity: 80 };
-      AudioEnhancementEngine.setPreset(preset);
-      AudioEnhancementEngine.setParams(params);
-
-      const queueToUse = Array.isArray(data.queue) && data.queue.length > 0 
-        ? data.queue 
-        : tracksToUse.map(t => t.id);
-      const currentTrackIdToUse = data.currentTrackId && tracksToUse.some(t => t.id === data.currentTrackId)
-        ? data.currentTrackId
-        : tracksToUse[0]?.id || null;
-
-      set({
-        tracks: tracksToUse,
-        playlists: playlistsToUse,
-        volume: data.volume ?? 80,
-        shuffle: data.shuffle ?? false,
-        repeat: data.repeat ?? 'none',
-        queue: queueToUse,
-        originalQueue: Array.isArray(data.originalQueue) && data.originalQueue.length > 0 ? data.originalQueue : queueToUse,
-        queueIndex: data.queueIndex ?? 0,
-        currentTrackId: currentTrackIdToUse,
-        activePlaylistId: data.activePlaylistId ?? null,
-        edgeLighting: data.edgeLighting ?? true,
-        edgeLightingMode: data.edgeLightingMode || 'ambient',
-        edgeLightingColorSource: data.edgeLightingColorSource || 'cover',
-        edgeLightingColorTheme: data.edgeLightingColorTheme || 'adaptive',
-        coverPalette: data.coverPalette || null,
-        edgeLightingIntensity: data.edgeLightingIntensity ?? 75,
-        edgeLightingSpread: data.edgeLightingSpread ?? 70,
-        edgeLightingSensitivity: data.edgeLightingSensitivity ?? 75,
-        customLighting: data.customLighting || {
-          intensity: 75,
-          motion: 60,
-          bassResponse: 70,
-          colorReactivity: 65,
-          glowSpread: 70,
-          speed: 50,
-        },
-        audioPreset: preset,
-        audioParams: params,
-        _hydrated: true,
-      });
-
-      // Save valid state & sync vault
-      localStorage.setItem(TRACKS_VAULT_KEY, JSON.stringify(tracksToUse));
-      localStorage.setItem(PLAYLISTS_VAULT_KEY, JSON.stringify(playlistsToUse));
-    } catch {
-      set({ _hydrated: true });
-    }
-  },
-
   addTrack: (track) => {
     const state = get();
     const existingIndex = state.tracks.findIndex(t => t.videoId === track.videoId || t.id === track.id);
@@ -470,20 +659,25 @@ export const useFrequencyStore = create<FrequencyState>((set, get) => ({
     const newQueue = state.queue.length === 0 ? [track.id] : state.queue;
     const newCurrent = state.currentTrackId || track.id;
 
+    // If there is an active playlist, also add to active playlist
+    let newPlaylists = state.playlists;
+    if (state.activePlaylistId) {
+      newPlaylists = state.playlists.map(p => {
+        if (p.id !== state.activePlaylistId) return p;
+        if (p.trackIds.includes(track.id)) return p;
+        return { ...p, trackIds: [track.id, ...p.trackIds], updatedAt: Date.now() };
+      });
+    }
+
     set({ 
       tracks: newTracks,
+      playlists: newPlaylists,
       queue: newQueue,
       currentTrackId: newCurrent,
       _hydrated: true
     });
 
-    if (typeof window !== 'undefined') {
-      try {
-        localStorage.setItem(TRACKS_VAULT_KEY, JSON.stringify(newTracks));
-      } catch {}
-    }
-
-    saveToStorage({ ...state, tracks: newTracks, queue: newQueue, currentTrackId: newCurrent, _hydrated: true });
+    saveToStorage({ ...state, tracks: newTracks, playlists: newPlaylists, queue: newQueue, currentTrackId: newCurrent, _hydrated: true });
   },
 
   removeTrack: (id) => {
@@ -503,13 +697,6 @@ export const useFrequencyStore = create<FrequencyState>((set, get) => ({
       currentTrackId: nextCurrent
     });
 
-    if (typeof window !== 'undefined') {
-      try {
-        localStorage.setItem(TRACKS_VAULT_KEY, JSON.stringify(nextTracks));
-        localStorage.setItem(PLAYLISTS_VAULT_KEY, JSON.stringify(nextPlaylists));
-      } catch {}
-    }
-
     saveToStorage({ 
       ...state, 
       tracks: nextTracks, 
@@ -528,11 +715,19 @@ export const useFrequencyStore = create<FrequencyState>((set, get) => ({
     const updatedTracks = state.tracks.map(t =>
       t.id === id ? { ...t, lastPlayedAt: Date.now() } : t
     );
+    
+    // Put track in queue if not already in queue
+    let newQueue = state.queue;
+    let newIdx = state.queue.indexOf(id);
+    if (newIdx === -1) {
+      newQueue = [id, ...state.queue];
+      newIdx = 0;
+    }
+
     set({
       currentTrackId: id,
-      queue: [id],
-      originalQueue: [id],
-      queueIndex: 0,
+      queue: newQueue,
+      queueIndex: newIdx,
       isPlaying: true,
       currentTime: 0,
       tracks: updatedTracks,
@@ -555,6 +750,7 @@ export const useFrequencyStore = create<FrequencyState>((set, get) => ({
     const nextTrackId = ids[idx];
     const isSameTrack = state.currentTrackId === nextTrackId;
     set({
+      activePlaylistId: playlistId,
       currentTrackId: nextTrackId,
       queue: ids,
       originalQueue: originalIds,
@@ -665,7 +861,10 @@ export const useFrequencyStore = create<FrequencyState>((set, get) => ({
   setIsPlaying: (playing) => set({ isPlaying: playing }),
   setExpanded: (expanded) => set({ isExpanded: expanded }),
   setActiveTab: (tab) => set({ activeTab: tab }),
-  setActivePlaylistId: (id) => set({ activePlaylistId: id }),
+  setActivePlaylistId: (id) => {
+    set({ activePlaylistId: id });
+    saveToStorage(get());
+  },
 
   addToQueue: (trackId, insertAfterCurrent = false) => {
     const state = get();
@@ -748,15 +947,18 @@ export const useFrequencyStore = create<FrequencyState>((set, get) => ({
   },
 
   // Playlist CRUD
-  createPlaylist: (name) => {
+  createPlaylist: (name, description = '') => {
     const id = generateId();
     const state = get();
     const playlist: Playlist = {
       id,
       name,
+      description,
+      curator: 'You',
       trackIds: [],
       createdAt: Date.now(),
       updatedAt: Date.now(),
+      coverThumbnail: 'https://images.unsplash.com/photo-1518709268805-4e9042af9f23?q=80&w=600&auto=format&fit=crop',
     };
     const next = { ...state, playlists: [...state.playlists, playlist], activePlaylistId: id };
     set({ playlists: next.playlists, activePlaylistId: id });

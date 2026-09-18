@@ -109,6 +109,15 @@ export const QuickSlider: React.FC<QuickSliderProps> = ({
     window.addEventListener('pointerup', onPointerUp);
   };
 
+  const renderSliderIcon = () => {
+    if (!icon) return null;
+    if (React.isValidElement(icon)) return icon;
+    if (typeof icon === 'function' || (typeof icon === 'object' && icon !== null)) {
+      return React.createElement(icon as any, { size: 18, strokeWidth: 2 });
+    }
+    return null;
+  };
+
   return (
     <div className="flex flex-col gap-1.5 w-full select-none">
       {/* Thick Pill Capsule Slider (Apple Control Center / Samsung One UI Style) */}
@@ -149,15 +158,15 @@ export const QuickSlider: React.FC<QuickSliderProps> = ({
                   e.stopPropagation();
                   onIconClick();
                 }}
-                className="slider-icon-btn pointer-events-auto p-1.5 -ml-1 rounded-xl hover:bg-black/20 active:scale-95 transition-all text-white/90 hover:text-white"
+                className="slider-icon-btn pointer-events-auto p-1.5 -ml-1 rounded-xl hover:bg-black/20 active:scale-95 transition-all text-white/90 hover:text-white cursor-pointer"
                 title={iconTitle}
                 aria-label={iconTitle || label}
               >
-                {typeof icon === 'function' ? React.createElement(icon as any, { size: 18, strokeWidth: 2 }) : icon}
+                {renderSliderIcon()}
               </button>
             ) : (
               <div className="text-white/90 p-1">
-                {typeof icon === 'function' ? React.createElement(icon as any, { size: 18, strokeWidth: 2 }) : icon}
+                {renderSliderIcon()}
               </div>
             )}
             
