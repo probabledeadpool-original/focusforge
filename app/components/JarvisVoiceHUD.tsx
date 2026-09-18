@@ -43,7 +43,8 @@ export default function JarvisVoiceHUD() {
     addMessage,
     clearMessages,
     lastAction,
-    setLastAction
+    setLastAction,
+    startLiveMode
   } = useJarvisStore();
 
   // Initialize two-stage wake-word listener ("JARVIS")
@@ -71,6 +72,18 @@ export default function JarvisVoiceHUD() {
   const [showDebug, setShowDebug] = useState(false);
 
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
+
+  // Global shortcut 'Shift+L' to enter Live mode directly
+  useEffect(() => {
+    const handleKey = (e: KeyboardEvent) => {
+      if (e.shiftKey && (e.key === 'L' || e.key === 'l') && !(e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement)) {
+        e.preventDefault();
+        startLiveMode();
+      }
+    };
+    window.addEventListener('keydown', handleKey);
+    return () => window.removeEventListener('keydown', handleKey);
+  }, [startLiveMode]);
 
   // Dynamic Shader Variant: "wave" for speaking/listening/idle, "fluid-dots" when thinking/processing
   const currentShaderVariant: SiriWaveVariant = useMemo(() => {
@@ -152,6 +165,17 @@ export default function JarvisVoiceHUD() {
 
           {/* Action Pills */}
           <div className="flex items-center gap-2">
+            {/* Enter Live Mode Button */}
+            <button
+              onClick={() => startLiveMode()}
+              className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-full bg-cyan-500/20 hover:bg-cyan-500/30 text-cyan-300 border border-cyan-400/50 hover:border-cyan-400 text-[10px] font-mono uppercase font-bold tracking-wider transition-all shadow-[0_0_12px_rgba(6,182,212,0.3)] cursor-pointer"
+              title="Start Live Voice Conversation (Shift+L)"
+            >
+              <Radio size={12} className="text-cyan-400 animate-pulse" />
+              <span>Start Live</span>
+              <span className="hidden md:inline px-1 py-0.2 rounded bg-cyan-400/20 text-[8px] text-cyan-200">⇧L</span>
+            </button>
+
             <button
               onClick={() => setShowDebug(!showDebug)}
               className={`p-2 rounded-full border transition-all text-[10px] font-mono uppercase font-bold flex items-center gap-1.5 ${

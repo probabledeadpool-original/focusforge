@@ -1,41 +1,65 @@
 "use client";
 
 import React from 'react';
-import { Wifi, WifiOff, Mic, MicOff, Sparkles, ChevronRight, Activity } from 'lucide-react';
+import { Wifi, WifiOff, Mic, MicOff, Radio, ChevronRight, Activity } from 'lucide-react';
+import { useJarvisStore } from '../../../hooks/useJarvisStore';
 
 interface QuickDualPillHeaderProps {
   isJarvisActive: boolean;
   onToggleJarvis: () => void;
   isOnline: boolean;
   onOpenVoiceHUD: () => void;
+  onStartLive?: () => void;
 }
 
 export const QuickDualPillHeader: React.FC<QuickDualPillHeaderProps> = ({
   isJarvisActive,
   onToggleJarvis,
   isOnline,
-  onOpenVoiceHUD
+  onOpenVoiceHUD,
+  onStartLive
 }) => {
+  const { isLiveActive, startLiveMode, liveTelemetry } = useJarvisStore();
+
   return (
     <div className="grid grid-cols-2 gap-2.5 w-full select-none">
-      {/* Pill 1: Network / FocusForge Online Telemetry */}
-      <div
-        className="h-14 p-2.5 rounded-2xl bg-white/[0.06] border border-white/10 hover:border-white/20 transition-all flex items-center justify-between gap-2 shadow-md cursor-default group"
+      {/* Pill 1: J.A.R.V.I.S. Live Mode Button */}
+      <button
+        type="button"
+        onClick={(e) => {
+          e.stopPropagation();
+          if (onStartLive) {
+            onStartLive();
+          } else {
+            startLiveMode();
+          }
+        }}
+        className={`h-14 p-2.5 rounded-2xl border transition-all flex items-center justify-between gap-2 shadow-md cursor-pointer text-left group ${
+          isLiveActive
+            ? 'bg-cyan-500/20 border-cyan-400 shadow-[0_0_18px_rgba(6,182,212,0.35)]'
+            : 'bg-white/[0.06] border-white/10 hover:border-cyan-400/50 hover:bg-cyan-500/10'
+        }`}
       >
         <div className="flex items-center gap-2.5 min-w-0">
-          <div className="w-9 h-9 rounded-full flex items-center justify-center bg-cyan-400 text-black shadow-[0_0_12px_rgba(6,182,212,0.4)] shrink-0">
-            {isOnline ? <Wifi size={16} strokeWidth={2.4} /> : <WifiOff size={16} />}
+          <div className={`w-9 h-9 rounded-full flex items-center justify-center transition-all shrink-0 ${
+            isLiveActive 
+              ? 'bg-cyan-400 text-black shadow-[0_0_14px_rgba(6,182,212,0.7)] animate-pulse' 
+              : 'bg-cyan-500/20 text-cyan-300 border border-cyan-400/40 group-hover:bg-cyan-400 group-hover:text-black'
+          }`}>
+            <Radio size={16} strokeWidth={2.4} />
           </div>
           <div className="flex flex-col min-w-0">
-            <span className="text-xs font-bold text-white tracking-tight truncate">
-              Focus Forge
+            <span className="text-xs font-bold text-white tracking-tight truncate flex items-center gap-1.5">
+              Live Voice
+              {isLiveActive && <span className="w-1.5 h-1.5 rounded-full bg-cyan-400 animate-ping" />}
             </span>
-            <span className="text-[10px] text-cyan-300/80 font-mono tracking-wider truncate">
-              {isOnline ? 'Online • 1.2ms' : 'Offline'}
+            <span className="text-[10px] text-cyan-300/90 font-mono tracking-wider truncate">
+              {isLiveActive ? 'Live Active' : 'Start Live'}
             </span>
           </div>
         </div>
-      </div>
+        <ChevronRight size={14} className="text-white/40 group-hover:text-white" />
+      </button>
 
       {/* Pill 2: J.A.R.V.I.S. Neural Core & Wake Word */}
       <button
@@ -86,3 +110,4 @@ export const QuickDualPillHeader: React.FC<QuickDualPillHeaderProps> = ({
     </div>
   );
 };
+

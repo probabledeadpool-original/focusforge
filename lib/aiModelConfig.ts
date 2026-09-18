@@ -18,6 +18,112 @@ export interface ModelDefinition {
   quotaTier: 'High' | 'Standard' | 'Experimental';
 }
 
+export interface LiveModelCapabilities {
+  id: string;
+  name: string;
+  categoryLabel: string;
+  inputModalities: ('audio' | 'text')[];
+  outputModalities: ('audio' | 'text')[];
+  supportsVoiceConversation: boolean;
+  supportsTranslation: boolean;
+  supportsTranscription: boolean;
+  supportsTools: boolean;
+  supportsThinking: boolean;
+  latencyCategory: 'Ultra-Low (~200ms)' | 'Low (~350ms)' | 'Standard (~450ms)' | 'Extended (~900ms)';
+  description: string;
+  isRecommendedDefault?: boolean;
+}
+
+export const LIVE_MODELS_MAP: Record<string, LiveModelCapabilities> = {
+  'gemini-2.5-flash-native-audio-dialog': {
+    id: 'gemini-2.5-flash-native-audio-dialog',
+    name: 'Gemini 2.5 Flash Native Audio Dialog',
+    categoryLabel: 'Native Audio Dialogue (Default)',
+    inputModalities: ['audio', 'text'],
+    outputModalities: ['audio', 'text'],
+    supportsVoiceConversation: true,
+    supportsTranslation: true,
+    supportsTranscription: true,
+    supportsTools: true,
+    supportsThinking: false,
+    latencyCategory: 'Low (~350ms)',
+    description: 'Premier native-audio conversational model with direct bidirectional speech streaming, approved tool calling, and low-latency acoustic responses.',
+    isRecommendedDefault: true
+  },
+  'gemini-3-flash-live': {
+    id: 'gemini-3-flash-live',
+    name: 'Gemini 3 Flash Live',
+    categoryLabel: 'High-Throughput Live Voice',
+    inputModalities: ['audio', 'text'],
+    outputModalities: ['audio', 'text'],
+    supportsVoiceConversation: true,
+    supportsTranslation: true,
+    supportsTranscription: true,
+    supportsTools: true,
+    supportsThinking: false,
+    latencyCategory: 'Ultra-Low (~200ms)',
+    description: 'Ultra-low-latency real-time voice streaming with accelerated turn taking and hands-free conversational flow.'
+  },
+  'gemini-3.5-live-translate': {
+    id: 'gemini-3.5-live-translate',
+    name: 'Gemini 3.5 Live Translate',
+    categoryLabel: 'Live Multilingual Translation',
+    inputModalities: ['audio', 'text'],
+    outputModalities: ['audio', 'text'],
+    supportsVoiceConversation: false,
+    supportsTranslation: true,
+    supportsTranscription: true,
+    supportsTools: false,
+    supportsThinking: false,
+    latencyCategory: 'Low (~350ms)',
+    description: 'Specialized for simultaneous voice translation across multiple languages. Not configured for general autonomous assistant directives.'
+  },
+  'gemini-3.5-transcribe-live': {
+    id: 'gemini-3.5-transcribe-live',
+    name: 'Gemini 3.5 Transcribe Live',
+    categoryLabel: 'Live Speech-to-Text Transcription',
+    inputModalities: ['audio'],
+    outputModalities: ['text'],
+    supportsVoiceConversation: false,
+    supportsTranslation: false,
+    supportsTranscription: true,
+    supportsTools: false,
+    supportsThinking: false,
+    latencyCategory: 'Ultra-Low (~200ms)',
+    description: 'High-accuracy real-time speech-to-text transcription. Outputs live transcripts only (no synthetic spoken voice output).'
+  },
+  'gemini-3.8-live': {
+    id: 'gemini-3.8-live',
+    name: 'Gemini 3.8 Live',
+    categoryLabel: 'Extended Context Live Dialogue',
+    inputModalities: ['audio', 'text'],
+    outputModalities: ['audio', 'text'],
+    supportsVoiceConversation: true,
+    supportsTranslation: true,
+    supportsTranscription: true,
+    supportsTools: true,
+    supportsThinking: false,
+    latencyCategory: 'Standard (~450ms)',
+    description: 'Advanced live conversational model with deep context retention and complex tool orchestrations.'
+  },
+  'gemini-3.8-live-extended-thinking': {
+    id: 'gemini-3.8-live-extended-thinking',
+    name: 'Gemini 3.8 Live Extended Thinking',
+    categoryLabel: 'Live Voice with Deep Reasoning',
+    inputModalities: ['audio', 'text'],
+    outputModalities: ['audio', 'text'],
+    supportsVoiceConversation: true,
+    supportsTranslation: true,
+    supportsTranscription: true,
+    supportsTools: true,
+    supportsThinking: true,
+    latencyCategory: 'Extended (~900ms)',
+    description: 'Live dialogue paired with extended internal reasoning before synthesis. Latency is higher; ideal for complex architectural questions.'
+  }
+};
+
+export const DEFAULT_LIVE_MODEL_ID = 'gemini-2.5-flash-native-audio-dialog';
+
 export interface AiConfig {
   textModel: string;
   liveModel: string;
@@ -26,7 +132,7 @@ export interface AiConfig {
 
 export const AI_CONFIG: AiConfig = {
   textModel: "gemma-4-26b-a4b-it",
-  liveModel: "gemini-2.0-flash-exp",
+  liveModel: DEFAULT_LIVE_MODEL_ID,
   embeddingModel: "text-embedding-004"
 };
 
@@ -183,14 +289,40 @@ export function setSelectedTextModel(modelId: string): void {
 }
 
 export function getSelectedLiveModel(): string {
-  if (typeof window === 'undefined') return AI_CONFIG.liveModel;
-  return localStorage.getItem('focusforge-selected-live-model') || AI_CONFIG.liveModel;
+  if (typeof window === 'undefined') return DEFAULT_LIVE_MODEL_ID;
+  const saved = localStorage.getItem('focusforge-selected-live-model');
+  if (saved && LIVE_MODELS_MAP[saved]) {
+    return saved;
+  }
+  return DEFAULT_LIVE_MODEL_ID;
 }
 
 export function setSelectedLiveModel(modelId: string): void {
   if (typeof window === 'undefined') return;
-  localStorage.setItem('focusforge-selected-live-model', modelId);
-  window.dispatchEvent(new CustomEvent('ai-model-changed', { detail: { liveModel: modelId } }));
+  const validId = LIVE_MODELS_MAP[modelId] ? modelId : DEFAULT_LIVE_MODEL_ID;
+  localStorage.setItem('focusforge-selected-live-model', validId);
+  window.dispatchEvent(new CustomEvent('ai-model-changed', { detail: { liveModel: validId } }));
+  window.dispatchEvent(new CustomEvent('jarvis-live-model-changed', { detail: { modelId: validId } }));
+}
+
+export function getLiveModelCapabilities(modelId: string): LiveModelCapabilities {
+  return LIVE_MODELS_MAP[modelId] || LIVE_MODELS_MAP[DEFAULT_LIVE_MODEL_ID];
+}
+
+export function validateLiveModelCompatibility(modelId: string, requiredCapability: 'speechOutput' | 'tools' | 'translation' | 'thinking'): boolean {
+  const caps = getLiveModelCapabilities(modelId);
+  switch (requiredCapability) {
+    case 'speechOutput':
+      return caps.outputModalities.includes('audio');
+    case 'tools':
+      return caps.supportsTools;
+    case 'translation':
+      return caps.supportsTranslation;
+    case 'thinking':
+      return caps.supportsThinking;
+    default:
+      return true;
+  }
 }
 
 export function getAiSessionUsage(): AiSessionUsage {
@@ -264,3 +396,4 @@ export function resetAiSessionUsage(): void {
   sessionStorage.setItem(USAGE_STORAGE_KEY, JSON.stringify(initial));
   window.dispatchEvent(new CustomEvent('ai-usage-updated', { detail: initial }));
 }
+

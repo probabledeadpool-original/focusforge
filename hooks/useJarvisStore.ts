@@ -3,8 +3,10 @@
 import { create } from 'zustand';
 import { jarvisAudio } from '../lib/jarvisAudio';
 import { VoicePhase, VoiceStateData, jarvisVoiceEngine } from '../lib/jarvisVoiceEngine';
+import { LivePhase, LiveTelemetry, jarvisLiveEngine } from '../lib/jarvisLiveEngine';
 import '../lib/jarvisCommandDispatcher';
 
+export type JarvisMode = 'STANDBY' | 'WAKE_WORD' | 'NORMAL_COMMAND' | 'LIVE';
 export type JarvisAiState = 'idle' | 'listening' | 'thinking' | 'speaking' | 'executing';
 export type JarvisDisplayMode = 'minimized' | 'expanded' | 'fullscreen';
 
@@ -17,6 +19,10 @@ export interface JarvisMessage {
 }
 
 interface JarvisStore {
+  // Mode Isolation Architecture
+  jarvisMode: JarvisMode;
+  setJarvisMode: (mode: JarvisMode) => void;
+
   // 3 Unified Display Modes
   isOpen: boolean;
   displayMode: JarvisDisplayMode;
@@ -33,6 +39,18 @@ interface JarvisStore {
   voiceState: VoicePhase; // backwards compatibility alias
   telemetry: VoiceStateData;
   setVoiceStateData: (data: VoiceStateData) => void;
+
+  // Live Conversation Mode State Machine
+  livePhase: LivePhase;
+  liveTelemetry: LiveTelemetry;
+  isLiveActive: boolean;
+  isLiveOverlayOpen: boolean;
+  setIsLiveOverlayOpen: (open: boolean) => void;
+  startLiveMode: (modelId?: string) => Promise<boolean>;
+  stopLiveMode: () => void;
+  toggleLiveMode: () => void;
+  toggleLiveMute: () => void;
+  interruptLive: () => void;
 
   // Derived legacy helper states
   aiState: JarvisAiState;
@@ -73,6 +91,16 @@ interface JarvisStore {
 }
 
 export const useJarvisStore = create<JarvisStore>((set, get) => ({
+  jarvisMode: 'WAKE_WORD',
+  setJarvisMode: (jarvisMode) => {
+    set({ jarvisMode });
+    if (jarvisMode === 'LIVE') {
+      jarvisVoiceEngine.stopWakeWordDetection();
+    } else if (jarvisMode === 'WAKE_WORD' && get().isHotwordEnabled) {
+      jarvisVoiceEngine.startWakeWordDetection();
+    }
+  },
+
   isOpen: false,
   displayMode: 'fullscreen',
   isMinimized: false,
@@ -106,7 +134,8 @@ export const useJarvisStore = create<JarvisStore>((set, get) => ({
       isOpen: true, 
       displayMode: mode, 
       isMinimized: mode === 'minimized', 
-      aiState: 'listening' 
+      aiState: 'listening',
+      jarvisMode: 'NORMAL_COMMAND'
     });
     if (typeof window !== 'undefined') {
       window.dispatchEvent(new CustomEvent('jarvis-display-mode', { detail: { mode } }));
@@ -121,7 +150,16 @@ export const useJarvisStore = create<JarvisStore>((set, get) => ({
   closeJarvis: () => {
     jarvisAudio.playDeactivate();
     jarvisVoiceEngine.cancelCurrentAction();
-    set({ isOpen: false, isListening: false, isSpeaking: false, aiState: 'idle' });
+    set({ 
+      isOpen: false, 
+      isListening: false, 
+      isSpeaking: false, 
+      aiState: 'idle',
+      jarvisMode: get().isHotwordEnabled ? 'WAKE_WORD' : 'STANDBY'
+    });
+    if (get().isHotwordEnabled) {
+      jarvisVoiceEngine.startWakeWordDetection();
+    }
   },
   toggleJarvis: () => {
     const nextState = !get().isOpen;
@@ -141,6 +179,63 @@ export const useJarvisStore = create<JarvisStore>((set, get) => ({
     telemetry 
   }),
 
+  // Live Mode State & Methods
+  livePhase: 'IDLE',
+  liveTelemetry: jarvisLiveEngine.getTelemetry(),
+  isLiveActive: false,
+  isLiveOverlayOpen: false,
+  setIsLiveOverlayOpen: (isLiveOverlayOpen) => set({ isLiveOverlayOpen }),
+
+  startLiveMode: async (modelId) => {
+    // 1. Disengage wake-word mode so microphone is exclusively owned by Live session
+    jarvisVoiceEngine.stopWakeWordDetection();
+    jarvisVoiceEngine.stopCommandListening();
+    jarvisAudio.playActivate();
+
+    set({ 
+      jarvisMode: 'LIVE', 
+      isLiveActive: true, 
+      isLiveOverlayOpen: true,
+      isOpen: false // Close legacy HUD when entering full Live mode
+    });
+
+    const success = await jarvisLiveEngine.startLiveSession(modelId);
+    if (!success) {
+      jarvisAudio.playDeactivate();
+    }
+    return success;
+  },
+
+  stopLiveMode: () => {
+    jarvisLiveEngine.exitLiveSession();
+    jarvisAudio.playDeactivate();
+    const nextMode: JarvisMode = get().isHotwordEnabled ? 'WAKE_WORD' : 'STANDBY';
+    set({ 
+      jarvisMode: nextMode, 
+      isLiveActive: false, 
+      isLiveOverlayOpen: false 
+    });
+    if (get().isHotwordEnabled) {
+      jarvisVoiceEngine.startWakeWordDetection();
+    }
+  },
+
+  toggleLiveMode: () => {
+    if (get().isLiveActive || get().jarvisMode === 'LIVE') {
+      get().stopLiveMode();
+    } else {
+      get().startLiveMode();
+    }
+  },
+
+  toggleLiveMute: () => {
+    jarvisLiveEngine.toggleMute();
+  },
+
+  interruptLive: () => {
+    jarvisLiveEngine.stopSpeaking();
+  },
+
   aiState: 'idle',
   setAiState: (aiState) => set({ aiState }),
   isListening: false,
@@ -153,7 +248,10 @@ export const useJarvisStore = create<JarvisStore>((set, get) => ({
   hotwordName: 'JARVIS',
   setIsHotwordEnabled: (isHotwordEnabled) => {
     jarvisVoiceEngine.setWakeWordEnabled(isHotwordEnabled);
-    set({ isHotwordEnabled });
+    set({ 
+      isHotwordEnabled,
+      jarvisMode: isHotwordEnabled ? 'WAKE_WORD' : 'STANDBY'
+    });
   },
   setIsHotwordActive: (isHotwordActive) => set({ isHotwordActive }),
   setHotwordName: (hotwordName) => {
@@ -257,6 +355,15 @@ if (typeof window !== 'undefined') {
     });
   });
 
+  // Sync Live engine telemetry
+  jarvisLiveEngine.subscribe((liveData: LiveTelemetry) => {
+    useJarvisStore.setState({
+      livePhase: liveData.phase,
+      liveTelemetry: liveData,
+      isLiveActive: liveData.phase !== 'IDLE' && liveData.phase !== 'EXITING_LIVE'
+    });
+  });
+
   (window as any).__jarvisStore = useJarvisStore;
 
   window.addEventListener('jarvis-auto-minimize', () => {
@@ -266,4 +373,5 @@ if (typeof window !== 'undefined') {
     }
   });
 }
+
 

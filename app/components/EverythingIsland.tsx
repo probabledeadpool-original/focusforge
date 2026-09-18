@@ -1824,13 +1824,21 @@ Answer directly, clearly, and concisely in normal natural language. Provide dire
                   </div>
 
                   <div className="flex items-center gap-1.5">
+                     {/* Live Voice Button */}
+                     <button 
+                      onClick={(e) => { e.stopPropagation(); useJarvisStore.getState().startLiveMode(); }} 
+                      className="w-7 h-7 rounded-full flex items-center justify-center transition-all bg-cyan-500/20 hover:bg-cyan-400 text-cyan-300 hover:text-black border border-cyan-400/50 hover:border-cyan-300 relative group shadow-[0_0_12px_rgba(6,182,212,0.3)]"
+                      title="Start Live Voice (Shift+L)"
+                    >
+                       <Radio size={12} className="group-hover:scale-110 transition-transform animate-pulse" />
+                       <span className="absolute -top-0.5 -right-0.5 w-1.5 h-1.5 rounded-full bg-cyan-400 shadow-[0_0_6px_#06b6d4] animate-ping" />
+                     </button>
                      <button 
                       onClick={(e) => { e.stopPropagation(); useJarvisStore.getState().openJarvis(); }} 
-                      className="w-7 h-7 rounded-full flex items-center justify-center transition-all bg-cyan-500/10 hover:bg-cyan-400 text-cyan-400 hover:text-black border border-cyan-500/30 hover:border-cyan-300 relative group shadow-[0_0_10px_rgba(34,211,238,0.2)]"
-                      title="J.A.R.V.I.S. Voice AI (Say 'JARVIS')"
+                      className="w-7 h-7 rounded-full flex items-center justify-center transition-all bg-white/5 hover:bg-cyan-400 text-white/70 hover:text-black border border-white/10 hover:border-cyan-300 relative group"
+                      title="J.A.R.V.I.S. Voice HUD (Say 'JARVIS')"
                     >
                        <Mic size={12} className="group-hover:scale-110 transition-transform" />
-                       <span className="absolute -top-0.5 -right-0.5 w-1.5 h-1.5 rounded-full bg-cyan-400 shadow-[0_0_4px_#22d3ee]" />
                      </button>
                      <button 
                       onClick={(e) => { e.stopPropagation(); setIslandState('ai'); }} 
