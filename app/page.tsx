@@ -2702,21 +2702,28 @@ export default function FocusForge() {
                 <motion.button
                   layout
                   transition={springConfig}
-                  whileHover={{ scale: 1.08 }}
+                  whileHover={{ scale: 1.1 }}
                   whileTap={{ scale: 0.92 }}
                   onClick={() => useJarvisStore.getState().toggleJarvis()}
-                  className="relative h-10 md:h-12 w-10 md:w-12 rounded-full flex items-center justify-center bg-cyan-500/10 hover:bg-cyan-400 border border-cyan-500/40 hover:border-cyan-300 text-cyan-400 hover:text-black transition-all duration-300 shadow-[0_0_20px_rgba(34,211,238,0.25)] hover:shadow-[0_0_30px_rgba(34,211,238,0.6)] group overflow-hidden"
+                  className="relative h-10 md:h-12 w-10 md:w-12 rounded-full flex items-center justify-center bg-black/60 hover:bg-black/80 border border-cyan-500/40 hover:border-cyan-300 transition-all duration-500 shadow-[0_0_25px_rgba(34,211,238,0.3)] hover:shadow-[0_0_35px_rgba(34,211,238,0.65)] group overflow-hidden"
                   title="J.A.R.V.I.S. Voice AI Mode (Say 'JARVIS')"
                 >
-                  <div className="absolute inset-0 flex items-center justify-center scale-90 group-hover:scale-105 transition-transform duration-300 pointer-events-none">
+                  {/* Subtle dynamic ambient background glow */}
+                  <div className="absolute inset-0 bg-gradient-to-tr from-cyan-500/20 via-purple-500/15 to-transparent rounded-full opacity-80 group-hover:opacity-100 transition-opacity" />
+                  
+                  {/* Glowing Animated Ring */}
+                  <div className="absolute -inset-[1px] rounded-full bg-gradient-to-r from-cyan-500/30 via-purple-500/20 to-cyan-500/30 opacity-40 group-hover:opacity-80 transition-opacity" />
+
+                  {/* SiriWave Core */}
+                  <div className="relative z-10 w-full h-full flex items-center justify-center scale-95 group-hover:scale-105 transition-transform duration-300 pointer-events-none">
                     <SiriWave 
-                      size={44} 
-                      renderScale={0.7}
+                      size={48} 
+                      renderScale={1.0}
                       variant={useJarvisStore.getState().aiState === 'thinking' ? 'fluid-dots' : 'wave'} 
                       className="pointer-events-none"
                     />
                   </div>
-                  <span className="absolute top-0.5 right-0.5 w-2 h-2 rounded-full bg-cyan-400 shadow-[0_0_8px_#22d3ee] border border-black z-10" />
+                  <span className="absolute top-1 right-1 w-2 h-2 rounded-full bg-cyan-400 shadow-[0_0_8px_#22d3ee] border border-black z-20 animate-pulse" />
                 </motion.button>
 
                 {activeTimer && (

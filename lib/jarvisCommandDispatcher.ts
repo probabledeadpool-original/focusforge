@@ -5,6 +5,23 @@ import { useAppStore } from '../hooks/useAppStore';
 import { useFrequencyStore } from '../hooks/useFrequencyStore';
 import { jarvisAudio } from './jarvisAudio';
 import { jarvisVoiceEngine, voiceLog } from './jarvisVoiceEngine';
+import { parseYouTubeUrl, fetchYouTubeMeta } from '../app/components/SonicVaultUtils';
+import { 
+  resolvePlaylist, 
+  resolveSong, 
+  playResolvedPlaylist, 
+  playResolvedSong,
+  setPendingMusicClarification, 
+  getPendingMusicClarification, 
+  clearPendingMusicClarification,
+  PlaylistMatchCandidate
+} from './musicResolver';
+import { 
+  executeMusicTool, 
+  MUSIC_TOOLS_DECLARATIONS 
+} from './musicTools';
+import { getSelectedTextModel, recordAiUsage } from './aiModelConfig';
+import { cleanJarvisOutput } from './jarvisOutputCleaner';
 
 export type ToolCategory = 'READ_ONLY' | 'DRAFT' | 'SIDE_EFFECT';
 
@@ -62,13 +79,13 @@ export const JARVIS_TOOLS: Record<string, ToolDefinition> = {
     name: 'NAVIGATE',
     category: 'READ_ONLY',
     description: 'Switch application views.',
-    parameters: { view: 'home | timer | activeTimer | tasks | place | ledger | terminal | stats | aura | hub | profile' }
+    parameters: { view: 'home | timer | activeTimer | tasks | place | ledger | terminal | stats | aura | hub | profile | frequency' }
   },
   PLAY_AUDIO: {
     name: 'PLAY_AUDIO',
     category: 'READ_ONLY',
     description: 'Start acoustic frequency or music playback.',
-    parameters: {}
+    parameters: { query: 'string (optional)' }
   },
   PAUSE_AUDIO: {
     name: 'PAUSE_AUDIO',
@@ -92,6 +109,48 @@ export const JARVIS_TOOLS: Record<string, ToolDefinition> = {
     name: 'PREVIOUS_TRACK',
     category: 'READ_ONLY',
     description: 'Return to previous music track.',
+    parameters: {}
+  },
+  PLAY_PLAYLIST: {
+    name: 'PLAY_PLAYLIST',
+    category: 'READ_ONLY',
+    description: 'Start playing a playlist in The Frequency.',
+    parameters: { playlistId: 'string', startIndex: 'number', shuffle: 'boolean', startFromBeginning: 'boolean' }
+  },
+  PLAY_SONG: {
+    name: 'PLAY_SONG',
+    category: 'READ_ONLY',
+    description: 'Start playing a song in The Frequency.',
+    parameters: { songId: 'string', insertNext: 'boolean' }
+  },
+  SET_VOLUME: {
+    name: 'SET_VOLUME',
+    category: 'READ_ONLY',
+    description: 'Adjust music playback volume.',
+    parameters: { volume: 'number', relativeChange: 'up | down' }
+  },
+  TOGGLE_SHUFFLE: {
+    name: 'TOGGLE_SHUFFLE',
+    category: 'READ_ONLY',
+    description: 'Enable or disable shuffle playback.',
+    parameters: { enabled: 'boolean' }
+  },
+  SET_REPEAT: {
+    name: 'SET_REPEAT',
+    category: 'READ_ONLY',
+    description: 'Set repeat mode for music.',
+    parameters: { mode: 'none | one | all' }
+  },
+  SEARCH_FREQUENCY: {
+    name: 'SEARCH_FREQUENCY',
+    category: 'READ_ONLY',
+    description: 'Search The Frequency music page.',
+    parameters: { query: 'string' }
+  },
+  GET_CURRENT_PLAYBACK: {
+    name: 'GET_CURRENT_PLAYBACK',
+    category: 'READ_ONLY',
+    description: 'Inquire current track and playback status.',
     parameters: {}
   },
   CLOSE_JARVIS: {
@@ -142,17 +201,20 @@ CORE DIRECTIVES:
 - Resume timer: [ACTION:{"type":"RESUME_TIMER"}]
 - Reset timer: [ACTION:{"type":"RESET_TIMER"}]
 - Navigation: [ACTION:{"type":"NAVIGATE","view":"home"|"timer"|"activeTimer"|"tasks"|"place"|"ledger"|"terminal"|"stats"|"aura"|"hub"|"profile"|"frequency"}]
-- Play audio / song / playlist: [ACTION:{"type":"PLAY_AUDIO","query":"Song or playlist name"}]
-- Pause audio: [ACTION:{"type":"PAUSE_AUDIO"}]
-- Stop audio: [ACTION:{"type":"STOP_AUDIO"}]
-- Next track: [ACTION:{"type":"NEXT_TRACK"}]
+- Play music / song / playlist query: [ACTION:{"type":"PLAY_AUDIO","query":"Song or playlist name"}]
+- Pause music: [ACTION:{"type":"PAUSE_AUDIO"}]
+- Stop music: [ACTION:{"type":"STOP_AUDIO"}]
+- Skip / Next track: [ACTION:{"type":"NEXT_TRACK"}]
 - Previous track: [ACTION:{"type":"PREVIOUS_TRACK"}]
+- Set volume: [ACTION:{"type":"SET_VOLUME","relativeChange":"up"|"down"}] or [ACTION:{"type":"SET_VOLUME","volume":0.5}]
+- Toggle shuffle: [ACTION:{"type":"TOGGLE_SHUFFLE","enabled":true}]
+- Set repeat: [ACTION:{"type":"SET_REPEAT","mode":"all"|"one"|"none"}]
+- Search frequency: [ACTION:{"type":"SEARCH_FREQUENCY","query":"Artist or genre"}]
+- What song is playing: [ACTION:{"type":"GET_CURRENT_PLAYBACK"}]
 - Close Jarvis: [ACTION:{"type":"CLOSE_JARVIS"}]
 - Award coins: [ACTION:{"type":"ADD_COINS","amount":50}]
 
 Do not expose tool JSON or internal reasoning in your answer.`;
-
-import { parseYouTubeUrl, fetchYouTubeMeta } from '../app/components/SonicVaultUtils';
 
 export function validateAndExecuteTool(action: { type: string; [key: string]: any }): boolean {
   if (!action || typeof action.type !== 'string') {
@@ -160,16 +222,11 @@ export function validateAndExecuteTool(action: { type: string; [key: string]: an
     return false;
   }
 
-  const toolDef = JARVIS_TOOLS[action.type];
-  if (!toolDef) {
-    voiceLog("UNKNOWN_TOOL_REJECTED", { actionType: action.type });
-    return false;
-  }
-
-  jarvisVoiceEngine.setActiveTool(action.type);
   const jarvisStore = useJarvisStore.getState();
   const appStore = useAppStore.getState();
   const frequencyStore = useFrequencyStore.getState();
+
+  jarvisVoiceEngine.setActiveTool(action.type);
 
   try {
     switch (action.type) {
@@ -274,88 +331,76 @@ export function validateAndExecuteTool(action: { type: string; [key: string]: an
       }
       case 'PLAY_AUDIO': {
         const query = typeof action.query === 'string' ? action.query.trim() : (typeof action.title === 'string' ? action.title.trim() : '');
-        const url = typeof action.url === 'string' ? action.url.trim() : '';
-
-        if (url || (query && (query.includes('http') || query.includes('youtube.com') || query.includes('youtu.be')))) {
-          const targetUrl = url || query;
-          const { videoId } = parseYouTubeUrl(targetUrl);
-          const vid = videoId || 'jfKfPfyJRdk';
-          const newTrack = {
-            id: `yt-${vid}-${Date.now()}`,
-            videoId: vid,
-            title: 'Streaming Audio Track',
-            artist: 'YouTube',
-            thumbnail: `https://img.youtube.com/vi/${vid}/hqdefault.jpg`,
-            dominantColor: 'rgb(6, 182, 212)',
-            addedAt: Date.now(),
-            sourceUrl: targetUrl,
-          };
-          frequencyStore.addTrack(newTrack);
-          frequencyStore.playTrack(newTrack.id);
-          window.dispatchEvent(new CustomEvent('start-theatre', { detail: { url: targetUrl } }));
-        } else if (query) {
-          // Check local playlists first
-          const matchedPl = frequencyStore.playlists.find(p => p.name.toLowerCase().includes(query.toLowerCase()));
-          if (matchedPl) {
-            frequencyStore.playPlaylist(matchedPl.id);
+        if (query) {
+          // Use smart resolver
+          const candidates = resolvePlaylist(query);
+          if (candidates.length > 0 && candidates[0].score >= 0.70) {
+            playResolvedPlaylist({ playlistId: candidates[0].playlistId });
+            jarvisStore.setLastAction(`PLAYING: ${candidates[0].title.toUpperCase()}`);
           } else {
-            // Check local tracks
-            const matchedTrk = frequencyStore.tracks.find(t => 
-              t.title.toLowerCase().includes(query.toLowerCase()) || 
-              t.artist.toLowerCase().includes(query.toLowerCase())
-            );
-            if (matchedTrk) {
-              frequencyStore.playTrack(matchedTrk.id);
+            const songMatches = resolveSong(query);
+            if (songMatches.length > 0) {
+              playResolvedSong({ songId: songMatches[0].songId });
+              jarvisStore.setLastAction(`PLAYING: ${songMatches[0].title.toUpperCase()}`);
             } else {
-              // Create dynamic search track
-              const searchTrack = {
-                id: `search-${Date.now()}`,
-                videoId: 'jfKfPfyJRdk',
-                title: query,
-                artist: 'Focus Audio Stream',
-                thumbnail: 'https://img.youtube.com/vi/jfKfPfyJRdk/maxresdefault.jpg',
-                dominantColor: 'rgb(147, 51, 234)',
-                addedAt: Date.now(),
-                sourceUrl: `https://www.youtube.com/results?search_query=${encodeURIComponent(query)}`,
-              };
-              frequencyStore.addTrack(searchTrack);
-              frequencyStore.playTrack(searchTrack.id);
-              window.dispatchEvent(new CustomEvent('start-theatre', { detail: { url: `https://youtube.com/watch?v=jfKfPfyJRdk`, query } }));
+              frequencyStore.setIsPlaying(true);
+              appStore.setIsVideoPlaying(true);
+              jarvisStore.setLastAction('PLAYING AUDIO');
             }
           }
         } else {
-          // Resume current track
           frequencyStore.setIsPlaying(true);
           appStore.setIsVideoPlaying(true);
+          jarvisStore.setLastAction('PLAYING AUDIO');
         }
-
-        jarvisStore.setLastAction(query ? `PLAYING: ${query.toUpperCase()}` : 'PLAYING AUDIO');
         jarvisAudio.playExecute();
         return true;
       }
       case 'PAUSE_AUDIO': {
-        frequencyStore.setIsPlaying(false);
-        appStore.setIsVideoPlaying(false);
+        executeMusicTool('pause_playback');
         jarvisStore.setLastAction('AUDIO PAUSED');
         jarvisAudio.playExecute();
         return true;
       }
       case 'STOP_AUDIO': {
-        frequencyStore.setIsPlaying(false);
-        appStore.setIsVideoPlaying(false);
+        executeMusicTool('pause_playback');
         jarvisStore.setLastAction('AUDIO STOPPED');
         jarvisAudio.playExecute();
         return true;
       }
       case 'NEXT_TRACK': {
-        frequencyStore.next();
+        executeMusicTool('skip_next');
         jarvisStore.setLastAction('SKIPPED TO NEXT TRACK');
         jarvisAudio.playExecute();
         return true;
       }
       case 'PREVIOUS_TRACK': {
-        frequencyStore.previous();
+        executeMusicTool('skip_previous');
         jarvisStore.setLastAction('PREVIOUS TRACK');
+        jarvisAudio.playExecute();
+        return true;
+      }
+      case 'SET_VOLUME': {
+        executeMusicTool('set_volume', { volume: action.volume, relativeChange: action.relativeChange });
+        jarvisStore.setLastAction('VOLUME ADJUSTED');
+        jarvisAudio.playExecute();
+        return true;
+      }
+      case 'TOGGLE_SHUFFLE': {
+        executeMusicTool('toggle_shuffle', { enabled: action.enabled });
+        jarvisStore.setLastAction('SHUFFLE TOGGLED');
+        jarvisAudio.playExecute();
+        return true;
+      }
+      case 'SET_REPEAT': {
+        executeMusicTool('set_repeat_mode', { mode: action.mode || 'all' });
+        jarvisStore.setLastAction('REPEAT SET');
+        jarvisAudio.playExecute();
+        return true;
+      }
+      case 'SEARCH_FREQUENCY': {
+        executeMusicTool('search_frequency', { query: action.query });
+        jarvisStore.setLastAction(`SEARCH: ${action.query}`);
         jarvisAudio.playExecute();
         return true;
       }
@@ -381,93 +426,341 @@ export function validateAndExecuteTool(action: { type: string; [key: string]: an
   }
 }
 
+/**
+ * Handle Multi-Turn Clarification Follow-ups (e.g. "the first one", "the second one", "yes", "no", "cancel")
+ */
+function handlePendingClarification(text: string): boolean {
+  const pending = getPendingMusicClarification();
+  if (!pending) return false;
+
+  const jarvisStore = useJarvisStore.getState();
+  const lower = text.toLowerCase().trim();
+
+  // Cancel / Nevermind
+  if (lower === 'cancel' || lower === 'nevermind' || lower === 'no' || lower === 'stop' || lower.includes('cancel')) {
+    clearPendingMusicClarification();
+    const reply = "Understood. Music request cancelled, sir.";
+    jarvisStore.addMessage({ role: 'assistant', text: reply });
+    jarvisVoiceEngine.speakResponse(reply);
+    return true;
+  }
+
+  // Follow-up for Playlist Choice
+  if (pending.type === 'PLAYLIST_CHOICE' && pending.candidates && pending.candidates.length > 0) {
+    let chosenCandidate: PlaylistMatchCandidate | null = null;
+
+    if (lower.includes('first') || lower === '1' || lower === 'one' || lower.includes('number one')) {
+      chosenCandidate = pending.candidates[0] || null;
+    } else if (lower.includes('second') || lower === '2' || lower === 'two' || lower.includes('number two')) {
+      chosenCandidate = pending.candidates[1] || null;
+    } else if (lower.includes('third') || lower === '3' || lower === 'three' || lower.includes('number three')) {
+      chosenCandidate = pending.candidates[2] || null;
+    } else {
+      // Check if user spoke a candidate title
+      chosenCandidate = pending.candidates.find(c => 
+        lower.includes(c.title.toLowerCase()) || c.title.toLowerCase().includes(lower)
+      ) || null;
+    }
+
+    if (chosenCandidate) {
+      clearPendingMusicClarification();
+      playResolvedPlaylist({ playlistId: chosenCandidate.playlistId });
+      const reply = `Playing ${chosenCandidate.title}, sir.`;
+      jarvisStore.addMessage({ role: 'assistant', text: reply, actionSummary: `Playlist: ${chosenCandidate.title}` });
+      jarvisVoiceEngine.speakResponse(reply);
+      return true;
+    }
+  }
+
+  // Queue Clear Confirmation
+  if (pending.type === 'QUEUE_REPLACE_CONFIRMATION') {
+    if (lower === 'yes' || lower === 'yeah' || lower === 'confirm' || lower === 'proceed' || lower.includes('yes')) {
+      executeMusicTool('clear_queue', { confirmed: true });
+      const reply = "Queue cleared, sir.";
+      jarvisStore.addMessage({ role: 'assistant', text: reply, actionSummary: 'Queue Cleared' });
+      jarvisVoiceEngine.speakResponse(reply);
+      return true;
+    }
+  }
+
+  return false;
+}
+
+/**
+ * High-Speed Deterministic Voice Command Processor
+ */
 export async function executeLocalCommand(rawText: string): Promise<boolean> {
   const text = rawText.toLowerCase().trim();
   const jarvisStore = useJarvisStore.getState();
   const frequencyStore = useFrequencyStore.getState();
   const appStore = useAppStore.getState();
 
-  // 1. SPECIFIC SONG, PLAYLIST, OR SEARCH QUERY PLAY COMMAND
-  // Examples: "play starboy", "play lofi playlist", "play synthwave", "play bohemian rhapsody", "play https://..."
-  const specificPlayMatch = text.match(/^(?:play|stream|listen to|put on)\s+(?:song|track|playlist|music|audio)?\s*(.+)$/i);
-  if (specificPlayMatch && specificPlayMatch[1]) {
-    const rawTarget = specificPlayMatch[1].trim();
-    const genericWords = ['music', 'audio', 'it', 'song', 'track', 'sound', 'playback', 'something', 'radio'];
-    
-    if (!genericWords.includes(rawTarget.toLowerCase())) {
-      // It's a specific song, playlist, or URL!
-      const target = rawTarget;
-      
-      // A. Check if it matches a playlist
-      const matchedPlaylist = frequencyStore.playlists.find(p => 
-        p.name.toLowerCase().includes(target.toLowerCase())
-      );
-      if (matchedPlaylist) {
-        frequencyStore.playPlaylist(matchedPlaylist.id);
-        const reply = `Playing playlist: ${matchedPlaylist.name}, sir.`;
-        jarvisStore.addMessage({ role: 'assistant', text: reply, actionSummary: `Playlist: ${matchedPlaylist.name}` });
-        jarvisVoiceEngine.speakResponse(reply);
-        return true;
-      }
+  // 0. CHECK MULTI-TURN PENDING CLARIFICATION
+  if (handlePendingClarification(text)) {
+    return true;
+  }
 
-      // B. Check if it matches an existing track
-      const matchedTrack = frequencyStore.tracks.find(t => 
-        t.title.toLowerCase().includes(target.toLowerCase()) || 
-        t.artist.toLowerCase().includes(target.toLowerCase())
-      );
-      if (matchedTrack) {
-        frequencyStore.playTrack(matchedTrack.id);
-        const reply = `Playing "${matchedTrack.title}", sir.`;
-        jarvisStore.addMessage({ role: 'assistant', text: reply, actionSummary: `Playing: ${matchedTrack.title}` });
-        jarvisVoiceEngine.speakResponse(reply);
-        return true;
-      }
+  // 1. INQUIRE CURRENT SONG ("what song is playing", "what's playing", "what track is this", "song details")
+  if (
+    text.includes('what song is playing') ||
+    text.includes("what's playing") ||
+    text.includes('what track is this') ||
+    text.includes('which song is this') ||
+    text.includes('current song') ||
+    text.includes('current track') ||
+    text === 'what is playing'
+  ) {
+    const res = await executeMusicTool('get_current_playback');
+    const reply = res.message ? `${res.message}, sir.` : "No music is currently playing, sir.";
+    jarvisStore.addMessage({ role: 'assistant', text: reply, actionSummary: 'Current Playback' });
+    jarvisVoiceEngine.speakResponse(reply);
+    return true;
+  }
 
-      // C. If URL or YouTube link
-      const { videoId } = parseYouTubeUrl(target);
-      if (videoId || target.includes('http')) {
-        const vid = videoId || 'jfKfPfyJRdk';
-        const newTrack = {
-          id: `yt-${vid}-${Date.now()}`,
-          videoId: vid,
-          title: target.startsWith('http') ? 'YouTube Stream' : target,
-          artist: 'YouTube',
-          thumbnail: `https://img.youtube.com/vi/${vid}/hqdefault.jpg`,
-          dominantColor: 'rgb(6, 182, 212)',
-          addedAt: Date.now(),
-          sourceUrl: target.startsWith('http') ? target : `https://www.youtube.com/watch?v=${vid}`,
-        };
-        frequencyStore.addTrack(newTrack);
-        frequencyStore.playTrack(newTrack.id);
-        window.dispatchEvent(new CustomEvent('start-theatre', { detail: { url: newTrack.sourceUrl } }));
-        const reply = `Streaming track from YouTube, sir.`;
-        jarvisStore.addMessage({ role: 'assistant', text: reply, actionSummary: `Playing: ${target}` });
-        jarvisVoiceEngine.speakResponse(reply);
-        return true;
-      }
+  // 2. VOLUME CONTROLS ("turn volume down", "turn volume up", "volume up", "volume down", "set volume to 50 percent", "quieter", "louder")
+  if (
+    text.includes('volume down') ||
+    text.includes('turn it down') ||
+    text.includes('quieter') ||
+    text.includes('lower volume') ||
+    text === 'volume down'
+  ) {
+    const res = await executeMusicTool('set_volume', { relativeChange: 'down' });
+    const reply = `${res.message}`;
+    jarvisStore.addMessage({ role: 'assistant', text: reply, actionSummary: 'Volume Down' });
+    jarvisVoiceEngine.speakResponse(reply);
+    return true;
+  }
 
-      // D. Search & Play online song / artist query (e.g. "play starboy", "play weeknd")
-      const dynamicTrack = {
-        id: `search-${Date.now()}`,
-        videoId: 'jfKfPfyJRdk',
-        title: target,
-        artist: 'Streaming Audio',
-        thumbnail: 'https://img.youtube.com/vi/jfKfPfyJRdk/maxresdefault.jpg',
-        dominantColor: 'rgb(147, 51, 234)',
-        addedAt: Date.now(),
-        sourceUrl: `https://www.youtube.com/results?search_query=${encodeURIComponent(target)}`,
-      };
-      frequencyStore.addTrack(dynamicTrack);
-      frequencyStore.playTrack(dynamicTrack.id);
-      window.dispatchEvent(new CustomEvent('start-theatre', { detail: { url: `https://youtube.com/watch?v=jfKfPfyJRdk`, query: target } }));
-      const reply = `Playing "${target}", sir.`;
-      jarvisStore.addMessage({ role: 'assistant', text: reply, actionSummary: `Playing: ${target}` });
+  if (
+    text.includes('volume up') ||
+    text.includes('turn it up') ||
+    text.includes('louder') ||
+    text.includes('raise volume') ||
+    text === 'volume up'
+  ) {
+    const res = await executeMusicTool('set_volume', { relativeChange: 'up' });
+    const reply = `${res.message}`;
+    jarvisStore.addMessage({ role: 'assistant', text: reply, actionSummary: 'Volume Up' });
+    jarvisVoiceEngine.speakResponse(reply);
+    return true;
+  }
+
+  const volumePctMatch = text.match(/(?:set volume to|volume to|set volume)\s+(\d+)\s*(?:percent|%)?/i);
+  if (volumePctMatch && volumePctMatch[1]) {
+    const targetPct = parseInt(volumePctMatch[1], 10);
+    const res = await executeMusicTool('set_volume', { volume: targetPct });
+    const reply = `${res.message}`;
+    jarvisStore.addMessage({ role: 'assistant', text: reply, actionSummary: `Volume: ${targetPct}%` });
+    jarvisVoiceEngine.speakResponse(reply);
+    return true;
+  }
+
+  // 3. SHUFFLE CONTROLS ("shuffle this playlist", "shuffle on", "shuffle off", "turn on shuffle")
+  if (
+    text.includes('shuffle this playlist') ||
+    text.includes('shuffle playlist') ||
+    text.includes('shuffle this') ||
+    text.includes('turn shuffle on') ||
+    text.includes('shuffle on') ||
+    text === 'shuffle'
+  ) {
+    const res = await executeMusicTool('toggle_shuffle', { enabled: true });
+    const reply = `${res.message}, sir.`;
+    jarvisStore.addMessage({ role: 'assistant', text: reply, actionSummary: 'Shuffle Enabled' });
+    jarvisVoiceEngine.speakResponse(reply);
+    return true;
+  }
+
+  if (text.includes('shuffle off') || text.includes('turn shuffle off') || text.includes('disable shuffle')) {
+    const res = await executeMusicTool('toggle_shuffle', { enabled: false });
+    const reply = `${res.message}, sir.`;
+    jarvisStore.addMessage({ role: 'assistant', text: reply, actionSummary: 'Shuffle Disabled' });
+    jarvisVoiceEngine.speakResponse(reply);
+    return true;
+  }
+
+  // 4. REPEAT CONTROLS ("repeat this playlist", "repeat this song", "repeat on", "repeat off")
+  if (text.includes('repeat this song') || text.includes('repeat song') || text.includes('repeat one')) {
+    const res = await executeMusicTool('set_repeat_mode', { mode: 'one' });
+    const reply = `${res.message}, sir.`;
+    jarvisStore.addMessage({ role: 'assistant', text: reply, actionSummary: 'Repeat Song' });
+    jarvisVoiceEngine.speakResponse(reply);
+    return true;
+  }
+
+  if (text.includes('repeat this playlist') || text.includes('repeat playlist') || text.includes('repeat all')) {
+    const res = await executeMusicTool('set_repeat_mode', { mode: 'all' });
+    const reply = `${res.message}, sir.`;
+    jarvisStore.addMessage({ role: 'assistant', text: reply, actionSummary: 'Repeat Playlist' });
+    jarvisVoiceEngine.speakResponse(reply);
+    return true;
+  }
+
+  if (text.includes('repeat off') || text.includes('stop repeat') || text.includes('disable repeat')) {
+    const res = await executeMusicTool('set_repeat_mode', { mode: 'none' });
+    const reply = `${res.message}, sir.`;
+    jarvisStore.addMessage({ role: 'assistant', text: reply, actionSummary: 'Repeat Off' });
+    jarvisVoiceEngine.speakResponse(reply);
+    return true;
+  }
+
+  // 5. QUEUE NEXT SONG ("play the song after this one", "queue next", "play next: [song]")
+  if (text.includes('play the song after this one') || text.includes('play after this') || text.includes('queue next')) {
+    const currentTrack = frequencyStore.getCurrentTrack();
+    const reply = currentTrack ? `The next queued track will play seamlessly after "${currentTrack.title}".` : "Track queued to play next, sir.";
+    jarvisStore.addMessage({ role: 'assistant', text: reply, actionSummary: 'Queue Next' });
+    jarvisVoiceEngine.speakResponse(reply);
+    return true;
+  }
+
+  // 6. SEARCH THE FREQUENCY ("search the frequency for songs by [artist]", "search frequency for [query]")
+  const searchFreqMatch = text.match(/search(?:\s+the)?\s+frequency(?:\s+for)?(?:\s+songs by|\s+tracks by|\s+for)?\s+(.+)$/i);
+  if (searchFreqMatch && searchFreqMatch[1]) {
+    const query = searchFreqMatch[1].trim();
+    await executeMusicTool('search_frequency', { query });
+    const reply = `Searching The Frequency for "${query}", sir.`;
+    jarvisStore.addMessage({ role: 'assistant', text: reply, actionSummary: `Search: ${query}` });
+    jarvisVoiceEngine.speakResponse(reply);
+    return true;
+  }
+
+  // 7. PLAY ENTIRE / WHOLE PLAYLIST FROM BEGINNING ("play this entire playlist", "play the whole playlist from the beginning", "play playlist from the start")
+  if (
+    text.includes('entire playlist') ||
+    text.includes('whole playlist') ||
+    text.includes('from the beginning') ||
+    text.includes('from the start') ||
+    text.includes('play from start')
+  ) {
+    const activePlId = frequencyStore.activePlaylistId;
+    if (activePlId) {
+      await playResolvedPlaylist({ playlistId: activePlId, startFromBeginning: true });
+      const activePl = frequencyStore.playlists.find(p => p.id === activePlId);
+      const reply = `Playing the entire "${activePl?.name || 'playlist'}" from the beginning.`;
+      jarvisStore.addMessage({ role: 'assistant', text: reply, actionSummary: 'Playing from start' });
       jarvisVoiceEngine.speakResponse(reply);
       return true;
     }
   }
 
-  // 2. GENERIC PLAY / RESUME COMMAND ("play", "start", "resume", "unpause")
+  // 8. NATURAL PLAYLIST & SONG INTENT RESOLUTION
+  // Examples: "play my workout playlist", "play the playlist called late night", "play the playlist with the purple cover", "play the playlist I made for studying", "play the playlist that has Blinding Lights in it"
+  const playIntentMatch = text.match(/^(?:jarvis\s*,?\s*)?(?:play|stream|listen to|put on|start|queue)\s+(.+)$/i);
+  if (playIntentMatch && playIntentMatch[1]) {
+    const rawTarget = playIntentMatch[1].trim();
+    const genericWords = ['music', 'audio', 'it', 'song', 'track', 'sound', 'playback', 'something', 'radio'];
+
+    if (!genericWords.includes(rawTarget)) {
+      // 8A. Resolve Playlist candidates
+      const playlistCandidates = resolvePlaylist(rawTarget);
+
+      // Check Confidence Policy
+      if (playlistCandidates.length > 0) {
+        const top = playlistCandidates[0];
+
+        // 1. High Confidence (Score >= 0.90) & Unambiguous
+        if (top.score >= 0.90 && (playlistCandidates.length === 1 || top.score - (playlistCandidates[1]?.score || 0) >= 0.15)) {
+          if (top.trackCount === 0) {
+            const reply = `The playlist "${top.title}" is currently empty, sir.`;
+            jarvisStore.addMessage({ role: 'assistant', text: reply });
+            jarvisVoiceEngine.speakResponse(reply);
+            return true;
+          }
+          await playResolvedPlaylist({ playlistId: top.playlistId });
+          const reply = `Playing ${top.title}.`;
+          jarvisStore.addMessage({ role: 'assistant', text: reply, actionSummary: `Playing: ${top.title}` });
+          jarvisVoiceEngine.speakResponse(reply);
+          return true;
+        }
+
+        // 2. Multiple Plausible Candidates (Ambiguous: 0.65 <= Score < 0.90)
+        if (playlistCandidates.length >= 2 && playlistCandidates[1].score >= 0.65) {
+          const top2 = playlistCandidates.slice(0, 2);
+          setPendingMusicClarification({
+            type: 'PLAYLIST_CHOICE',
+            candidates: top2,
+            prompt: `I found two matching playlists: 1. ${top2[0].title}, 2. ${top2[1].title}. Which one should I play?`,
+            createdAt: Date.now()
+          });
+          const reply = `I found two matching playlists:\n1. ${top2[0].title}\n2. ${top2[1].title}\n\nWhich one should I play?`;
+          jarvisStore.addMessage({ role: 'assistant', text: reply, actionSummary: 'Clarification Needed' });
+          jarvisVoiceEngine.speakResponse(`I found two matching playlists: ${top2[0].title} or ${top2[1].title}. Which one should I play?`);
+          return true;
+        }
+
+        // 3. Single Candidate with Good Score (>= 0.70)
+        if (top.score >= 0.70) {
+          if (top.trackCount === 0) {
+            const reply = `The playlist "${top.title}" has no playable songs.`;
+            jarvisStore.addMessage({ role: 'assistant', text: reply });
+            jarvisVoiceEngine.speakResponse(reply);
+            return true;
+          }
+          await playResolvedPlaylist({ playlistId: top.playlistId });
+          const reply = `Playing ${top.title}.`;
+          jarvisStore.addMessage({ role: 'assistant', text: reply, actionSummary: `Playing: ${top.title}` });
+          jarvisVoiceEngine.speakResponse(reply);
+          return true;
+        }
+      }
+
+      // 8B. Resolve Song candidates in Library
+      const songCandidates = resolveSong(rawTarget);
+      if (songCandidates.length > 0 && songCandidates[0].score >= 0.70) {
+        const topSong = songCandidates[0];
+        await playResolvedSong({ songId: topSong.songId });
+        const reply = `Playing "${topSong.title}" by ${topSong.artist}.`;
+        jarvisStore.addMessage({ role: 'assistant', text: reply, actionSummary: `Playing: ${topSong.title}` });
+        jarvisVoiceEngine.speakResponse(reply);
+        return true;
+      }
+
+      // 8C. If URL or YouTube link
+      const { videoId } = parseYouTubeUrl(rawTarget);
+      if (videoId || rawTarget.includes('http')) {
+        const vid = videoId || 'jfKfPfyJRdk';
+        const newTrack = {
+          id: `yt-${vid}-${Date.now()}`,
+          videoId: vid,
+          title: rawTarget.startsWith('http') ? 'YouTube Stream' : rawTarget,
+          artist: 'YouTube',
+          thumbnail: `https://img.youtube.com/vi/${vid}/hqdefault.jpg`,
+          dominantColor: 'rgb(6, 182, 212)',
+          addedAt: Date.now(),
+          sourceUrl: rawTarget.startsWith('http') ? rawTarget : `https://www.youtube.com/watch?v=${vid}`,
+        };
+        frequencyStore.addTrack(newTrack);
+        frequencyStore.playTrack(newTrack.id);
+        window.dispatchEvent(new CustomEvent('start-theatre', { detail: { url: newTrack.sourceUrl } }));
+        const reply = `Streaming track from YouTube, sir.`;
+        jarvisStore.addMessage({ role: 'assistant', text: reply, actionSummary: `Playing: ${rawTarget}` });
+        jarvisVoiceEngine.speakResponse(reply);
+        return true;
+      }
+
+      // 8D. Dynamic Online Search Stream
+      const dynamicTrack = {
+        id: `search-${Date.now()}`,
+        videoId: 'jfKfPfyJRdk',
+        title: rawTarget,
+        artist: 'Streaming Audio',
+        thumbnail: 'https://img.youtube.com/vi/jfKfPfyJRdk/maxresdefault.jpg',
+        dominantColor: 'rgb(147, 51, 234)',
+        addedAt: Date.now(),
+        sourceUrl: `https://www.youtube.com/results?search_query=${encodeURIComponent(rawTarget)}`,
+      };
+      frequencyStore.addTrack(dynamicTrack);
+      frequencyStore.playTrack(dynamicTrack.id);
+      window.dispatchEvent(new CustomEvent('start-theatre', { detail: { url: `https://youtube.com/watch?v=jfKfPfyJRdk`, query: rawTarget } }));
+      const reply = `Playing "${rawTarget}", sir.`;
+      jarvisStore.addMessage({ role: 'assistant', text: reply, actionSummary: `Playing: ${rawTarget}` });
+      jarvisVoiceEngine.speakResponse(reply);
+      return true;
+    }
+  }
+
+  // 9. GENERIC PLAY / RESUME COMMAND ("play", "start", "resume", "unpause")
   if (
     text === 'play' ||
     text === 'resume' ||
@@ -475,16 +768,14 @@ export async function executeLocalCommand(rawText: string): Promise<boolean> {
     text === 'start' ||
     /^(play|start|resume|continue|unpause)(\s+(music|audio|frequency|song|track|playback|sound|lofi|432))?$/i.test(text)
   ) {
-    validateAndExecuteTool({ type: 'PLAY_AUDIO' });
-    const currentTrack = frequencyStore.getCurrentTrack();
-    const trackName = currentTrack?.title ? ` "${currentTrack.title}"` : ' audio playback';
-    const reply = `Resuming${trackName}, sir.`;
+    const res = await executeMusicTool('resume_playback');
+    const reply = res.message;
     jarvisStore.addMessage({ role: 'assistant', text: reply, actionSummary: 'Playing Audio' });
     jarvisVoiceEngine.speakResponse(reply);
     return true;
   }
 
-  // 2. PAUSE COMMAND ("pause", "hold", "pause music", "pause audio", "pause song", "pause playback")
+  // 10. PAUSE COMMAND ("pause", "hold", "pause music", "pause audio", "pause song", "pause playback")
   if (
     text === 'pause' ||
     text === 'hold' ||
@@ -495,14 +786,14 @@ export async function executeLocalCommand(rawText: string): Promise<boolean> {
     text.includes('pause playback') ||
     text.includes('pause song')
   ) {
-    validateAndExecuteTool({ type: 'PAUSE_AUDIO' });
-    const reply = "Playback paused, sir.";
+    const res = await executeMusicTool('pause_playback');
+    const reply = res.message;
     jarvisStore.addMessage({ role: 'assistant', text: reply, actionSummary: 'Paused Audio' });
     jarvisVoiceEngine.speakResponse(reply);
     return true;
   }
 
-  // 3. STOP COMMAND ("stop", "stop music", "silence", "mute", "stop audio", "stop playback", "cut audio")
+  // 11. STOP COMMAND ("stop", "stop music", "silence", "mute", "stop audio", "stop playback")
   if (
     text === 'stop' ||
     text === 'silence' ||
@@ -516,14 +807,14 @@ export async function executeLocalCommand(rawText: string): Promise<boolean> {
     text.includes('stop playing') ||
     text.includes('mute audio')
   ) {
-    validateAndExecuteTool({ type: 'STOP_AUDIO' });
+    const res = await executeMusicTool('pause_playback');
     const reply = "Audio and media output stopped.";
     jarvisStore.addMessage({ role: 'assistant', text: reply, actionSummary: 'Audio Stopped' });
     jarvisVoiceEngine.speakResponse(reply);
     return true;
   }
 
-  // 4. NEXT COMMAND ("next", "next track", "next song", "skip", "skip track", "skip song", "forward")
+  // 12. NEXT TRACK COMMAND ("next", "next track", "next song", "skip", "skip track", "skip song", "forward")
   if (
     text === 'next' ||
     text === 'skip' ||
@@ -535,15 +826,14 @@ export async function executeLocalCommand(rawText: string): Promise<boolean> {
     text.includes('skip track') ||
     text.includes('play next')
   ) {
-    validateAndExecuteTool({ type: 'NEXT_TRACK' });
-    const currentTrack = frequencyStore.getCurrentTrack();
-    const reply = currentTrack ? `Skipping to next track: ${currentTrack.title}.` : "Skipping to next track, sir.";
+    const res = await executeMusicTool('skip_next');
+    const reply = res.message;
     jarvisStore.addMessage({ role: 'assistant', text: reply, actionSummary: 'Next Track' });
     jarvisVoiceEngine.speakResponse(reply);
     return true;
   }
 
-  // 5. BACK / PREVIOUS COMMAND ("back", "previous", "prev", "previous track", "previous song", "last song", "go back", "replay")
+  // 13. PREVIOUS TRACK / GO BACK COMMAND ("back", "previous", "prev", "previous track", "previous song", "go back", "replay")
   if (
     text === 'back' ||
     text === 'previous' ||
@@ -557,15 +847,14 @@ export async function executeLocalCommand(rawText: string): Promise<boolean> {
     text.includes('last track') ||
     text.includes('go back')
   ) {
-    validateAndExecuteTool({ type: 'PREVIOUS_TRACK' });
-    const currentTrack = frequencyStore.getCurrentTrack();
-    const reply = currentTrack ? `Playing previous track: ${currentTrack.title}.` : "Returning to previous track, sir.";
+    const res = await executeMusicTool('skip_previous');
+    const reply = res.message;
     jarvisStore.addMessage({ role: 'assistant', text: reply, actionSummary: 'Previous Track' });
     jarvisVoiceEngine.speakResponse(reply);
     return true;
   }
 
-  // 6. CLOSE JARVIS COMMAND ("close jarvis", "close", "exit jarvis", "exit", "dismiss", "hide jarvis", "hide", "bye", "goodbye")
+  // 14. CLOSE JARVIS COMMAND
   if (
     text === 'close jarvis' ||
     text === 'exit jarvis' ||
@@ -577,9 +866,6 @@ export async function executeLocalCommand(rawText: string): Promise<boolean> {
     text === 'hide' ||
     text === 'bye' ||
     text === 'goodbye' ||
-    text === 'close interface' ||
-    text === 'close hud' ||
-    text === 'cancel' ||
     /^(close|exit|dismiss|hide|cancel|bye|goodbye)(\s+(jarvis|hud|interface|window|screen|menu|assistant))?$/i.test(text)
   ) {
     const reply = "Closing J.A.R.V.I.S. interface. Standing by in the background.";
@@ -589,7 +875,7 @@ export async function executeLocalCommand(rawText: string): Promise<boolean> {
     return true;
   }
 
-  // 7. TIMER COMMANDS
+  // 15. TIMER COMMANDS
   if (text.includes('start timer') || text.includes('start focus') || text.includes('set timer') || text.includes('pomodoro') || text.includes('sprint')) {
     let durationMinutes = 25;
     let timerName = 'Deep Focus Block';
@@ -635,7 +921,7 @@ export async function executeLocalCommand(rawText: string): Promise<boolean> {
     return true;
   }
 
-  // 8. TASK OBJECTIVES
+  // 16. TASK MATRIX OBJECTIVES
   if (text.startsWith('add task') || text.startsWith('create task') || text.startsWith('new task') || text.startsWith('remind me to')) {
     let taskTitle = text
       .replace(/^(add task|create task|new task|remind me to|schedule task)\s*(:|to|-)?\s*/i, '')
@@ -675,7 +961,15 @@ export async function executeLocalCommand(rawText: string): Promise<boolean> {
     } catch (e) {}
   }
 
-  // 9. NAVIGATION
+  // 17. APP NAVIGATION
+  if (text.includes('open frequency') || text.includes('go to music') || text.includes('the frequency') || text.includes('open music')) {
+    await executeMusicTool('open_frequency');
+    const reply = "Opening The Frequency acoustic studio.";
+    jarvisStore.addMessage({ role: 'assistant', text: reply, actionSummary: 'Navigated: Frequency' });
+    jarvisVoiceEngine.speakResponse(reply);
+    return true;
+  }
+
   if (text.includes('open pomodoro') || text.includes('go to timer') || text.includes('show timer')) {
     validateAndExecuteTool({ type: 'NAVIGATE', view: 'timer' });
     const reply = "Navigating to Pomodoro Forge.";
@@ -708,14 +1002,6 @@ export async function executeLocalCommand(rawText: string): Promise<boolean> {
     return true;
   }
 
-  if (text.includes('open frequency') || text.includes('go to music') || text.includes('the frequency')) {
-    validateAndExecuteTool({ type: 'NAVIGATE', view: 'frequency' });
-    const reply = "Opening The Frequency acoustic studio.";
-    jarvisStore.addMessage({ role: 'assistant', text: reply, actionSummary: 'Navigated: Frequency' });
-    jarvisVoiceEngine.speakResponse(reply);
-    return true;
-  }
-
   if (text.includes('minimize') || text.includes('shrink')) {
     jarvisStore.setDisplayMode('minimized');
     const reply = "Minimized to Dynamic Island.";
@@ -730,12 +1016,12 @@ export async function executeLocalCommand(rawText: string): Promise<boolean> {
     return true;
   }
 
-  return false; // Not handled locally -> fallback to Gemini
+  return false; // Not handled locally -> fallback to Gemini reasoning
 }
 
-import { getSelectedTextModel, recordAiUsage } from './aiModelConfig';
-import { cleanJarvisOutput } from './jarvisOutputCleaner';
-
+/**
+ * Cloud AI Inference Fallback via Gemini Route
+ */
 export async function processWithGemini(userPrompt: string): Promise<void> {
   const jarvisStore = useJarvisStore.getState();
   jarvisVoiceEngine.setGeminiStatus('connecting');
@@ -745,10 +1031,8 @@ export async function processWithGemini(userPrompt: string): Promise<void> {
 
   try {
     const apiKey = typeof window !== 'undefined' ? localStorage.getItem('gemini-api-key') || '' : '';
-
     jarvisVoiceEngine.setGeminiStatus('processing');
 
-    // Build clean structured history (only user & assistant text, excluding tool JSON)
     const recentHistory = jarvisStore.messages
       .filter(m => (m.role === 'user' || m.role === 'assistant') && m.text && !m.text.startsWith('Neural link'))
       .slice(-6)
@@ -788,7 +1072,6 @@ export async function processWithGemini(userPrompt: string): Promise<void> {
         }
       }
 
-      // Record session usage
       recordAiUsage({
         model: data.model || selectedTextModel,
         inputTokens: data.usage?.promptTokens || Math.round(userPrompt.length / 4),
@@ -796,14 +1079,6 @@ export async function processWithGemini(userPrompt: string): Promise<void> {
         isFallback: data.isFallback,
         latencyMs
       });
-
-      if (data.isFallback) {
-        voiceLog("TEXT_MODEL_FALLBACK_TRIGGERED", { 
-          original: selectedTextModel, 
-          fallback: data.model,
-          reason: data.fallbackReason 
-        });
-      }
 
       jarvisAudio.playExecute();
       jarvisStore.addMessage({ role: 'assistant', text: cleanReply, actionSummary });
