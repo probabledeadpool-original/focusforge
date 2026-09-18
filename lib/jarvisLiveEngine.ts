@@ -2,7 +2,9 @@
 
 import { jarvisLiveAudioPipeline } from './jarvisLiveAudioPipeline';
 import { executeMusicTool } from './musicTools';
-import { getSelectedLiveModel, getLiveModelCapabilities, validateLiveModelCompatibility } from './aiModelConfig';
+import { executeLocalCommand } from './jarvisCommandDispatcher';
+import { getSelectedLiveModel, getLiveModelCapabilities } from './aiModelConfig';
+import { cleanJarvisOutput } from './jarvisOutputCleaner';
 
 export type LivePhase =
   | 'IDLE'
@@ -39,9 +41,11 @@ export interface LiveTelemetry {
   transcript: string;
   interimTranscript: string;
   userSpeechLevel: number;
+  lastUserQuery: string | null;
+  lastModelResponse: string | null;
 }
 
-// Approved Live Tool Declarations
+// Approved Live Tool Declarations for Gemini Live WebSocket
 export const LIVE_TOOL_DECLARATIONS = [
   {
     name: 'search_frequency',
@@ -119,36 +123,6 @@ export const LIVE_TOOL_DECLARATIONS = [
     }
   },
   {
-    name: 'search_personal_files',
-    description: 'Search personal notes, tasks, and stored files.',
-    parameters: {
-      type: 'OBJECT',
-      properties: {
-        query: { type: 'STRING', description: 'Search query' }
-      },
-      required: ['query']
-    }
-  },
-  {
-    name: 'search_web',
-    description: 'Search the internet for real-time information.',
-    parameters: {
-      type: 'OBJECT',
-      properties: {
-        query: { type: 'STRING', description: 'Web search query' }
-      },
-      required: ['query']
-    }
-  },
-  {
-    name: 'read_calendar',
-    description: 'Read upcoming calendar appointments and focus blocks.',
-    parameters: {
-      type: 'OBJECT',
-      properties: {}
-    }
-  },
-  {
     name: 'create_task_draft',
     description: 'Create a new focus objective or task draft in FocusForge.',
     parameters: {
@@ -159,45 +133,18 @@ export const LIVE_TOOL_DECLARATIONS = [
       },
       required: ['title']
     }
-  },
-  {
-    name: 'create_calendar_event_draft',
-    description: 'Draft a new calendar event or focus block.',
-    parameters: {
-      type: 'OBJECT',
-      properties: {
-        title: { type: 'STRING', description: 'Event title' },
-        durationMinutes: { type: 'INTEGER', description: 'Duration in minutes' }
-      },
-      required: ['title']
-    }
-  },
-  {
-    name: 'draft_email',
-    description: 'Draft an email message for review.',
-    parameters: {
-      type: 'OBJECT',
-      properties: {
-        recipient: { type: 'STRING', description: 'Recipient name or address' },
-        subject: { type: 'STRING', description: 'Subject line' },
-        body: { type: 'STRING', description: 'Email body' }
-      },
-      required: ['subject', 'body']
-    }
   }
 ];
 
 export const LIVE_SYSTEM_INSTRUCTION = `You are Jarvis in Live mode for FocusForge.
 Speak conversationally, concisely, and with ultra-low latency.
-Do not output role labels.
+Provide direct, concise answers in 1 to 2 short sentences.
+Do not output role labels or formatting symbols.
 Do not output prompt templates.
 Do not expose tool calls or raw JSON to the user.
-Do not narrate hidden reasoning.
-Do not repeat the user's request unnecessarily.
-When a tool is needed, call the approved tool.
-After the tool result, speak only the useful concise result.
-If the request is ambiguous, ask one short clarification question.
-Address the user politely as Sir or Chief when appropriate.`;
+Do not narrate hidden internal reasoning.
+When a tool is needed, call the tool. After the result, speak the concise result.
+Address the user politely as Sir, Boss, or Chief when appropriate.`;
 
 export type LiveStateListener = (telemetry: LiveTelemetry) => void;
 
@@ -223,9 +170,18 @@ class JarvisLiveEngine {
   private accumulatedTranscript: string = '';
   private interimTranscript: string = '';
   private userSpeechLevel: number = 0;
+  private lastUserQuery: string | null = null;
+  private lastModelResponse: string | null = null;
+  private conversationHistory: { role: 'user' | 'model'; text: string }[] = [];
 
   private listeners: Set<LiveStateListener> = new Set();
   private reconnectTimer: NodeJS.Timeout | null = null;
+
+  // Speech recognition fallback / augmentation
+  private speechRecognition: any = null;
+  private silenceTimer: NodeJS.Timeout | null = null;
+  private speechBuffer: string = '';
+  private isWebSocketActive: boolean = false;
 
   private constructor() {
     if (typeof window !== 'undefined') {
@@ -284,7 +240,9 @@ class JarvisLiveEngine {
       activeTool: this.activeTool,
       transcript: this.accumulatedTranscript,
       interimTranscript: this.interimTranscript,
-      userSpeechLevel: this.userSpeechLevel
+      userSpeechLevel: this.userSpeechLevel,
+      lastUserQuery: this.lastUserQuery,
+      lastModelResponse: this.lastModelResponse
     };
   }
 
@@ -305,11 +263,46 @@ class JarvisLiveEngine {
     return true;
   }
 
-  private notifyTelemetry(): void {
-    const telem = this.getTelemetry();
-    this.listeners.forEach((l) => {
-      try { l(telem); } catch (e) {}
-    });
+  private telemetryScheduled = false;
+
+  private notifyTelemetry(immediate: boolean = false): void {
+    if (immediate) {
+      const telem = this.getTelemetry();
+      this.listeners.forEach((l) => {
+        try { l(telem); } catch (e) {}
+      });
+      return;
+    }
+
+    if (this.telemetryScheduled) return;
+    this.telemetryScheduled = true;
+    if (typeof window !== 'undefined') {
+      requestAnimationFrame(() => {
+        this.telemetryScheduled = false;
+        const telem = this.getTelemetry();
+        this.listeners.forEach((l) => {
+          try { l(telem); } catch (e) {}
+        });
+      });
+    } else {
+      this.telemetryScheduled = false;
+      const telem = this.getTelemetry();
+      this.listeners.forEach((l) => {
+        try { l(telem); } catch (e) {}
+      });
+    }
+  }
+
+  // Map requested model to a verified Gemini Live model
+  private resolveLiveModelName(modelId: string): string {
+    const id = modelId.toLowerCase();
+    if (id.includes('3-flash') || id.includes('3-live') || id.includes('3.8-live')) {
+      return 'gemini-2.0-flash-exp';
+    }
+    if (id.includes('2.5-flash-native-audio') || id.includes('2.5-flash') || id.includes('2.0-flash')) {
+      return 'gemini-2.0-flash-exp';
+    }
+    return 'gemini-2.0-flash-exp';
   }
 
   // --- 1. START LIVE SESSION ---
@@ -325,8 +318,12 @@ class JarvisLiveEngine {
     this.lastError = null;
     this.accumulatedTranscript = '';
     this.interimTranscript = '';
+    this.lastUserQuery = null;
+    this.lastModelResponse = null;
+    this.conversationHistory = [];
+    this.isWebSocketActive = false;
 
-    // Step 1: Request Microphone Permission
+    // Step 1: Request Microphone Permission & Start Audio Capture Pipeline
     this.transitionTo('REQUESTING_MICROPHONE', 'Requesting microphone access');
     
     let stream: MediaStream | null = null;
@@ -339,7 +336,7 @@ class JarvisLiveEngine {
           if (this.phase === 'LIVE_SPEAKING' && level > 0.35) {
             this.handleBargeIn(sessionId, 'local_voice_activity');
           }
-          this.notifyTelemetry();
+          // Note: VoiceBeam reads level directly from pipeline getter, avoiding 20+ React state re-renders / sec
         }
       );
     } catch (micErr: any) {
@@ -354,69 +351,39 @@ class JarvisLiveEngine {
       return false;
     }
 
-    // Step 2: Authenticate with Backend for Ephemeral Token
-    this.transitionTo('CONNECTING_LIVE', 'Authenticating with backend token service');
+    // Step 2: Establish Gemini Live WebSocket Connection
+    this.transitionTo('CONNECTING_LIVE', 'Connecting to Gemini Live WebSocket');
 
-    let tokenData: any = null;
-    try {
-      const res = await fetch('/api/live/token', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          modelId: this.selectedModelId
-        })
-      });
+    let apiKey = (typeof window !== 'undefined' ? localStorage.getItem('gemini-api-key') || '' : '').trim();
+    if (!apiKey) {
+      try {
+        const keyRes = await fetch('/api/gemini/key');
+        if (keyRes.ok) {
+          const keyData = await keyRes.json();
+          if (keyData.key) {
+            apiKey = keyData.key;
+            localStorage.setItem('gemini-api-key', apiKey);
+          }
+        }
+      } catch (e) {}
+    }
 
-      tokenData = await res.json();
-      if (!res.ok || !tokenData?.token) {
-        throw new Error(tokenData?.error || 'Failed to acquire Live session token.');
-      }
-    } catch (authErr: any) {
-      this.lastError = authErr?.message || 'Token generation failure';
-      this.transitionTo('LIVE_ERROR', 'Auth failed');
-      jarvisLiveAudioPipeline.stopMicrophoneCapture();
+    if (!apiKey) {
+      this.lastError = 'Gemini API Key is required. Please click "Set Key" on the Live pill.';
+      this.transitionTo('LIVE_ERROR', 'Missing API key');
+      // Initialize speech fallback so the user can interact even while configuring key
+      this.initContinuousSpeechRecognition(sessionId);
       return false;
     }
 
-    this.tokenExpiry = tokenData.expiresAt;
+    const liveModelName = this.resolveLiveModelName(this.selectedModelId);
+    const wsUrl = `wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1beta.GenerativeService.BidiGenerateContent?key=${encodeURIComponent(apiKey)}`;
 
-    // Step 3: Open WebSocket Session to Gemini Live API
     try {
-      const wsUrl = `${tokenData.wsEndpoint}?key=${encodeURIComponent(tokenData.apiKey || '')}`;
       const ws = new WebSocket(wsUrl);
       this.ws = ws;
 
-      ws.onopen = () => {
-        if (this.currentSessionId !== sessionId) return;
-        if (process.env.NODE_ENV !== 'production') {
-          console.info('[JarvisLiveEngine] WebSocket link established. Sending setup config...');
-        }
-        this.sendSetupConfiguration(sessionId, tokenData.model);
-      };
-
-      ws.onmessage = async (event) => {
-        if (this.currentSessionId !== sessionId) return;
-        await this.handleServerMessage(event.data, sessionId);
-      };
-
-      ws.onerror = (e) => {
-        if (this.currentSessionId !== sessionId) return;
-        console.warn('[JarvisLiveEngine] WebSocket error event:', e);
-        this.lastError = 'WebSocket connection error';
-        this.transitionTo('LIVE_ERROR', 'WebSocket error');
-      };
-
-      ws.onclose = (e) => {
-        if (this.currentSessionId !== sessionId) return;
-        if (process.env.NODE_ENV !== 'production') {
-          console.info('[JarvisLiveEngine] WebSocket closed:', e.code, e.reason);
-        }
-        if (this.phase !== 'EXITING_LIVE' && this.phase !== 'IDLE') {
-          this.attemptReconnect();
-        }
-      };
-
-      // Set playback state callback to track model speaking phase
+      // Also set up playback state callback on audio pipeline to track model speaking phase
       jarvisLiveAudioPipeline.setPlaybackStateCallback((isPlaying) => {
         if (this.currentSessionId !== sessionId) return;
         if (isPlaying) {
@@ -430,31 +397,67 @@ class JarvisLiveEngine {
         }
       });
 
+      let setupTimeout = setTimeout(() => {
+        if (this.currentSessionId === sessionId && this.phase === 'CONNECTING_LIVE') {
+          console.warn('[JarvisLiveEngine] WebSocket handshake timeout, engaging continuous assistant pipeline.');
+          this.initContinuousSpeechRecognition(sessionId);
+        }
+      }, 3500);
+
+      ws.onopen = () => {
+        if (this.currentSessionId !== sessionId) return;
+        if (setupTimeout) clearTimeout(setupTimeout);
+        if (process.env.NODE_ENV !== 'production') {
+          console.info('[JarvisLiveEngine] WebSocket connection established. Sending BidiGenerateContentSetup message...');
+        }
+        this.sendWebSocketSetup(sessionId, liveModelName);
+      };
+
+      ws.onmessage = async (event) => {
+        if (this.currentSessionId !== sessionId) return;
+        if (setupTimeout) clearTimeout(setupTimeout);
+        await this.handleWebSocketMessage(event.data, sessionId);
+      };
+
+      ws.onerror = (e) => {
+        if (this.currentSessionId !== sessionId) return;
+        if (setupTimeout) clearTimeout(setupTimeout);
+        console.warn('[JarvisLiveEngine] WebSocket error event. Enabling continuous assistant pipeline:', e);
+        this.initContinuousSpeechRecognition(sessionId);
+      };
+
+      ws.onclose = (e) => {
+        if (this.currentSessionId !== sessionId) return;
+        if (setupTimeout) clearTimeout(setupTimeout);
+        this.isWebSocketActive = false;
+        if (this.phase !== 'EXITING_LIVE' && this.phase !== 'IDLE') {
+          this.initContinuousSpeechRecognition(sessionId);
+        }
+      };
+
+      // Also start speech recognition in parallel to capture user speech with zero latency
+      this.initContinuousSpeechRecognition(sessionId);
       return true;
     } catch (connErr: any) {
-      this.lastError = connErr?.message || 'Live connection failed';
-      this.transitionTo('LIVE_ERROR', 'Connection failed');
-      jarvisLiveAudioPipeline.stopMicrophoneCapture();
-      return false;
+      console.warn('[JarvisLiveEngine] WebSocket initiation exception:', connErr);
+      this.initContinuousSpeechRecognition(sessionId);
+      return true;
     }
   }
 
-  // --- 2. SEND SETUP CONFIGURATION ---
-  private sendSetupConfiguration(sessionId: string, targetModelName: string): void {
+  // --- 2. SEND BidiGenerateContentSetup MESSAGE ---
+  private sendWebSocketSetup(sessionId: string, modelName: string): void {
     if (!this.ws || this.ws.readyState !== WebSocket.OPEN) return;
 
-    const capabilities = getLiveModelCapabilities(this.selectedModelId);
-    const responseModalities = capabilities.outputModalities.includes('audio') ? ['AUDIO'] : ['TEXT'];
-
-    const setupPayload: any = {
+    const setupMessage = {
       setup: {
-        model: `models/${targetModelName.replace(/^models\//, '')}`,
+        model: `models/${modelName.replace(/^models\//, '')}`,
         generationConfig: {
-          responseModalities: responseModalities,
+          responseModalities: ["AUDIO"],
           speechConfig: {
             voiceConfig: {
               prebuiltVoiceConfig: {
-                voiceName: 'Puck' // Natural, crisp conversational voice
+                voiceName: "Puck"
               }
             }
           }
@@ -462,21 +465,26 @@ class JarvisLiveEngine {
         systemInstruction: {
           parts: [{ text: LIVE_SYSTEM_INSTRUCTION }]
         },
-        tools: capabilities.supportsTools ? [{ functionDeclarations: LIVE_TOOL_DECLARATIONS }] : undefined
+        tools: [
+          {
+            functionDeclarations: LIVE_TOOL_DECLARATIONS
+          }
+        ]
       }
     };
 
-    if (this.resumptionHandle) {
-      setupPayload.setup.sessionResumption = {
-        token: this.resumptionHandle
-      };
+    try {
+      this.ws.send(JSON.stringify(setupMessage));
+      if (process.env.NODE_ENV !== 'production') {
+        console.info('[JarvisLiveEngine] Setup message sent successfully:', setupMessage);
+      }
+    } catch (err) {
+      console.error('[JarvisLiveEngine] Failed to send setup message:', err);
     }
-
-    this.ws.send(JSON.stringify(setupPayload));
   }
 
-  // --- 3. INCOMING SERVER MESSAGES & EVENT DISPATCH ---
-  private async handleServerMessage(rawData: any, sessionId: string): Promise<void> {
+  // --- 3. INCOMING SERVER MESSAGES (BidiGenerateContentServerMessage) ---
+  private async handleWebSocketMessage(rawData: any, sessionId: string): Promise<void> {
     if (this.currentSessionId !== sessionId) return;
 
     let msg: any = null;
@@ -488,7 +496,7 @@ class JarvisLiveEngine {
         msg = JSON.parse(text);
       }
     } catch (e) {
-      console.warn('[JarvisLiveEngine] Malformed server message payload:', e);
+      console.warn('[JarvisLiveEngine] Malformed WebSocket message payload:', e);
       return;
     }
 
@@ -497,35 +505,20 @@ class JarvisLiveEngine {
     // 1. Setup Complete
     if (msg.setupComplete) {
       this.lastServerEventType = 'setupComplete';
+      this.isWebSocketActive = true;
       this.transitionTo('LIVE_READY', 'Live session configured');
       setTimeout(() => {
-        if (this.currentSessionId === sessionId && this.phase === 'LIVE_READY') {
+        if (this.currentSessionId === sessionId) {
           this.currentTurn = 'user';
-          this.transitionTo('LIVE_LISTENING', 'Microphone active');
+          this.transitionTo('LIVE_LISTENING', 'Live WebSocket listening');
         }
       }, 100);
       return;
     }
 
-    // 2. Session Resumption Update
-    if (msg.sessionResumptionUpdate) {
-      this.lastServerEventType = 'sessionResumptionUpdate';
-      if (msg.sessionResumptionUpdate.newHandle) {
-        this.resumptionHandle = msg.sessionResumptionUpdate.newHandle;
-      }
-    }
-
-    // 3. Server GoAway Notice (Graceful reconnect)
-    if (msg.goAway) {
-      this.lastServerEventType = 'goAway';
-      console.warn('[JarvisLiveEngine] Server GoAway notice received. Graceful reconnect initiated.');
-      this.attemptReconnect();
-      return;
-    }
-
-    // 4. Server Content (Audio, Text, Interruption, Turn Complete)
+    // 2. Server Content (Audio parts, Transcripts, Turn Complete, Interruption)
     if (msg.serverContent) {
-      const { modelTurn, turnComplete, interrupted } = msg.serverContent;
+      const { modelTurn, turnComplete, interrupted, inputTranscription, outputTranscription } = msg.serverContent;
 
       if (interrupted) {
         this.lastServerEventType = 'interrupted';
@@ -533,17 +526,32 @@ class JarvisLiveEngine {
         return;
       }
 
+      // Live user transcription from model
+      if (inputTranscription?.text) {
+        this.lastUserQuery = inputTranscription.text;
+        this.interimTranscript = inputTranscription.text;
+        this.notifyTelemetry();
+      }
+
+      // Live model output transcription
+      if (outputTranscription?.text) {
+        this.lastModelResponse = (this.lastModelResponse || '') + outputTranscription.text;
+        this.notifyTelemetry();
+      }
+
+      // Audio and Text parts
       if (modelTurn && Array.isArray(modelTurn.parts)) {
         for (const part of modelTurn.parts) {
-          // Audio Output Part
+          // Audio Output Part: 24kHz PCM Little-Endian
           if (part.inlineData && part.inlineData.data) {
             this.lastServerEventType = 'audio_chunk';
             jarvisLiveAudioPipeline.enqueueAudioChunk(part.inlineData.data);
           }
 
-          // Text / Transcript Part
+          // Text Part
           if (part.text) {
             this.lastServerEventType = 'model_text';
+            this.lastModelResponse = (this.lastModelResponse || '') + part.text;
             this.accumulatedTranscript += part.text;
             this.notifyTelemetry();
           }
@@ -553,10 +561,12 @@ class JarvisLiveEngine {
       if (turnComplete) {
         this.lastServerEventType = 'turnComplete';
         this.currentTurn = 'user';
+        this.interimTranscript = '';
+        this.notifyTelemetry();
       }
     }
 
-    // 5. Tool Calls from Gemini
+    // 3. Tool Calls from Gemini (Function Calling)
     if (msg.toolCall && Array.isArray(msg.toolCall.functionCalls)) {
       this.lastServerEventType = 'toolCall';
       this.transitionTo('LIVE_PROCESSING', 'Executing tool call');
@@ -564,7 +574,7 @@ class JarvisLiveEngine {
     }
   }
 
-  // --- 4. TOOL CALL EXECUTION & RESPONSE ---
+  // --- 4. TOOL CALL EXECUTION & BidiGenerateContentToolResponse ---
   private async handleToolCalls(functionCalls: any[], sessionId: string): Promise<void> {
     const responses: any[] = [];
 
@@ -601,10 +611,6 @@ class JarvisLiveEngine {
           localStorage.setItem('focus-tasks', JSON.stringify([newTask, ...tasks]));
           window.dispatchEvent(new CustomEvent('task-created', { detail: newTask }));
           result = { success: true, message: `Task "${title}" created.` };
-        } else if (name === 'search_personal_files') {
-          result = { success: true, results: ['Project Roadmap', 'Daily Standup Notes', 'Focus Targets'] };
-        } else if (name === 'search_web') {
-          result = { success: true, summary: `Latest web query result for "${args?.query || ''}"` };
         } else {
           result = { success: true, message: `Executed ${name} successfully.` };
         }
@@ -621,24 +627,253 @@ class JarvisLiveEngine {
 
     this.activeTool = null;
 
-    // Send toolResponse back to Gemini Live
+    // Send toolResponse back to Gemini Live WebSocket
     if (this.ws && this.ws.readyState === WebSocket.OPEN && this.currentSessionId === sessionId) {
-      const toolResponsePayload = {
+      const toolResponseMessage = {
         toolResponse: {
           functionResponses: responses
         }
       };
-      this.ws.send(JSON.stringify(toolResponsePayload));
+      this.ws.send(JSON.stringify(toolResponseMessage));
     }
   }
 
-  // --- 5. STREAM LOCAL AUDIO CHUNKS ---
+  // --- 5. CONTINUOUS SPEECH RECOGNITION PIPELINE ---
+  private initContinuousSpeechRecognition(sessionId: string): void {
+    if (typeof window === 'undefined') return;
+    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    if (!SpeechRecognition) return;
+
+    if (this.speechRecognition) {
+      try { this.speechRecognition.abort(); } catch (e) {}
+      this.speechRecognition = null;
+    }
+
+    try {
+      const recognition = new SpeechRecognition();
+      recognition.continuous = true;
+      recognition.interimResults = true;
+      recognition.lang = 'en-US';
+
+      recognition.onresult = (event: any) => {
+        if (this.currentSessionId !== sessionId || this.isMuted) return;
+
+        let interim = '';
+        let final = '';
+
+        for (let i = event.resultIndex; i < event.results.length; i++) {
+          const item = event.results[i];
+          if (item.isFinal) {
+            final += item[0].transcript + ' ';
+          } else {
+            interim += item[0].transcript;
+          }
+        }
+
+        const combined = (final + interim).trim();
+        if (!combined) return;
+
+        // If Jarvis is currently speaking and user speaks, barge in immediately
+        if (this.phase === 'LIVE_SPEAKING') {
+          this.handleBargeIn(sessionId, 'speech_interruption');
+        }
+
+        this.speechBuffer = combined;
+        this.interimTranscript = combined;
+        this.notifyTelemetry();
+
+        // If WebSocket is open, we also send text chunks if desired
+        if (this.ws && this.ws.readyState === WebSocket.OPEN && final.trim()) {
+          try {
+            this.ws.send(JSON.stringify({
+              realtimeInput: { text: final.trim() }
+            }));
+          } catch (e) {}
+        }
+
+        if (this.silenceTimer) clearTimeout(this.silenceTimer);
+
+        // Turn detection with natural 800ms silence window
+        if (combined.length > 1 && (this.phase === 'LIVE_LISTENING' || this.phase === 'LIVE_READY' || this.phase === 'LIVE_INTERRUPTED')) {
+          this.silenceTimer = setTimeout(() => {
+            if (this.currentSessionId === sessionId && this.speechBuffer.trim()) {
+              const utterance = this.speechBuffer.trim();
+              this.handleUserVoiceDirective(utterance, sessionId);
+            }
+          }, 800);
+        }
+      };
+
+      recognition.onend = () => {
+        if (this.currentSessionId === sessionId && this.phase !== 'EXITING_LIVE' && this.phase !== 'IDLE') {
+          try { recognition.start(); } catch (e) {}
+        }
+      };
+
+      recognition.onerror = (e: any) => {
+        if (e.error !== 'no-speech' && e.error !== 'aborted') {
+          console.warn('[JarvisLiveEngine] Speech recognition notice:', e.error);
+        }
+      };
+
+      try {
+        recognition.start();
+      } catch (e) {}
+      this.speechRecognition = recognition;
+    } catch (err) {
+      console.warn('[JarvisLiveEngine] Speech recognition initialization notice:', err);
+    }
+  }
+
+  // Handle Turn: Local Command Fast-Path + Conversational Gemini Reasoning
+  private async handleUserVoiceDirective(utterance: string, sessionId: string): Promise<void> {
+    if (this.currentSessionId !== sessionId) return;
+    this.speechBuffer = '';
+    this.interimTranscript = '';
+    this.lastUserQuery = utterance;
+    
+    this.accumulatedTranscript += (this.accumulatedTranscript ? '\n' : '') + `You: ${utterance}`;
+    this.transitionTo('LIVE_PROCESSING', 'Executing cognition');
+    this.notifyTelemetry();
+
+    // 1. FAST-PATH: Check deterministic local commands (music, volume, timers, navigation, tasks)
+    try {
+      const isLocalHandled = await executeLocalCommand(utterance);
+      if (isLocalHandled) {
+        if (this.currentSessionId === sessionId) {
+          this.currentTurn = 'user';
+          this.transitionTo('LIVE_LISTENING', 'Local command finished');
+        }
+        return;
+      }
+    } catch (cmdErr) {
+      console.warn('[JarvisLiveEngine] Local command checker note:', cmdErr);
+    }
+
+    // 2. CONVERSATIONAL PATH: Query Gemini with multi-turn context
+    try {
+      const userKey = (typeof window !== 'undefined' ? (localStorage.getItem('gemini-api-key') || '') : '').trim();
+      
+      const historyPayload = [
+        ...this.conversationHistory.slice(-6),
+        { role: 'user', text: utterance }
+      ];
+
+      const res = await fetch('/api/gemini', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          prompt: utterance,
+          messages: historyPayload,
+          apiKey: userKey,
+          model: this.selectedModelId || 'gemini-2.5-flash',
+          systemInstruction: LIVE_SYSTEM_INSTRUCTION
+        })
+      });
+
+      const data = await res.json();
+      if (this.currentSessionId !== sessionId) return;
+
+      let reply = '';
+      if (!res.ok || data.error) {
+        if (data.errorType === 'AUTH_FAILED' || data.error?.toLowerCase().includes('key') || !userKey) {
+          reply = "I need your Gemini API Key to answer questions. Please click Set Key on the Live pill, sir.";
+          this.lastError = 'API Key Required';
+        } else if (data.errorType === 'QUOTA_EXHAUSTED') {
+          reply = "Daily rate limit reached for this model. Please select Gemini 2.5 Flash in Live Models.";
+          this.lastError = 'Quota Limit Reached';
+        } else {
+          reply = data.error || "I was unable to retrieve a response, sir.";
+          this.lastError = data.error;
+        }
+      } else {
+        reply = cleanJarvisOutput(data.reply || data.text || "Standing by, Chief.");
+        this.lastError = null;
+      }
+
+      this.lastModelResponse = reply;
+      this.accumulatedTranscript += `\nJarvis: ${reply}`;
+      this.conversationHistory.push({ role: 'user', text: utterance });
+      this.conversationHistory.push({ role: 'model', text: reply });
+      if (this.conversationHistory.length > 12) {
+        this.conversationHistory = this.conversationHistory.slice(-12);
+      }
+      this.notifyTelemetry();
+
+      this.speakAudioResponse(reply, sessionId);
+    } catch (err: any) {
+      console.error('[JarvisLiveEngine] Turn execution error:', err);
+      if (this.currentSessionId === sessionId) {
+        const errorReply = "Network connection interrupted, sir. Standing by.";
+        this.lastModelResponse = errorReply;
+        this.accumulatedTranscript += `\nJarvis: ${errorReply}`;
+        this.notifyTelemetry();
+        this.speakAudioResponse(errorReply, sessionId);
+      }
+    }
+  }
+
+  private speakAudioResponse(text: string, sessionId: string): void {
+    if (typeof window === 'undefined' || !('speechSynthesis' in window)) {
+      this.transitionTo('LIVE_LISTENING', 'Speech complete');
+      return;
+    }
+
+    try {
+      window.speechSynthesis.cancel();
+      if (window.speechSynthesis.paused) {
+        window.speechSynthesis.resume();
+      }
+
+      const utterance = new SpeechSynthesisUtterance(text);
+      utterance.rate = 1.12;
+      utterance.pitch = 1.0;
+
+      const voices = window.speechSynthesis.getVoices();
+      const preferred = voices.find((v) =>
+        v.lang.startsWith('en') && (
+          v.name.includes('UK English Male') ||
+          v.name.includes('Daniel') ||
+          v.name.includes('George') ||
+          v.name.includes('Natural') ||
+          v.name.includes('Google UK English')
+        )
+      ) || voices.find(v => v.lang.startsWith('en'));
+
+      if (preferred) utterance.voice = preferred;
+
+      utterance.onstart = () => {
+        if (this.currentSessionId !== sessionId) return;
+        this.currentTurn = 'model';
+        this.transitionTo('LIVE_SPEAKING', 'Jarvis speaking');
+      };
+
+      utterance.onend = () => {
+        if (this.currentSessionId !== sessionId) return;
+        this.currentTurn = 'user';
+        this.transitionTo('LIVE_LISTENING', 'Jarvis finished speaking');
+      };
+
+      utterance.onerror = (e) => {
+        if (this.currentSessionId !== sessionId) return;
+        console.warn('[JarvisLiveEngine] Speech synthesis note:', e);
+        this.currentTurn = 'user';
+        this.transitionTo('LIVE_LISTENING', 'Speech fallback');
+      };
+
+      window.speechSynthesis.speak(utterance);
+    } catch (e) {
+      this.transitionTo('LIVE_LISTENING', 'Speech exception');
+    }
+  }
+
+  // --- 6. SEND AUDIO TO GEMINI LIVE WEBSOCKET (16kHz PCM) ---
   private handleLocalAudioChunk(base64Pcm: string, sessionId: string): void {
     if (this.currentSessionId !== sessionId) return;
     if (!this.ws || this.ws.readyState !== WebSocket.OPEN) return;
     if (this.isMuted) return;
 
-    // Send realtimeInput mediaChunk to Gemini Live
+    // Conforms to Gemini Live API realtimeInput audio specification
     const chunkMessage = {
       realtimeInput: {
         mediaChunks: [
@@ -652,12 +887,10 @@ class JarvisLiveEngine {
 
     try {
       this.ws.send(JSON.stringify(chunkMessage));
-    } catch (err) {
-      console.warn('[JarvisLiveEngine] Error sending audio chunk:', err);
-    }
+    } catch (err) {}
   }
 
-  // --- 6. BARGE-IN & INTERRUPTION HANDLER ---
+  // --- 7. BARGE-IN & INTERRUPTION HANDLER ---
   public handleBargeIn(sessionId?: string, source: string = 'manual'): void {
     const activeSession = sessionId || this.currentSessionId;
     if (this.currentSessionId !== activeSession) return;
@@ -665,7 +898,10 @@ class JarvisLiveEngine {
     this.bargeInCount++;
     this.currentTurn = 'user';
 
-    // Stop and flush local playback queue immediately
+    // Stop and cancel speech immediately
+    if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
+      try { window.speechSynthesis.cancel(); } catch (e) {}
+    }
     jarvisLiveAudioPipeline.stopPlaybackImmediately();
 
     this.transitionTo('LIVE_INTERRUPTED', `Interrupted via ${source}`);
@@ -676,27 +912,6 @@ class JarvisLiveEngine {
         this.transitionTo('LIVE_LISTENING', 'Resumed listening post-interruption');
       }
     }, 150);
-  }
-
-  // --- 7. RECONNECTION & SESSION RESUMPTION ---
-  private attemptReconnect(): void {
-    if (this.reconnectCount >= this.maxReconnectAttempts) {
-      this.lastError = 'Maximum reconnection attempts reached.';
-      this.transitionTo('LIVE_ERROR', 'Reconnect failed');
-      return;
-    }
-
-    this.reconnectCount++;
-    this.transitionTo('LIVE_RECONNECTING', `Reconnect attempt ${this.reconnectCount}`);
-
-    const backoffMs = Math.min(1000 * Math.pow(1.5, this.reconnectCount), 8000);
-
-    if (this.reconnectTimer) clearTimeout(this.reconnectTimer);
-    this.reconnectTimer = setTimeout(() => {
-      if (this.phase === 'LIVE_RECONNECTING') {
-        this.startLiveSession(this.selectedModelId);
-      }
-    }, backoffMs);
   }
 
   // --- 8. CONTROLS: MUTE, STOP SPEAKING, EXIT ---
@@ -733,8 +948,27 @@ class JarvisLiveEngine {
       this.ws = null;
     }
 
+    if (this.silenceTimer) {
+      clearTimeout(this.silenceTimer);
+      this.silenceTimer = null;
+    }
+
+    if (this.speechRecognition) {
+      try {
+        this.speechRecognition.onend = null;
+        this.speechRecognition.abort();
+      } catch (e) {}
+      this.speechRecognition = null;
+    }
+
+    if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
+      try { window.speechSynthesis.cancel(); } catch (e) {}
+    }
+
     jarvisLiveAudioPipeline.releaseAll();
 
+    this.isWebSocketActive = false;
+    this.speechBuffer = '';
     this.activeTool = null;
     this.currentTurn = 'idle';
     this.userSpeechLevel = 0;

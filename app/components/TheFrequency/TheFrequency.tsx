@@ -156,8 +156,8 @@ export default function TheFrequency({ onBack }: TheFrequencyProps) {
       {/* Main Apple Pro 2-Column Layout */}
       <div className="flex-1 flex overflow-hidden min-h-0">
 
-        {/* 1. LEFT SIDEBAR: Clean Apple Frosted Glass Navigation */}
-        <aside className="w-56 lg:w-64 bg-[#0a0b10]/95 border-r border-white/[0.06] backdrop-blur-2xl flex flex-col justify-between shrink-0 p-4 lg:p-5 overflow-y-auto no-scrollbar">
+        {/* 1. LEFT SIDEBAR: Clean Apple Frosted Glass Navigation (Desktop Baseline) */}
+        <aside className="hidden md:flex md:w-56 lg:w-64 bg-[#0a0b10]/95 border-r border-white/[0.06] backdrop-blur-2xl flex-col justify-between shrink-0 p-4 lg:p-5 overflow-y-auto no-scrollbar">
           <div className="space-y-6">
             
             {/* Header Brand */}
@@ -316,10 +316,10 @@ export default function TheFrequency({ onBack }: TheFrequencyProps) {
         </aside>
 
         {/* 2. CENTER MAIN STAGE: Expansive, Uncluttered Apple Canvas */}
-        <main className="flex-1 overflow-y-auto no-scrollbar p-6 lg:p-8 space-y-7 min-w-0 pb-48 md:pb-52 bg-gradient-to-b from-[#0a0b10] via-[#06070a] to-[#040406]">
+        <main className="flex-1 overflow-y-auto no-scrollbar p-4 md:p-6 lg:p-8 space-y-5 md:space-y-7 min-w-0 pb-48 md:pb-52 bg-gradient-to-b from-[#0a0b10] via-[#06070a] to-[#040406]">
           
           {/* Top Bar: Clean Search & Action Pills */}
-          <div className="flex items-center justify-between gap-4">
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
             <form onSubmit={handleAddTrack} className="relative flex-1 max-w-md">
               <div className="relative flex items-center">
                 <Search size={14} className="absolute left-3.5 text-white/30 pointer-events-none" />
@@ -348,7 +348,7 @@ export default function TheFrequency({ onBack }: TheFrequencyProps) {
               )}
             </form>
 
-            <div className="flex items-center gap-2.5">
+            <div className="flex items-center justify-between sm:justify-end gap-2.5">
               <button
                 type="button"
                 onClick={() => store.setStudioOpen(true)}
@@ -371,6 +371,47 @@ export default function TheFrequency({ onBack }: TheFrequencyProps) {
                 </button>
               )}
             </div>
+          </div>
+
+          {/* Mobile Category Switcher (< 768px) */}
+          <div className="flex md:hidden items-center gap-1.5 overflow-x-auto no-scrollbar pb-1">
+            <button
+              onClick={() => {
+                store.setActivePlaylistId(null);
+                setSelectedPlaylistDetailId(null);
+                store.setActiveTab('home');
+              }}
+              className={`px-3 py-1.5 rounded-full text-xs font-medium whitespace-nowrap transition-all ${
+                store.activeTab === 'home'
+                  ? 'bg-white text-black font-bold shadow-sm'
+                  : 'bg-white/5 text-white/60 hover:text-white border border-white/5'
+              }`}
+            >
+              Library
+            </button>
+            <button
+              onClick={() => {
+                setSelectedPlaylistDetailId(null);
+                store.setActiveTab('playlists');
+              }}
+              className={`px-3 py-1.5 rounded-full text-xs font-medium whitespace-nowrap transition-all ${
+                store.activeTab === 'playlists'
+                  ? 'bg-white text-black font-bold shadow-sm'
+                  : 'bg-white/5 text-white/60 hover:text-white border border-white/5'
+              }`}
+            >
+              Playlists ({store.playlists.length})
+            </button>
+            <button
+              onClick={() => store.setActiveTab('creatives')}
+              className={`px-3 py-1.5 rounded-full text-xs font-medium whitespace-nowrap transition-all ${
+                store.activeTab === 'creatives'
+                  ? 'bg-white text-black font-bold shadow-sm'
+                  : 'bg-white/5 text-white/60 hover:text-white border border-white/5'
+              }`}
+            >
+              Creatives Lab
+            </button>
           </div>
 
           {/* TAB 1: HOME (Master Library Lounge) */}
@@ -910,11 +951,14 @@ export default function TheFrequency({ onBack }: TheFrequencyProps) {
         </main>
       </div>
 
-      {/* 3. FLOATING APPLE-GRADE PLAYER BAR (Positioned along Y-axis ABOVE the bottom navigation dock) */}
-      <footer className="fixed bottom-24 md:bottom-28 left-4 right-4 md:left-8 md:right-8 max-w-5xl mx-auto z-40 bg-[#0c0e14]/95 backdrop-blur-3xl border border-white/15 rounded-2xl md:rounded-3xl px-4 md:px-6 py-2.5 md:py-3 shadow-[0_20px_60px_rgba(0,0,0,0.85)] flex items-center justify-between">
+      {/* 3. FLOATING APPLE-GRADE PLAYER BAR */}
+      <footer className="fixed bottom-20 md:bottom-28 left-3 right-3 md:left-8 md:right-8 max-w-5xl mx-auto z-40 bg-[#0c0e14]/95 backdrop-blur-3xl border border-white/15 rounded-2xl md:rounded-3xl px-3.5 md:px-6 py-2.5 md:py-3 shadow-[0_20px_60px_rgba(0,0,0,0.85)] flex items-center justify-between gap-3">
         
         {/* Left: Track Info */}
-        <div className="flex items-center gap-3 min-w-0 w-1/4">
+        <div 
+          onClick={() => { if (currentTrack) store.setExpanded(true); }}
+          className="flex items-center gap-2.5 min-w-0 flex-1 sm:w-1/4 cursor-pointer"
+        >
           <div className="relative w-10 h-10 md:w-11 md:h-11 rounded-xl overflow-hidden shrink-0 border border-white/10 bg-black">
             {currentTrack?.thumbnail ? (
               <img
@@ -928,18 +972,18 @@ export default function TheFrequency({ onBack }: TheFrequencyProps) {
               </div>
             )}
           </div>
-          <div className="flex flex-col min-w-0">
+          <div className="flex flex-col min-w-0 flex-1">
             <span className="text-xs font-semibold text-white truncate">
               {currentTrack?.title || "No Track Selected"}
             </span>
-            <span className="text-[11px] text-white/40 truncate">
+            <span className="text-[10px] text-white/40 truncate">
               {currentTrack?.artist || "The Frequency"}
             </span>
           </div>
         </div>
 
-        {/* Center: Apple Transport Controls & Timeline */}
-        <div className="flex flex-col items-center gap-1 flex-1 max-w-lg px-4">
+        {/* Center: Apple Transport Controls & Timeline (Desktop) */}
+        <div className="hidden sm:flex flex-col items-center gap-1 flex-1 max-w-lg px-4">
           
           <div className="flex items-center gap-3">
             <button
@@ -1009,8 +1053,8 @@ export default function TheFrequency({ onBack }: TheFrequencyProps) {
           </div>
         </div>
 
-        {/* Right: Full Screen & Volume */}
-        <div className="flex items-center justify-end gap-3 w-1/4">
+        {/* Right: Full Screen & Volume (Desktop) */}
+        <div className="hidden sm:flex items-center justify-end gap-3 w-1/4">
           {currentTrack && (
             <button
               onClick={() => store.setExpanded(true)}
@@ -1038,6 +1082,26 @@ export default function TheFrequency({ onBack }: TheFrequencyProps) {
               className="w-16 md:w-20 h-1 bg-white/20 rounded-full appearance-none accent-white cursor-pointer"
             />
           </div>
+        </div>
+
+        {/* Mobile Quick Controls (< 640px) */}
+        <div className="flex sm:hidden items-center gap-2 shrink-0">
+          <button
+            onClick={(e) => { e.stopPropagation(); store.togglePlay(); }}
+            className="w-9 h-9 rounded-full bg-white text-black flex items-center justify-center shadow-md active:scale-95"
+            title={store.isPlaying ? "Pause" : "Play"}
+          >
+            {store.isPlaying ? <Pause size={15} fill="black" /> : <Play size={15} fill="black" className="ml-0.5" />}
+          </button>
+          {currentTrack && (
+            <button
+              onClick={(e) => { e.stopPropagation(); store.setExpanded(true); }}
+              className="w-9 h-9 rounded-full bg-white/10 text-white/70 hover:text-white flex items-center justify-center"
+              title="Full Screen Player"
+            >
+              <Maximize2 size={14} />
+            </button>
+          )}
         </div>
       </footer>
 

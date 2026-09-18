@@ -102,6 +102,17 @@ export class JarvisLiveAudioPipeline {
   private inputChunkCount: number = 0;
   private outputChunkCount: number = 0;
 
+  private currentInputLevel: number = 0;
+  private currentOutputLevel: number = 0;
+
+  public getInputLevel(): number {
+    return this.currentInputLevel;
+  }
+
+  public getOutputLevel(): number {
+    return this.currentOutputLevel;
+  }
+
   public async startMicrophoneCapture(
     onChunk: (pcmBase64: string) => void,
     onLevel?: (level: number) => void
@@ -110,6 +121,7 @@ export class JarvisLiveAudioPipeline {
     this.onAudioChunkCallback = onChunk;
     this.onInputLevelCallback = onLevel || null;
     this.inputChunkCount = 0;
+    this.currentInputLevel = 0;
 
     const stream = await navigator.mediaDevices.getUserMedia({
       audio: {
@@ -139,7 +151,10 @@ export class JarvisLiveAudioPipeline {
     this.scriptProcessorNode = processor;
 
     processor.onaudioprocess = (e) => {
-      if (!this.isRecording || this.isMuted) return;
+      if (!this.isRecording || this.isMuted) {
+        this.currentInputLevel = 0;
+        return;
+      }
 
       const inputData = e.inputBuffer.getChannelData(0);
 
@@ -149,7 +164,8 @@ export class JarvisLiveAudioPipeline {
         sum += inputData[i] * inputData[i];
       }
       const rms = Math.sqrt(sum / inputData.length);
-      const normalizedLevel = Math.min(1.0, Math.max(0, rms * 5.0));
+      const normalizedLevel = Math.min(1.0, Math.max(0, rms * 5.5));
+      this.currentInputLevel = normalizedLevel;
 
       if (this.onInputLevelCallback) {
         this.onInputLevelCallback(normalizedLevel);

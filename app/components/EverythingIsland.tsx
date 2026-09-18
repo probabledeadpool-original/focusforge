@@ -1227,43 +1227,47 @@ Answer directly, clearly, and concisely in normal natural language. Provide dire
   };
 
   const getWidth = () => {
-    if (isPreparingShoot) return 620; // Squash horizontally
-    if (isShooting) return 6; // Tiny dot
-    if (islandState === 'media-grand') return 380;
-    if (islandState === 'media-mini') return 320;
-    if (islandState === 'wiki') return 800;
-    if (islandState === 'youtube') return 800;
-    if (islandState === 'ai') return 680;
-    if (islandState === 'settings') return typeof window !== 'undefined' ? Math.min(540, window.innerWidth - 24) : 540;
-    if (jarvisStore.isOpen && (jarvisStore.isMinimized || jarvisStore.displayMode === 'minimized') && islandState === 'mini') return 58;
-    if (islandState === 'mini') return 250;
-    if (islandState === 'search') return 600;
-    if (islandState === 'shelf') return 400;
-    if (islandState === 'fog') return 320;
-    if (islandState === 'syphon') return 340;
-    if (islandState === 'frequency') return isIslandMusicExpanded ? 500 : 400;
-    return 220;
+    const maxViewportWidth = typeof window !== 'undefined' ? window.innerWidth - 24 : 1200;
+    let target = 220;
+    if (isPreparingShoot) target = 620; // Squash horizontally
+    else if (isShooting) target = 6; // Tiny dot
+    else if (islandState === 'media-grand') target = 380;
+    else if (islandState === 'media-mini') target = 320;
+    else if (islandState === 'wiki') target = 800;
+    else if (islandState === 'youtube') target = 800;
+    else if (islandState === 'ai') target = 680;
+    else if (islandState === 'settings') target = typeof window !== 'undefined' ? Math.min(540, window.innerWidth - 24) : 540;
+    else if (jarvisStore.isOpen && (jarvisStore.isMinimized || jarvisStore.displayMode === 'minimized') && islandState === 'mini') target = 58;
+    else if (islandState === 'mini') target = 210;
+    else if (islandState === 'search') target = 600;
+    else if (islandState === 'shelf') target = 400;
+    else if (islandState === 'fog') target = 320;
+    else if (islandState === 'syphon') target = 340;
+    else if (islandState === 'frequency') target = isIslandMusicExpanded ? 500 : 400;
+    return Math.min(target, maxViewportWidth);
   };
 
   const getHeight = () => {
-    if (isPreparingShoot) return 40; // Squash vertically
-    if (isShooting) return 60; // Stretch vertically while shooting up
-    if (islandState === 'media-grand') return 460;
-    if (islandState === 'media-mini') return 64;
-    if (islandState === 'wiki') return 600;
-    if (islandState === 'youtube') return 450;
-    if (islandState === 'ai') return chatHistory.length > 0 ? 560 : 440;
-    if (islandState === 'settings') return typeof window !== 'undefined' ? Math.min(680, window.innerHeight - 50) : 680;
-    if (jarvisStore.isOpen && (jarvisStore.isMinimized || jarvisStore.displayMode === 'minimized') && islandState === 'mini') return 58;
-    if (islandState === 'mini') return 40;
-    if (islandState === 'search') {
-      return 60 + (searchResults.length > 0 ? (Math.min(searchResults.length, 5) * 60 + 12) : 0);
+    const maxViewportHeight = typeof window !== 'undefined' ? window.innerHeight - 32 : 900;
+    let target = 40;
+    if (isPreparingShoot) target = 40; // Squash vertically
+    else if (isShooting) target = 60; // Stretch vertically while shooting up
+    else if (islandState === 'media-grand') target = 460;
+    else if (islandState === 'media-mini') target = 64;
+    else if (islandState === 'wiki') target = 600;
+    else if (islandState === 'youtube') target = 450;
+    else if (islandState === 'ai') target = chatHistory.length > 0 ? 560 : 440;
+    else if (islandState === 'settings') target = typeof window !== 'undefined' ? Math.min(680, window.innerHeight - 50) : 680;
+    else if (jarvisStore.isOpen && (jarvisStore.isMinimized || jarvisStore.displayMode === 'minimized') && islandState === 'mini') target = 58;
+    else if (islandState === 'mini') target = 40;
+    else if (islandState === 'search') {
+      target = 60 + (searchResults.length > 0 ? (Math.min(searchResults.length, 5) * 60 + 12) : 0);
     }
-    if (islandState === 'shelf') return 300;
-    if (islandState === 'fog') return 160;
-    if (islandState === 'syphon') return 400;
-    if (islandState === 'frequency') return isIslandMusicExpanded ? 220 : 64;
-    return 40;
+    else if (islandState === 'shelf') target = 300;
+    else if (islandState === 'fog') target = 160;
+    else if (islandState === 'syphon') target = 400;
+    else if (islandState === 'frequency') target = isIslandMusicExpanded ? 220 : 64;
+    return Math.min(target, maxViewportHeight);
   };
 
   const getScale = () => {
@@ -1554,7 +1558,7 @@ Answer directly, clearly, and concisely in normal natural language. Provide dire
 
         <motion.div
           ref={islandRef}
-          className={`pointer-events-auto overflow-hidden relative cursor-pointer group ${isStressed ? 'animate-island-shake' : ''} ${isFlickering ? 'animate-border-flicker' : ''}`}
+          className={`pointer-events-auto overflow-hidden relative cursor-pointer group max-w-[calc(100vw-24px)] ${isStressed ? 'animate-island-shake' : ''} ${isFlickering ? 'animate-border-flicker' : ''}`}
           style={{
             background: isShooting ? '#fff' : (jarvisStore.isOpen && (jarvisStore.isMinimized || jarvisStore.displayMode === 'minimized') && islandState === 'mini')
               ? "#000000"
@@ -1833,33 +1837,14 @@ Answer directly, clearly, and concisely in normal natural language. Provide dire
                        <Radio size={12} className="group-hover:scale-110 transition-transform animate-pulse" />
                        <span className="absolute -top-0.5 -right-0.5 w-1.5 h-1.5 rounded-full bg-cyan-400 shadow-[0_0_6px_#06b6d4] animate-ping" />
                      </button>
-                     <button 
-                      onClick={(e) => { e.stopPropagation(); useJarvisStore.getState().openJarvis(); }} 
-                      className="w-7 h-7 rounded-full flex items-center justify-center transition-all bg-white/5 hover:bg-cyan-400 text-white/70 hover:text-black border border-white/10 hover:border-cyan-300 relative group"
-                      title="J.A.R.V.I.S. Voice HUD (Say 'JARVIS')"
-                    >
-                       <Mic size={12} className="group-hover:scale-110 transition-transform" />
-                     </button>
-                     <button 
-                      onClick={(e) => { e.stopPropagation(); setIslandState('ai'); }} 
-                      className="w-7 h-7 rounded-full flex items-center justify-center transition-all bg-white/5 text-cyan-400 hover:text-cyan-300 hover:bg-white/10 relative group"
-                      title="Ask Aura AI Copilot (Ctrl+I)"
-                    >
-                       <Sparkles size={13} className="animate-pulse" />
-                     </button>
+                     
+                     {/* Quick Settings Button */}
                      <button 
                       onClick={(e) => { e.stopPropagation(); setIslandState('settings'); }} 
                       className="w-7 h-7 rounded-full flex items-center justify-center transition-all text-white/50 hover:text-white hover:bg-white/10"
                       title="Quick Settings (Ctrl+,)"
                     >
                        <SlidersHorizontal size={13} strokeWidth={1.5} />
-                     </button>
-                     <button 
-                      onClick={(e) => { e.stopPropagation(); setIslandState('search'); }} 
-                      className="w-7 h-7 rounded-full flex items-center justify-center transition-all text-white/50 hover:text-white hover:bg-white/10"
-                      title="Search (Ctrl+K)"
-                    >
-                       <Search size={13} strokeWidth={1.5} />
                      </button>
                   </div>
                 </>

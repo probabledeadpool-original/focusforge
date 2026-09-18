@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { Home, CheckSquare, BarChart2, ShoppingBag, Play, Pause, RotateCcw, SkipForward, Plus, X, Timer, Waves, Zap, Rocket, BookOpen, Palette, Flame, ShieldCheck, ArrowRight, ChevronRight, Sliders, User, Settings, Bell, Volume2, Maximize, Minimize, Bot, Monitor, Smartphone, History, Award, Cpu, Activity, Camera, Target, FileText, Eye, EyeOff, Check, RefreshCw, CheckCircle2, Hand, Mic, Radio, Sparkles } from 'lucide-react';
+import { Home, CheckSquare, BarChart2, ShoppingBag, Play, Pause, RotateCcw, SkipForward, Plus, X, Timer, Waves, Zap, Rocket, BookOpen, Palette, Flame, ShieldCheck, ArrowRight, ChevronRight, Sliders, SlidersHorizontal, User, Settings, Bell, Volume2, Maximize, Minimize, Bot, Monitor, Smartphone, History, Award, Cpu, Activity, Camera, Target, FileText, Eye, EyeOff, Check, RefreshCw, CheckCircle2, Hand, Mic, Radio, Sparkles } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { CustomYouTubePlayer } from './components/CustomYouTubePlayer';
 import { useAppStore } from '../hooks/useAppStore';
@@ -353,6 +353,7 @@ export default function FocusForge() {
   const [taskPriorityFilter, setTaskPriorityFilter] = useState<'all' | 'urgent' | 'high' | 'medium' | 'low'>('all');
   const [taskCategoryFilter, setTaskCategoryFilter] = useState<'all' | 'deep-work' | 'coding' | 'study' | 'admin'>('all');
   const [newSubtaskInput, setNewSubtaskInput] = useState<{ [taskId: string]: string }>({});
+  const [showMobileToolsSheet, setShowMobileToolsSheet] = useState(false);
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
@@ -2625,127 +2626,265 @@ export default function FocusForge() {
               </motion.div>
             ) : (
               <motion.div 
-                key="nav-items"
-                initial={{ opacity: 0, scale: 0.5, filter: 'blur(10px)' }}
-                animate={{ opacity: 1, scale: 1, filter: 'blur(0px)' }}
-                exit={{ opacity: 0, scale: 0.5, filter: 'blur(10px)' }}
+                key="nav-items-container"
+                initial={{ opacity: 0, scale: 0.95 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.95 }}
                 transition={springConfig}
-                className="flex items-center gap-1 md:gap-2 px-2"
+                className="flex items-center w-full"
               >
-
-                {[
-                  { id: 'home', icon: Home, label: 'home', brand: false },
-                  { id: 'timer', icon: Timer, label: 'timers', brand: false },
-                  { id: 'tasks', icon: CheckSquare, label: 'tasks', brand: false },
-                  { id: 'place', icon: Monitor, label: 'the place', brand: false },
-                  { id: 'ledger', icon: FileText, label: 'the ledger', brand: false },
-                  { id: 'stats', icon: BarChart2, label: 'analytics', brand: false },
-                  { id: 'terminal', icon: Cpu, label: 'terminal', brand: false },
-                  { id: 'hub', icon: Zap, label: 'the hub', brand: false },
-                  { id: 'profile', icon: User, label: 'profile', brand: false }
-                ].map(item => (
-                  <motion.button 
-                    layout
-                    transition={springConfig}
-                    whileHover={{ scale: 1.05, backgroundColor: view === item.id ? "transparent" : "rgba(255,255,255,0.15)" }}
-                    whileTap={{ scale: 0.95 }}
-                    key={item.id} 
-                    onClick={() => setView(item.id)} 
-                    className={`relative group h-10 md:h-12 rounded-full flex items-center justify-center transition-colors duration-500 ${view === item.id ? 'text-black px-4 md:px-5' : 'w-10 md:w-12 text-white/70 hover:text-white'}`}
-                  >
-                    {view === item.id && (
-                      <motion.div
-                        layoutId="active-nav-bg"
-                        className="absolute inset-0 bg-white rounded-full shadow-[0_0_20px_rgba(255,255,255,0.5)]"
-                        transition={springConfig}
-                      />
-                    )}
-                    <motion.div layout transition={springConfig} className="relative z-10 flex items-center gap-2">
-                      {item.brand ? (
-                        <item.icon size={22} className={view === item.id ? 'text-black' : 'text-white'} />
-                      ) : (
-                        <item.icon size={18} />
-                      )}
-                      {view === item.id && (
-                        <motion.span 
-                          initial={{ opacity: 0, width: 0, scale: 0.5 }}
-                          animate={{ opacity: 1, width: 'auto', scale: 1 }}
-                          exit={{ opacity: 0, width: 0, scale: 0.5 }}
-                          transition={springConfig}
-                          className="text-xs font-bold uppercase tracking-widest overflow-hidden whitespace-nowrap"
-                        >
-                          {item.label}
-                        </motion.span>
-                      )}
-                    </motion.div>
-                  </motion.button>
-                ))}
-
-                {/* Gestures Mode Toggle */}
-                <motion.button
-                  layout
-                  transition={springConfig}
-                  whileHover={{ scale: 1.05 }}
-                  whileTap={{ scale: 0.95 }}
-                  onClick={() => setIsGesturesModeOpen(!isGesturesModeOpen)}
-                  className={`relative h-10 md:h-12 w-10 md:w-12 rounded-full flex items-center justify-center transition-colors ${
-                    isGesturesModeOpen 
-                      ? 'bg-cyan-500 text-black shadow-[0_0_15px_rgba(34,211,238,0.6)]' 
-                      : 'text-white/70 hover:text-white hover:bg-white/10'
-                  }`}
-                  title="Hands-Free Gestures & Vision OS"
-                >
-                  <Hand size={18} className={isGesturesModeOpen ? "animate-pulse text-black" : "text-cyan-400"} />
-                </motion.button>
-
-                {/* J.A.R.V.I.S. Voice AI Mode Launcher */}
-                <motion.button
-                  layout
-                  transition={springConfig}
-                  whileHover={{ scale: 1.1 }}
-                  whileTap={{ scale: 0.92 }}
-                  onClick={() => useJarvisStore.getState().toggleJarvis()}
-                  className="relative h-10 md:h-12 w-10 md:w-12 rounded-full flex items-center justify-center bg-black/60 hover:bg-black/80 border border-cyan-500/40 hover:border-cyan-300 transition-all duration-500 shadow-[0_0_25px_rgba(34,211,238,0.3)] hover:shadow-[0_0_35px_rgba(34,211,238,0.65)] group overflow-hidden"
-                  title="J.A.R.V.I.S. Voice AI Mode (Say 'JARVIS')"
-                >
-                  {/* Subtle dynamic ambient background glow */}
-                  <div className="absolute inset-0 bg-gradient-to-tr from-cyan-500/20 via-purple-500/15 to-transparent rounded-full opacity-80 group-hover:opacity-100 transition-opacity" />
-                  
-                  {/* Glowing Animated Ring */}
-                  <div className="absolute -inset-[1px] rounded-full bg-gradient-to-r from-cyan-500/30 via-purple-500/20 to-cyan-500/30 opacity-40 group-hover:opacity-80 transition-opacity" />
-
-                  {/* SiriWave Core */}
-                  <div className="relative z-10 w-full h-full flex items-center justify-center scale-95 group-hover:scale-105 transition-transform duration-300 pointer-events-none">
-                    <SiriWave 
-                      size={48} 
-                      renderScale={1.0}
-                      variant={useJarvisStore.getState().aiState === 'thinking' ? 'fluid-dots' : 'wave'} 
-                      className="pointer-events-none"
-                    />
-                  </div>
-                  <span className="absolute top-1 right-1 w-2 h-2 rounded-full bg-cyan-400 shadow-[0_0_8px_#22d3ee] border border-black z-20 animate-pulse" />
-                </motion.button>
-
-                {activeTimer && (
-                  <>
-                    <motion.div layout transition={springConfig} className="w-px h-6 md:h-8 bg-white/20 mx-1 md:mx-2" />
+                {/* 1. DESKTOP DOCK (≥ 768px): Protected Baseline */}
+                <div className="hidden md:flex items-center gap-1 md:gap-2 px-2">
+                  {[
+                    { id: 'home', icon: Home, label: 'home', brand: false },
+                    { id: 'timer', icon: Timer, label: 'timers', brand: false },
+                    { id: 'tasks', icon: CheckSquare, label: 'tasks', brand: false },
+                    { id: 'place', icon: Monitor, label: 'the place', brand: false },
+                    { id: 'ledger', icon: FileText, label: 'the ledger', brand: false },
+                    { id: 'stats', icon: BarChart2, label: 'analytics', brand: false },
+                    { id: 'terminal', icon: Cpu, label: 'terminal', brand: false },
+                    { id: 'hub', icon: Zap, label: 'the hub', brand: false },
+                    { id: 'profile', icon: User, label: 'profile', brand: false }
+                  ].map(item => (
                     <motion.button 
                       layout
                       transition={springConfig}
-                      whileHover={{ scale: 1.05, backgroundColor: isRunning ? "rgba(255,255,255,0.25)" : "rgba(255,255,255,0.15)" }}
+                      whileHover={{ scale: 1.05, backgroundColor: view === item.id ? "transparent" : "rgba(255,255,255,0.15)" }}
                       whileTap={{ scale: 0.95 }}
-                      onClick={() => setView('activeTimer')} 
-                      className={`flex items-center gap-2 px-3 md:px-4 h-10 md:h-12 rounded-full transition-colors duration-300 ${isRunning ? 'bg-white/20 text-white shadow-[0_0_15px_rgba(255,255,255,0.2)]' : 'bg-white/10 text-white/80'}`}
+                      key={item.id} 
+                      onClick={() => setView(item.id)} 
+                      className={`relative group h-10 md:h-12 rounded-full flex items-center justify-center transition-colors duration-500 ${view === item.id ? 'text-black px-4 md:px-5' : 'w-10 md:w-12 text-white/70 hover:text-white'}`}
                     >
-                      <Timer size={16} className={isRunning ? "animate-pulse text-green-400" : ""} />
-                      <span className="font-mono text-xs md:text-sm font-bold">{formatTime(timeLeft)}</span>
+                      {view === item.id && (
+                        <motion.div
+                          layoutId="active-nav-bg"
+                          className="absolute inset-0 bg-white rounded-full shadow-[0_0_20px_rgba(255,255,255,0.5)]"
+                          transition={springConfig}
+                        />
+                      )}
+                      <motion.div layout transition={springConfig} className="relative z-10 flex items-center gap-2">
+                        {item.brand ? (
+                          <item.icon size={22} className={view === item.id ? 'text-black' : 'text-white'} />
+                        ) : (
+                          <item.icon size={18} />
+                        )}
+                        {view === item.id && (
+                          <motion.span 
+                            initial={{ opacity: 0, width: 0, scale: 0.5 }}
+                            animate={{ opacity: 1, width: 'auto', scale: 1 }}
+                            exit={{ opacity: 0, width: 0, scale: 0.5 }}
+                            transition={springConfig}
+                            className="text-xs font-bold uppercase tracking-widest overflow-hidden whitespace-nowrap"
+                          >
+                            {item.label}
+                          </motion.span>
+                        )}
+                      </motion.div>
                     </motion.button>
-                  </>
-                )}
+                  ))}
+
+                  {/* Gestures Mode Toggle */}
+                  <motion.button
+                    layout
+                    transition={springConfig}
+                    whileHover={{ scale: 1.05 }}
+                    whileTap={{ scale: 0.95 }}
+                    onClick={() => setIsGesturesModeOpen(!isGesturesModeOpen)}
+                    className={`relative h-10 md:h-12 w-10 md:w-12 rounded-full flex items-center justify-center transition-colors ${
+                      isGesturesModeOpen 
+                        ? 'bg-cyan-500 text-black shadow-[0_0_15px_rgba(34,211,238,0.6)]' 
+                        : 'text-white/70 hover:text-white hover:bg-white/10'
+                    }`}
+                    title="Hands-Free Gestures & Vision OS"
+                  >
+                    <Hand size={18} className={isGesturesModeOpen ? "animate-pulse text-black" : "text-cyan-400"} />
+                  </motion.button>
+
+                  {/* J.A.R.V.I.S. Voice AI Mode Launcher */}
+                  <motion.button
+                    layout
+                    transition={springConfig}
+                    whileHover={{ scale: 1.1 }}
+                    whileTap={{ scale: 0.92 }}
+                    onClick={() => useJarvisStore.getState().toggleJarvis()}
+                    className="relative h-10 md:h-12 w-10 md:w-12 rounded-full flex items-center justify-center bg-black/60 hover:bg-black/80 border border-cyan-500/40 hover:border-cyan-300 transition-all duration-500 shadow-[0_0_25px_rgba(34,211,238,0.3)] hover:shadow-[0_0_35px_rgba(34,211,238,0.65)] group overflow-hidden"
+                    title="J.A.R.V.I.S. Voice AI Mode (Say 'JARVIS')"
+                  >
+                    <div className="absolute inset-0 bg-gradient-to-tr from-cyan-500/20 via-purple-500/15 to-transparent rounded-full opacity-80 group-hover:opacity-100 transition-opacity" />
+                    <div className="absolute -inset-[1px] rounded-full bg-gradient-to-r from-cyan-500/30 via-purple-500/20 to-cyan-500/30 opacity-40 group-hover:opacity-80 transition-opacity" />
+                    <div className="relative z-10 w-full h-full flex items-center justify-center scale-95 group-hover:scale-105 transition-transform duration-300 pointer-events-none">
+                      <SiriWave 
+                        size={48} 
+                        renderScale={1.0}
+                        variant={useJarvisStore.getState().aiState === 'thinking' ? 'fluid-dots' : 'wave'} 
+                        className="pointer-events-none"
+                      />
+                    </div>
+                    <span className="absolute top-1 right-1 w-2 h-2 rounded-full bg-cyan-400 shadow-[0_0_8px_#22d3ee] border border-black z-20 animate-pulse" />
+                  </motion.button>
+
+                  {activeTimer && (
+                    <motion.div key="active-timer-dock" layout transition={springConfig} className="flex items-center">
+                      <div className="w-px h-6 md:h-8 bg-white/20 mx-1 md:mx-2" />
+                      <motion.button 
+                        layout
+                        transition={springConfig}
+                        whileHover={{ scale: 1.05, backgroundColor: isRunning ? "rgba(255,255,255,0.25)" : "rgba(255,255,255,0.15)" }}
+                        whileTap={{ scale: 0.95 }}
+                        onClick={() => setView('activeTimer')} 
+                        className={`flex items-center gap-2 px-3 md:px-4 h-10 md:h-12 rounded-full transition-colors duration-300 ${isRunning ? 'bg-white/20 text-white shadow-[0_0_15px_rgba(255,255,255,0.2)]' : 'bg-white/10 text-white/80'}`}
+                      >
+                        <Timer size={16} className={isRunning ? "animate-pulse text-green-400" : ""} />
+                        <span className="font-mono text-xs md:text-sm font-bold">{formatTime(timeLeft)}</span>
+                      </motion.button>
+                    </motion.div>
+                  )}
+                </div>
+
+                {/* 2. MOBILE DOCK (< 768px): Thumb-Friendly Native Layer */}
+                <div className="flex md:hidden items-center justify-between gap-1 w-full px-1">
+                  {[
+                    { id: 'home', icon: Home, label: 'Home' },
+                    { id: 'timer', icon: Timer, label: 'Timers' },
+                  ].map(item => (
+                    <button
+                      key={item.id}
+                      onClick={() => { setView(item.id); setShowMobileToolsSheet(false); }}
+                      className={`flex flex-col items-center justify-center p-1.5 min-w-[52px] min-h-[44px] rounded-xl transition-all ${
+                        view === item.id ? 'text-white bg-white/15 shadow-sm' : 'text-white/60 hover:text-white'
+                      }`}
+                    >
+                      <item.icon size={18} className={view === item.id ? 'text-cyan-400' : ''} />
+                      <span className="text-[9px] font-mono tracking-wider mt-0.5">{item.label}</span>
+                    </button>
+                  ))}
+
+                  {/* Centered Jarvis Live / Voice AI Core Button */}
+                  <button
+                    onClick={() => { setShowMobileToolsSheet(false); useJarvisStore.getState().toggleJarvis(); }}
+                    className="relative w-12 h-12 rounded-full bg-black/80 border border-cyan-400/50 flex items-center justify-center shadow-[0_0_20px_rgba(34,211,238,0.4)] mx-1 active:scale-95 transition-transform shrink-0"
+                    title="J.A.R.V.I.S. Voice AI"
+                  >
+                    <div className="absolute inset-0 bg-gradient-to-tr from-cyan-500/20 via-purple-500/20 to-transparent rounded-full" />
+                    <SiriWave 
+                      size={44} 
+                      renderScale={0.7}
+                      variant={useJarvisStore.getState().aiState === 'thinking' ? 'fluid-dots' : 'wave'} 
+                      className="pointer-events-none"
+                    />
+                    <span className="absolute top-1 right-1 w-2 h-2 rounded-full bg-cyan-400 animate-pulse" />
+                  </button>
+
+                  {[
+                    { id: 'tasks', icon: CheckSquare, label: 'Tasks' },
+                    { id: 'hub', icon: Zap, label: 'Hub' }
+                  ].map(item => (
+                    <button
+                      key={item.id}
+                      onClick={() => { setView(item.id); setShowMobileToolsSheet(false); }}
+                      className={`flex flex-col items-center justify-center p-1.5 min-w-[52px] min-h-[44px] rounded-xl transition-all ${
+                        view === item.id ? 'text-white bg-white/15 shadow-sm' : 'text-white/60 hover:text-white'
+                      }`}
+                    >
+                      <item.icon size={18} className={view === item.id ? 'text-cyan-400' : ''} />
+                      <span className="text-[9px] font-mono tracking-wider mt-0.5">{item.label}</span>
+                    </button>
+                  ))}
+
+                  {/* More / Tools Sheet Trigger */}
+                  <button
+                    onClick={() => setShowMobileToolsSheet(!showMobileToolsSheet)}
+                    className={`flex flex-col items-center justify-center p-1.5 min-w-[52px] min-h-[44px] rounded-xl transition-all ${
+                      showMobileToolsSheet || ['place', 'ledger', 'stats', 'terminal', 'profile'].includes(view)
+                        ? 'text-cyan-300 bg-cyan-500/15 border border-cyan-500/30'
+                        : 'text-white/60 hover:text-white'
+                    }`}
+                    title="Tools & Secondary Pages"
+                  >
+                    <SlidersHorizontal size={18} />
+                    <span className="text-[9px] font-mono tracking-wider mt-0.5">Tools</span>
+                  </button>
+                </div>
               </motion.div>
             )}
           </AnimatePresence>
         </motion.div>
+
+        {/* Mobile Slide-Up Tools & Secondary Views Sheet */}
+        <AnimatePresence>
+          {showMobileToolsSheet && (
+            <div key="mobile-tools-modal-container">
+              <motion.div
+                key="mobile-tools-backdrop"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                onClick={() => setShowMobileToolsSheet(false)}
+                className="fixed inset-0 z-[190] bg-black/60 backdrop-blur-sm md:hidden"
+              />
+              <motion.div
+                key="mobile-tools-sheet"
+                initial={{ opacity: 0, y: 100 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: 100 }}
+                transition={{ type: "spring", stiffness: 400, damping: 30 }}
+                className="fixed bottom-20 left-3 right-3 z-[195] bg-[#0c0d13]/98 border border-white/15 rounded-3xl p-5 shadow-2xl backdrop-blur-3xl md:hidden space-y-4"
+              >
+                {/* Drag Handle & Header */}
+                <div className="flex items-center justify-between border-b border-white/10 pb-3">
+                  <div className="flex items-center gap-2">
+                    <div className="w-2 h-2 rounded-full bg-cyan-400" />
+                    <span className="text-xs font-mono font-bold uppercase tracking-widest text-white">FocusForge Suites</span>
+                  </div>
+                  <button onClick={() => setShowMobileToolsSheet(false)} className="p-1 rounded-full text-white/50 hover:text-white">
+                    <X size={16} />
+                  </button>
+                </div>
+
+                {/* Grid of Tools */}
+                <div className="grid grid-cols-3 gap-2.5">
+                  {[
+                    { id: 'place', icon: Monitor, label: 'The Place', desc: 'Zen Visuals' },
+                    { id: 'ledger', icon: FileText, label: 'The Ledger', desc: 'Deep Writing' },
+                    { id: 'stats', icon: BarChart2, label: 'Analytics', desc: 'Focus Data' },
+                    { id: 'terminal', icon: Cpu, label: 'Terminal', desc: 'Console' },
+                    { id: 'profile', icon: User, label: 'Profile', desc: 'Rank & XP' },
+                  ].map(tool => (
+                    <button
+                      key={tool.id}
+                      onClick={() => {
+                        setView(tool.id);
+                        setShowMobileToolsSheet(false);
+                      }}
+                      className={`p-3 rounded-2xl border flex flex-col items-center text-center transition-all cursor-pointer ${
+                        view === tool.id
+                          ? 'bg-cyan-500/15 border-cyan-400/40 text-white shadow-sm'
+                          : 'bg-white/[0.03] hover:bg-white/[0.07] border-white/10 text-white/70 hover:text-white'
+                      }`}
+                    >
+                      <tool.icon size={20} className={view === tool.id ? 'text-cyan-400' : 'text-white/60 mb-1'} />
+                      <span className="text-[11px] font-semibold text-white mt-1 truncate max-w-full">{tool.label}</span>
+                      <span className="text-[8px] font-mono text-white/30 truncate max-w-full">{tool.desc}</span>
+                    </button>
+                  ))}
+
+                  {/* Gestures Tool in Sheet */}
+                  <button
+                    onClick={() => {
+                      setIsGesturesModeOpen(true);
+                      setShowMobileToolsSheet(false);
+                    }}
+                    className="p-3 rounded-2xl border bg-white/[0.03] hover:bg-white/[0.07] border-white/10 text-white/70 hover:text-white flex flex-col items-center text-center transition-all cursor-pointer"
+                  >
+                    <Hand size={20} className="text-cyan-400 mb-1" />
+                    <span className="text-[11px] font-semibold text-white mt-1">Vision OS</span>
+                    <span className="text-[8px] font-mono text-white/30">Gestures</span>
+                  </button>
+                </div>
+              </motion.div>
+            </div>
+          )}
+        </AnimatePresence>
       </div>
     );
   };

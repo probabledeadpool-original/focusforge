@@ -262,24 +262,24 @@ export default function FrequencyPlayer() {
 
           {!screensaverActive && (
             <div className="absolute inset-0 z-20 overflow-y-auto">
-              <div className="relative h-full w-full px-6 py-[calc(env(safe-area-inset-top,1rem)+1rem)] sm:px-10">
-                <div className="absolute left-6 top-6 flex items-center gap-3 rounded-full border border-white/10 bg-black/40 px-4 py-2 text-white/70 backdrop-blur-xl shadow-[0_20px_60px_rgba(0,0,0,0.4)]">
-                  <button onClick={() => store.setExpanded(false)} className="text-xs uppercase tracking-[0.35em] text-white/80 hover:text-white">Close</button>
+              <div className="relative h-full w-full px-4 py-[calc(env(safe-area-inset-top,1rem)+1rem)] sm:px-10">
+                <div className="absolute left-4 sm:left-6 top-[calc(env(safe-area-inset-top,0.5rem)+1rem)] flex items-center gap-3 rounded-full border border-white/10 bg-black/40 px-4 py-2 text-white/70 backdrop-blur-xl shadow-[0_20px_60px_rgba(0,0,0,0.4)] z-30">
+                  <button onClick={() => store.setExpanded(false)} className="text-xs uppercase tracking-[0.35em] text-white/80 hover:text-white cursor-pointer min-h-[32px] flex items-center">Close</button>
                 </div>
 
-                <div className="mx-auto flex max-w-[1400px] flex-col gap-8 pt-16 pb-8 lg:px-8">
-                  <div className="grid gap-8 lg:grid-cols-[1.6fr_0.9fr]">
-                    <div className="rounded-[40px] border border-white/10 bg-black/40 p-8 shadow-[0_50px_100px_rgba(0,0,0,0.35)] backdrop-blur-3xl">
-                      <div className="grid gap-8">
+                <div className="mx-auto flex max-w-[1400px] flex-col gap-6 sm:gap-8 pt-16 pb-8 lg:px-8">
+                  <div className="grid gap-6 sm:gap-8 lg:grid-cols-[1.6fr_0.9fr]">
+                    <div className="rounded-[28px] sm:rounded-[40px] border border-white/10 bg-black/40 p-5 sm:p-8 shadow-[0_50px_100px_rgba(0,0,0,0.35)] backdrop-blur-3xl">
+                      <div className="grid gap-6 sm:gap-8">
                         <div className="grid gap-6 lg:grid-cols-[360px_1fr] items-center">
-                          <div className="aspect-square w-full overflow-hidden rounded-[32px] border border-white/10 bg-white/5">
+                          <div className="aspect-square w-full max-w-[320px] mx-auto lg:max-w-none overflow-hidden rounded-[24px] sm:rounded-[32px] border border-white/10 bg-white/5">
                             <img src={current.thumbnail} alt={current.title} className="h-full w-full object-cover" />
                           </div>
-                          <div className="space-y-4">
+                          <div className="space-y-4 text-center lg:text-left">
                             <div className="text-[10px] uppercase tracking-[0.35em] text-white/30">Now playing</div>
-                            <h1 className="text-4xl md:text-5xl font-heading font-extrabold tracking-tight text-white">{current.title}</h1>
-                            <p className="text-lg text-white/40">{current.artist}</p>
-                            <div className="flex flex-wrap items-center gap-3 text-[11px] text-white/40">
+                            <h1 className="text-2xl sm:text-4xl md:text-5xl font-heading font-extrabold tracking-tight text-white">{current.title}</h1>
+                            <p className="text-base sm:text-lg text-white/40">{current.artist}</p>
+                            <div className="flex flex-wrap items-center justify-center lg:justify-start gap-3 text-[11px] text-white/40">
                               <span>{store.duration ? `${Math.floor(store.duration / 60)}:${Math.floor(store.duration % 60).toString().padStart(2, '0')}` : '0:00 total'}</span>
                               <span>{store.shuffle ? 'Shuffle on' : 'Shuffle off'}</span>
                               <span>{store.repeat !== 'none' ? `Repeat ${store.repeat}` : 'Repeat off'}</span>

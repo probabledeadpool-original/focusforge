@@ -523,7 +523,7 @@ export const QuickSettingsPanel: React.FC<QuickSettingsPanelProps> = ({
   return (
     <AnimatePresence>
       <div 
-        className="fixed inset-0 z-[150] flex items-end sm:items-start justify-center sm:justify-end p-2 sm:p-6 bg-black/60 backdrop-blur-md transition-opacity"
+        className="fixed inset-0 z-[150] flex items-end sm:items-start justify-center sm:justify-end p-2 sm:p-6 pb-[calc(env(safe-area-inset-bottom,0px)+0.75rem)] sm:pb-6 bg-black/60 backdrop-blur-md transition-opacity"
         onClick={onClose}
       >
         <motion.div
