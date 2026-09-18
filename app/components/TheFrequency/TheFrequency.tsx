@@ -49,10 +49,12 @@ export default function TheFrequency() {
     store.hydrate();
   }, []);
 
-  // Active playlist
-  const activePlaylist = store.playlists.find(p => p.id === store.activePlaylistId) || store.playlists[0] || null;
+  // Active playlist (only if explicitly selected)
+  const activePlaylist = store.activePlaylistId
+    ? store.playlists.find(p => p.id === store.activePlaylistId) || null
+    : null;
 
-  // Active playlist tracks
+  // Active playlist tracks (if playlist selected, only its tracks; otherwise entire user library)
   const activePlaylistTracks = activePlaylist
     ? activePlaylist.trackIds
         .map(id => store.tracks.find(t => t.id === id))
@@ -63,13 +65,13 @@ export default function TheFrequency() {
   const totalDurationSeconds = activePlaylistTracks.reduce((acc, t) => acc + (t.duration || 180), 0);
   const totalDurationMinutes = Math.max(1, Math.round(totalDurationSeconds / 60));
 
-  // Filtered tracks for search
+  // Filtered tracks for search or playlist view
   const displayedTracks = searchQuery.trim()
     ? store.tracks.filter(t => 
         t.title.toLowerCase().includes(searchQuery.toLowerCase()) || 
         t.artist.toLowerCase().includes(searchQuery.toLowerCase())
       )
-    : activePlaylistTracks.length > 0 ? activePlaylistTracks : store.tracks;
+    : activePlaylistTracks;
 
   // Most played tracks (sorted by lastPlayedAt or top added)
   const mostPlayedTracks = [...store.tracks]
@@ -183,9 +185,12 @@ export default function TheFrequency() {
             {/* Navigation Tabs */}
             <nav className="space-y-1">
               <button
-                onClick={() => store.setActiveTab('home')}
+                onClick={() => {
+                  store.setActivePlaylistId(null);
+                  store.setActiveTab('home');
+                }}
                 className={`w-full text-left px-3.5 py-2.5 rounded-xl font-heading text-sm font-semibold transition-all flex items-center gap-3 cursor-pointer ${
-                  store.activeTab === 'home'
+                  store.activeTab === 'home' && !store.activePlaylistId
                     ? 'text-white bg-white/10 shadow-sm'
                     : 'text-white/50 hover:text-white hover:bg-white/5'
                 }`}

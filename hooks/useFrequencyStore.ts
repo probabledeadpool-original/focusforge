@@ -245,7 +245,7 @@ const getInitialStateFromStorage = () => {
       currentTrackId: tracks[0]?.id || null,
       queue: tracks.map(t => t.id),
       originalQueue: tracks.map(t => t.id),
-      activePlaylistId: playlists[0]?.id || null,
+      activePlaylistId: null as string | null,
     };
   } catch {
     return {
@@ -358,7 +358,9 @@ export const useFrequencyStore = create<FrequencyState>((set, get) => ({
         ? data.currentTrackId
         : tracksToUse[0]?.id || null;
 
-      const activePlaylistIdToUse = data.activePlaylistId || playlistsToUse[0]?.id || null;
+      const activePlaylistIdToUse = (data.activePlaylistId && playlistsToUse.some(p => p.id === data.activePlaylistId))
+        ? data.activePlaylistId
+        : null;
 
       set({
         tracks: tracksToUse,
@@ -493,25 +495,14 @@ export const useFrequencyStore = create<FrequencyState>((set, get) => ({
     const newQueue = state.queue.length === 0 ? [track.id] : state.queue;
     const newCurrent = state.currentTrackId || track.id;
 
-    // If there is an active playlist, also add to active playlist
-    let newPlaylists = state.playlists;
-    if (state.activePlaylistId) {
-      newPlaylists = state.playlists.map(p => {
-        if (p.id !== state.activePlaylistId) return p;
-        if (p.trackIds.includes(track.id)) return p;
-        return { ...p, trackIds: [track.id, ...p.trackIds], updatedAt: Date.now() };
-      });
-    }
-
     set({ 
       tracks: newTracks,
-      playlists: newPlaylists,
       queue: newQueue,
       currentTrackId: newCurrent,
       _hydrated: true
     });
 
-    saveToStorage({ ...state, tracks: newTracks, playlists: newPlaylists, queue: newQueue, currentTrackId: newCurrent, _hydrated: true });
+    saveToStorage({ ...state, tracks: newTracks, queue: newQueue, currentTrackId: newCurrent, _hydrated: true });
   },
 
   removeTrack: (id) => {
