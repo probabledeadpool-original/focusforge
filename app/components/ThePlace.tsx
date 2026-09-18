@@ -352,16 +352,7 @@ export default function ThePlace() {
   return (
     <div className="fixed inset-0 z-50 bg-black overflow-y-auto no-scrollbar selection:bg-white/20 text-[#E0E0E0]">
       {/* The Frequency full-screen overlay */}
-      {viewState === 'frequency' && <TheFrequency />}
-
-      {viewState === 'frequency' && (
-        <button
-          onClick={() => setViewState('browse')}
-          className="fixed top-20 right-8 z-[110] flex items-center gap-2 px-5 py-2.5 bg-white/5 border border-white/10 backdrop-blur-xl rounded-full text-white/50 hover:text-white hover:bg-white/10 transition-all text-[10px] font-bold uppercase tracking-[0.2em]"
-        >
-          <ChevronLeft size={14} /> Back to Vault
-        </button>
-      )}
+      {viewState === 'frequency' && <TheFrequency onBack={() => setViewState('browse')} />}
 
       <AnimatePresence mode="wait">
         {viewState === 'frequency' ? null : viewState === 'browse' ? (

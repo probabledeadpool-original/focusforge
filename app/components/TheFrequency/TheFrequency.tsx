@@ -1,15 +1,14 @@
 "use client";
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
   Search, Play, Pause, SkipForward, SkipBack, Plus, Trash2, 
   Music, ListMusic, Shuffle, Repeat, Repeat1, Volume2, VolumeX, Volume1,
   Maximize2, X, Sparkles, SlidersHorizontal, Check, Disc, 
-  Clock, Share2, MoreHorizontal, ExternalLink, Cast, Heart, Eye,
-  FolderPlus, Waves, Radio, Activity, ArrowRight, ArrowLeft, Headphones, Zap, RefreshCw, Layers
+  FolderPlus, Waves, ArrowLeft, ChevronLeft
 } from 'lucide-react';
-import { useFrequencyStore, Track, Playlist, AudioEnhancementPreset } from '../../../hooks/useFrequencyStore';
+import { useFrequencyStore, Track } from '../../../hooks/useFrequencyStore';
 import FrequencyPlayer from './FrequencyPlayer';
 import { fetchYouTubeMeta, extractDominantColor } from '../SonicVaultUtils';
 
@@ -20,7 +19,11 @@ const formatTime = (s: number) => {
   return `${m}:${sec}`;
 };
 
-export default function TheFrequency() {
+interface TheFrequencyProps {
+  onBack?: () => void;
+}
+
+export default function TheFrequency({ onBack }: TheFrequencyProps) {
   const store = useFrequencyStore();
   const [searchQuery, setSearchQuery] = useState('');
   const [addingTrack, setAddingTrack] = useState(false);
@@ -36,14 +39,6 @@ export default function TheFrequency() {
   const [trackToAddToPlaylist, setTrackToAddToPlaylist] = useState<Track | null>(null);
   const [showAllSongsModal, setShowAllSongsModal] = useState(false);
   const [showQuickAddModal, setShowQuickAddModal] = useState(false);
-
-  // Creatives Tab State
-  const [creativeVibeInput, setCreativeVibeInput] = useState('');
-  const [isGeneratingVibe, setIsGeneratingVibe] = useState(false);
-
-  // Timeline scrubber
-  const [scrubberHoverPct, setScrubberHoverPct] = useState<number | null>(null);
-  const [scrubberHoverTime, setScrubberHoverTime] = useState<string | null>(null);
 
   const currentTrack = store.getCurrentTrack();
 
@@ -93,7 +88,7 @@ export default function TheFrequency() {
     try {
       const meta = await fetchYouTubeMeta(query);
       if (!meta) {
-        setAddError('Could not resolve YouTube track. Please enter a valid YouTube link or song name.');
+        setAddError('Could not resolve track. Please enter a valid YouTube link or song name.');
         setAddingTrack(false);
         return;
       }
@@ -113,8 +108,8 @@ export default function TheFrequency() {
 
       store.addTrack(newTrack);
       setSearchQuery('');
-      setAddSuccess(`Added "${newTrack.title.slice(0, 28)}..."`);
-      setTimeout(() => setAddSuccess(null), 3500);
+      setAddSuccess(`Added "${newTrack.title.slice(0, 24)}..."`);
+      setTimeout(() => setAddSuccess(null), 3000);
     } catch {
       setAddError('Failed to fetch track information.');
     } finally {
@@ -129,7 +124,8 @@ export default function TheFrequency() {
     setNewPlaylistName('');
     setNewPlaylistDesc('');
     setShowNewPlaylistModal(false);
-    store.setActivePlaylistId(id);
+    setSelectedPlaylistDetailId(id);
+    store.setActiveTab('playlists');
   };
 
   const handleAddStarterPack = async () => {
@@ -151,36 +147,28 @@ export default function TheFrequency() {
     store.seek(time);
   };
 
-  const handleScrubberMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
-    if (!store.duration) return;
-    const rect = e.currentTarget.getBoundingClientRect();
-    const pct = Math.min(1, Math.max(0, (e.clientX - rect.left) / rect.width));
-    setScrubberHoverPct(pct * 100);
-    setScrubberHoverTime(formatTime(pct * store.duration));
-  };
-
   return (
-    <div className="fixed inset-0 z-50 bg-[#08090d] text-white flex flex-col overflow-hidden font-sans select-none">
+    <div className="fixed inset-0 z-50 bg-[#06070a] text-white flex flex-col overflow-hidden font-sans select-none">
       
       {/* Hidden YouTube Audio Engine Player */}
       <FrequencyPlayer />
 
-      {/* Main 3-Column Studio Grid */}
+      {/* Main Apple Pro 2-Column Layout */}
       <div className="flex-1 flex overflow-hidden min-h-0">
 
-        {/* 1. LEFT SIDEBAR: Brand Navigation & Playlist Disc List */}
-        <aside className="w-64 md:w-72 bg-[#090a0e] border-r border-white/10 flex flex-col justify-between shrink-0 p-5 overflow-y-auto no-scrollbar">
+        {/* 1. LEFT SIDEBAR: Clean Apple Frosted Glass Navigation */}
+        <aside className="w-56 lg:w-64 bg-[#0a0b10]/95 border-r border-white/[0.06] backdrop-blur-2xl flex flex-col justify-between shrink-0 p-4 lg:p-5 overflow-y-auto no-scrollbar">
           <div className="space-y-6">
             
             {/* Header Brand */}
-            <div className="flex items-center gap-3 px-1">
-              <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-cyan-500 to-yellow-400 p-0.5 flex items-center justify-center shadow-[0_0_15px_rgba(6,182,212,0.4)]">
-                <div className="w-full h-full bg-black rounded-full flex items-center justify-center">
-                  <Disc size={16} className={`text-cyan-400 ${store.isPlaying ? 'animate-spin-slow' : ''}`} />
+            <div className="flex items-center gap-3 px-1 pt-1">
+              <div className="w-7 h-7 rounded-xl bg-gradient-to-tr from-cyan-500 via-blue-500 to-indigo-500 p-0.5 flex items-center justify-center shadow-[0_0_12px_rgba(6,182,212,0.3)]">
+                <div className="w-full h-full bg-black rounded-[10px] flex items-center justify-center">
+                  <Disc size={14} className={`text-cyan-400 ${store.isPlaying ? 'animate-spin-slow' : ''}`} />
                 </div>
               </div>
-              <span className="text-base font-heading font-extrabold text-white tracking-tight">
-                Creativesplaylist
+              <span className="text-sm font-semibold text-white tracking-tight">
+                The Frequency
               </span>
             </div>
 
@@ -192,62 +180,67 @@ export default function TheFrequency() {
                   setSelectedPlaylistDetailId(null);
                   store.setActiveTab('home');
                 }}
-                className={`w-full text-left px-3.5 py-2.5 rounded-xl font-heading text-sm font-semibold transition-all flex items-center gap-3 cursor-pointer ${
+                className={`w-full text-left px-3 py-2 rounded-xl text-xs font-medium transition-all flex items-center gap-2.5 cursor-pointer ${
                   store.activeTab === 'home'
-                    ? 'text-white bg-white/10 shadow-sm'
-                    : 'text-white/50 hover:text-white hover:bg-white/5'
+                    ? 'text-white bg-white/[0.1] shadow-sm font-semibold'
+                    : 'text-white/50 hover:text-white hover:bg-white/[0.04]'
                 }`}
               >
-                Home
+                <Music size={15} className={store.activeTab === 'home' ? 'text-cyan-400' : ''} />
+                <span>Library</span>
               </button>
+
               <button
                 onClick={() => {
                   setSelectedPlaylistDetailId(null);
                   store.setActiveTab('playlists');
                 }}
-                className={`w-full text-left px-3.5 py-2.5 rounded-xl font-heading text-sm font-semibold transition-all flex items-center gap-3 cursor-pointer ${
+                className={`w-full text-left px-3 py-2 rounded-xl text-xs font-medium transition-all flex items-center gap-2.5 cursor-pointer ${
                   store.activeTab === 'playlists'
-                    ? 'text-white bg-white/10 shadow-sm'
-                    : 'text-white/50 hover:text-white hover:bg-white/5'
+                    ? 'text-white bg-white/[0.1] shadow-sm font-semibold'
+                    : 'text-white/50 hover:text-white hover:bg-white/[0.04]'
                 }`}
               >
-                Playlists
+                <ListMusic size={15} className={store.activeTab === 'playlists' ? 'text-cyan-400' : ''} />
+                <span>Playlists</span>
               </button>
+
               <button
                 onClick={() => store.setActiveTab('creatives')}
-                className={`w-full text-left px-3.5 py-2.5 rounded-xl font-heading text-sm font-semibold transition-all flex items-center gap-3 cursor-pointer ${
+                className={`w-full text-left px-3 py-2 rounded-xl text-xs font-medium transition-all flex items-center gap-2.5 cursor-pointer ${
                   store.activeTab === 'creatives'
-                    ? 'text-white bg-white/10 shadow-sm'
-                    : 'text-white/50 hover:text-white hover:bg-white/5'
+                    ? 'text-white bg-white/[0.1] shadow-sm font-semibold'
+                    : 'text-white/50 hover:text-white hover:bg-white/[0.04]'
                 }`}
               >
-                Creatives
+                <Waves size={15} className={store.activeTab === 'creatives' ? 'text-cyan-400' : ''} />
+                <span>Creatives Lab</span>
               </button>
             </nav>
 
-            {/* PLAYLIST SECTION */}
-            <div className="space-y-3 pt-2">
-              <div className="flex items-center justify-between px-1">
-                <span className="text-[10px] font-mono uppercase tracking-[0.25em] text-white/40 font-bold">
-                  Playlist
+            {/* PLAYLISTS SECTION */}
+            <div className="space-y-2 pt-2 border-t border-white/[0.06]">
+              <div className="flex items-center justify-between px-1 py-1">
+                <span className="text-[10px] font-mono uppercase tracking-[0.2em] text-white/40 font-semibold">
+                  Playlists
                 </span>
                 <button
                   onClick={() => setShowNewPlaylistModal(true)}
-                  className="text-white/40 hover:text-cyan-400 p-1 transition-colors cursor-pointer"
+                  className="text-white/40 hover:text-cyan-400 p-0.5 transition-colors cursor-pointer"
                   title="Create New Playlist"
                 >
                   <Plus size={14} />
                 </button>
               </div>
 
-              {/* Playlists List with Circular Artwork Badges */}
-              <div className="space-y-1.5">
+              {/* Playlists List */}
+              <div className="space-y-1">
                 {store.playlists.length === 0 ? (
-                  <div className="p-3 rounded-2xl bg-white/[0.02] border border-white/5 text-center space-y-2">
+                  <div className="p-3 rounded-xl bg-white/[0.02] border border-white/[0.04] text-center space-y-1.5">
                     <p className="text-[11px] text-white/40 font-sans">No playlists yet</p>
                     <button
                       onClick={() => setShowNewPlaylistModal(true)}
-                      className="text-[10px] font-mono text-cyan-400 hover:text-cyan-300 uppercase tracking-wider font-bold block mx-auto"
+                      className="text-[10px] font-mono text-cyan-400 hover:text-cyan-300 font-medium cursor-pointer"
                     >
                       + Create Playlist
                     </button>
@@ -265,19 +258,14 @@ export default function TheFrequency() {
                           setSelectedPlaylistDetailId(playlist.id);
                           store.setActiveTab('playlists');
                         }}
-                        className={`w-full text-left p-2 rounded-2xl flex items-center gap-3 transition-all relative group cursor-pointer ${
+                        className={`w-full text-left p-2 rounded-xl flex items-center gap-2.5 transition-all relative group cursor-pointer ${
                           isSelected
                             ? 'bg-white/[0.08] text-white'
                             : 'hover:bg-white/[0.04] text-white/70 hover:text-white'
                         }`}
                       >
-                        {/* Left Active Line Indicator (Cyan) */}
-                        {isSelected && (
-                          <div className="absolute left-0 top-2 bottom-2 w-1 rounded-r-full bg-cyan-400 shadow-[0_0_10px_rgba(6,182,212,0.8)]" />
-                        )}
-
-                        {/* Circular Artwork Avatar */}
-                        <div className="relative w-10 h-10 rounded-full overflow-hidden shrink-0 border border-white/15 bg-black/60 shadow-md">
+                        {/* Artwork Avatar */}
+                        <div className="relative w-8 h-8 rounded-lg overflow-hidden shrink-0 border border-white/10 bg-black/60">
                           {playlist.coverThumbnail ? (
                             <img
                               src={playlist.coverThumbnail}
@@ -286,23 +274,23 @@ export default function TheFrequency() {
                             />
                           ) : (
                             <div className="w-full h-full bg-zinc-900 flex items-center justify-center text-white/40">
-                              <Music size={14} />
+                              <Music size={12} />
                             </div>
                           )}
                           {isPlaying && (
                             <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
-                              <div className="w-2 h-2 rounded-full bg-cyan-400 animate-ping" />
+                              <div className="w-1.5 h-1.5 rounded-full bg-cyan-400 animate-ping" />
                             </div>
                           )}
                         </div>
 
                         {/* Info */}
                         <div className="flex flex-col min-w-0 flex-1">
-                          <span className="text-xs font-heading font-bold text-white tracking-tight truncate">
+                          <span className="text-xs font-medium text-white truncate">
                             {playlist.name}
                           </span>
-                          <span className="text-[10px] font-sans text-white/40 truncate">
-                            {trackCount} songs
+                          <span className="text-[10px] text-white/40 truncate">
+                            {trackCount} {trackCount === 1 ? 'song' : 'songs'}
                           </span>
                         </div>
                       </button>
@@ -311,101 +299,111 @@ export default function TheFrequency() {
                 )}
               </div>
 
-              {/* Add Playlist Action Button */}
               <button
                 onClick={() => setShowNewPlaylistModal(true)}
-                className="w-full mt-2 py-2 px-4 rounded-full bg-white/[0.04] hover:bg-white/[0.08] border border-white/10 text-white/60 hover:text-white font-sans text-xs font-semibold transition-all text-center cursor-pointer"
+                className="w-full mt-2 py-1.5 px-3 rounded-lg bg-white/[0.03] hover:bg-white/[0.06] border border-white/[0.06] text-white/50 hover:text-white text-[11px] font-medium transition-all text-center cursor-pointer"
               >
                 + New Playlist
               </button>
             </div>
           </div>
 
-          {/* Sidebar Footer Mini Branding */}
-          <div className="pt-4 border-t border-white/5 text-[9px] font-mono text-white/20 uppercase tracking-widest flex items-center justify-between">
-            <span>FOCUS FORGE</span>
+          {/* Sidebar Footer */}
+          <div className="pt-3 border-t border-white/[0.04] text-[9px] font-mono text-white/25 uppercase tracking-wider flex items-center justify-between">
             <span>PRO AUDIO</span>
+            <span>{store.tracks.length} TRACKS</span>
           </div>
         </aside>
 
-        {/* 2. CENTER MAIN CONTENT: Tab Controlled Dashboard */}
-        <main className="flex-1 overflow-y-auto no-scrollbar p-6 md:p-8 space-y-8 min-w-0 bg-gradient-to-b from-[#0e0f15] via-[#08090d] to-[#050608]">
+        {/* 2. CENTER MAIN STAGE: Expansive, Uncluttered Apple Canvas */}
+        <main className="flex-1 overflow-y-auto no-scrollbar p-6 lg:p-8 space-y-7 min-w-0 bg-gradient-to-b from-[#0a0b10] via-[#06070a] to-[#040406]">
           
-          {/* Top Search Bar & Action Header */}
+          {/* Top Bar: Clean Search & Action Pills */}
           <div className="flex items-center justify-between gap-4">
-            <form onSubmit={handleAddTrack} className="relative flex-1 max-w-lg">
+            <form onSubmit={handleAddTrack} className="relative flex-1 max-w-md">
               <div className="relative flex items-center">
-                <Search size={16} className="absolute left-4 text-white/30 pointer-events-none" />
+                <Search size={14} className="absolute left-3.5 text-white/30 pointer-events-none" />
                 <input
                   type="text"
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  placeholder="Tell me your activity or paste YouTube URL..."
-                  className="w-full bg-white/[0.05] hover:bg-white/[0.08] focus:bg-white/[0.1] border border-white/10 focus:border-white/25 rounded-full pl-11 pr-24 py-2.5 text-xs text-white placeholder:text-white/30 focus:outline-none transition-all font-sans"
+                  placeholder="Search music or paste YouTube link..."
+                  className="w-full bg-white/[0.04] hover:bg-white/[0.07] focus:bg-white/[0.09] border border-white/[0.08] focus:border-white/20 rounded-full pl-9 pr-20 py-2 text-xs text-white placeholder:text-white/30 focus:outline-none transition-all font-sans"
                 />
                 {searchQuery.trim() && (
                   <button
                     type="submit"
                     disabled={addingTrack}
-                    className="absolute right-2 px-3 py-1 bg-white text-black hover:bg-white/90 font-sans font-bold text-[10px] uppercase tracking-wider rounded-full transition-all shadow-sm cursor-pointer"
+                    className="absolute right-1.5 px-2.5 py-1 bg-white text-black hover:bg-white/90 font-medium text-[10px] rounded-full transition-all cursor-pointer shadow-sm"
                   >
-                    {addingTrack ? "Adding..." : "+ Add"}
+                    {addingTrack ? "..." : "+ Add"}
                   </button>
                 )}
               </div>
               {addSuccess && (
-                <span className="absolute -bottom-5 left-4 text-[10px] text-emerald-400 font-mono">{addSuccess}</span>
+                <span className="absolute -bottom-4 left-4 text-[10px] text-emerald-400 font-mono">{addSuccess}</span>
               )}
               {addError && (
-                <span className="absolute -bottom-5 left-4 text-[10px] text-rose-400 font-mono">{addError}</span>
+                <span className="absolute -bottom-4 left-4 text-[10px] text-rose-400 font-mono">{addError}</span>
               )}
             </form>
 
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2.5">
               <button
                 type="button"
                 onClick={() => store.setStudioOpen(true)}
-                className="w-9 h-9 rounded-full bg-white/[0.05] hover:bg-white/10 text-white/60 hover:text-white border border-white/10 flex items-center justify-center transition-all cursor-pointer"
-                title="Audio Studio DSP"
+                className="px-3 py-1.5 rounded-full bg-white/[0.04] hover:bg-white/[0.08] text-white/70 hover:text-white border border-white/[0.08] text-xs font-medium flex items-center gap-1.5 transition-all cursor-pointer"
+                title="Studio DSP Equalizer"
               >
-                <SlidersHorizontal size={15} />
+                <SlidersHorizontal size={13} className="text-cyan-400" />
+                <span>DSP Studio</span>
               </button>
-              <div className="w-8 h-8 rounded-full overflow-hidden border border-white/20 bg-zinc-800 flex items-center justify-center text-xs font-bold text-white/80">
-                FF
-              </div>
+
+              {onBack && (
+                <button
+                  type="button"
+                  onClick={onBack}
+                  className="px-3 py-1.5 rounded-full bg-white/[0.04] hover:bg-white/[0.08] text-white/60 hover:text-white border border-white/[0.08] text-xs font-medium flex items-center gap-1 transition-all cursor-pointer"
+                  title="Back to Vault"
+                >
+                  <ChevronLeft size={14} />
+                  <span>Exit</span>
+                </button>
+              )}
             </div>
           </div>
 
-          {/* TAB 1: HOME (Exact Reference Layout) */}
+          {/* TAB 1: HOME (Master Library Lounge) */}
           {store.activeTab === 'home' && (
-            <div className="space-y-8">
-              {/* Massive Hero Playlist Header */}
-              <section className="space-y-2 pt-2">
-                <h1 className="text-5xl md:text-6xl lg:text-7xl font-heading font-extrabold text-white tracking-tight leading-none">
-                  {activePlaylist?.name || (store.tracks.length > 0 ? "My Sound Vault" : "Moodboarding")}
+            <div className="space-y-7 pb-24">
+              
+              {/* Clean Library Header */}
+              <section className="space-y-1">
+                <h1 className="text-3xl sm:text-4xl font-bold text-white tracking-tight">
+                  Master Library
                 </h1>
-                <p className="text-xs font-sans text-white/40 tracking-wide font-medium">
-                  {activePlaylistTracks.length} songs • {totalDurationMinutes} mins
+                <p className="text-xs text-white/40 font-normal">
+                  {store.tracks.length} {store.tracks.length === 1 ? 'track' : 'tracks'} • {totalDurationMinutes} mins total audio
                 </p>
               </section>
 
-              {/* Zero Tracks Empty State (if no songs added) */}
+              {/* Zero Tracks Empty State */}
               {store.tracks.length === 0 ? (
-                <div className="p-8 md:p-12 rounded-3xl bg-white/[0.02] border border-white/10 text-center space-y-4 max-w-xl mx-auto my-8">
-                  <div className="w-16 h-16 rounded-full bg-white/5 border border-white/10 flex items-center justify-center mx-auto text-cyan-400 shadow-inner">
-                    <Music size={28} />
+                <div className="p-10 rounded-2xl bg-white/[0.02] border border-white/[0.06] text-center space-y-3 max-w-md mx-auto my-6">
+                  <div className="w-12 h-12 rounded-2xl bg-white/[0.04] border border-white/[0.08] flex items-center justify-center mx-auto text-cyan-400">
+                    <Music size={22} />
                   </div>
                   <div className="space-y-1">
-                    <h3 className="text-xl font-heading font-bold text-white">Your Frequency Vault is Ready</h3>
-                    <p className="text-xs font-sans text-white/40 max-w-md mx-auto">
-                      Paste any YouTube link or track search in the search bar above to start building your personal soundscape.
+                    <h3 className="text-base font-semibold text-white">Your Audio Library is Empty</h3>
+                    <p className="text-xs text-white/40">
+                      Paste any YouTube link or track name in the search bar above to start listening.
                     </p>
                   </div>
-                  <div className="pt-2 flex items-center justify-center gap-3">
+                  <div className="pt-2">
                     <button
                       onClick={handleAddStarterPack}
                       disabled={addingTrack}
-                      className="px-5 py-2.5 rounded-full bg-white text-black font-sans font-bold text-xs uppercase tracking-wider hover:bg-white/90 transition-all cursor-pointer shadow-lg"
+                      className="px-4 py-2 rounded-full bg-white text-black font-semibold text-xs hover:bg-white/90 transition-all cursor-pointer shadow-md"
                     >
                       {addingTrack ? "Loading..." : "Load Focus Starter Pack"}
                     </button>
@@ -413,14 +411,14 @@ export default function TheFrequency() {
                 </div>
               ) : (
                 <>
-                  {/* Section: Most Played (Square Album Cards) */}
+                  {/* Section: Most Played (Clean Squircle Cards) */}
                   {mostPlayedTracks.length > 0 && (
-                    <section className="space-y-4">
-                      <h2 className="text-xl font-heading font-bold text-white tracking-tight">
-                        Most Played
+                    <section className="space-y-3">
+                      <h2 className="text-sm font-semibold text-white/80 tracking-tight">
+                        Recently Played
                       </h2>
 
-                      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
+                      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3.5">
                         {mostPlayedTracks.map((track) => {
                           const isPlayingThis = currentTrack?.id === track.id && store.isPlaying;
 
@@ -428,31 +426,31 @@ export default function TheFrequency() {
                             <div
                               key={track.id}
                               onClick={() => store.playTrack(track.id)}
-                              className="group flex flex-col gap-3 p-3 rounded-2xl bg-white/[0.03] hover:bg-white/[0.07] border border-white/5 hover:border-white/15 transition-all cursor-pointer shadow-lg"
+                              className="group flex flex-col gap-2.5 p-2.5 rounded-2xl bg-white/[0.02] hover:bg-white/[0.06] border border-white/[0.04] hover:border-white/[0.1] transition-all cursor-pointer"
                             >
                               {/* Square Artwork */}
-                              <div className="relative aspect-square w-full rounded-xl overflow-hidden bg-black/50 border border-white/10">
+                              <div className="relative aspect-square w-full rounded-xl overflow-hidden bg-black/60 border border-white/10 shadow-md">
                                 <img
                                   src={track.thumbnail}
                                   alt={track.title}
-                                  className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                                  className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
                                 />
                                 <div className={`absolute inset-0 bg-black/40 flex items-center justify-center transition-opacity ${
                                   isPlayingThis ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
                                 }`}>
-                                  <div className="w-11 h-11 rounded-full bg-white text-black flex items-center justify-center shadow-xl hover:scale-110 active:scale-95 transition-transform">
-                                    {isPlayingThis ? <Pause size={18} fill="black" /> : <Play size={18} fill="black" className="ml-0.5" />}
+                                  <div className="w-10 h-10 rounded-full bg-white text-black flex items-center justify-center shadow-lg hover:scale-105 active:scale-95 transition-transform">
+                                    {isPlayingThis ? <Pause size={16} fill="black" /> : <Play size={16} fill="black" className="ml-0.5" />}
                                   </div>
                                 </div>
                               </div>
 
                               {/* Metadata */}
-                              <div className="flex flex-col min-w-0">
-                                <span className="text-xs font-heading font-bold text-white truncate group-hover:text-cyan-300 transition-colors">
+                              <div className="flex flex-col min-w-0 px-0.5">
+                                <span className="text-xs font-semibold text-white truncate group-hover:text-cyan-300 transition-colors">
                                   {track.title}
                                 </span>
-                                <span className="text-[11px] font-sans text-white/40 truncate mt-0.5">
-                                  {track.artist} {track.year ? `• ${track.year}` : ''}
+                                <span className="text-[11px] text-white/40 truncate">
+                                  {track.artist}
                                 </span>
                               </div>
                             </div>
@@ -462,25 +460,25 @@ export default function TheFrequency() {
                     </section>
                   )}
 
-                  {/* Section: All Songs (2-Column Track List) */}
-                  <section className="space-y-4 pb-20">
+                  {/* Section: All Songs Catalog */}
+                  <section className="space-y-3 pt-2">
                     <div className="flex items-center justify-between">
-                      <h2 className="text-xl font-heading font-bold text-white tracking-tight">
-                        All Songs
+                      <h2 className="text-sm font-semibold text-white/80 tracking-tight">
+                        All Tracks ({displayedTracks.length})
                       </h2>
                       {displayedTracks.length > 8 && (
                         <button
                           onClick={() => setShowAllSongsModal(true)}
-                          className="px-3.5 py-1 rounded-full bg-white/[0.06] hover:bg-white/[0.12] border border-white/10 text-white/70 hover:text-white text-xs font-sans font-medium transition-all cursor-pointer"
+                          className="px-3 py-1 rounded-full bg-white/[0.04] hover:bg-white/[0.08] border border-white/[0.06] text-white/60 hover:text-white text-[11px] font-medium transition-all cursor-pointer"
                         >
-                          Show All
+                          View Full List
                         </button>
                       )}
                     </div>
 
-                    {/* 2-Column Track Grid */}
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-2">
-                      {displayedTracks.slice(0, 12).map((track) => {
+                    {/* Apple Music Style Track Rows */}
+                    <div className="space-y-1">
+                      {displayedTracks.slice(0, 16).map((track, idx) => {
                         const isPlayingThis = currentTrack?.id === track.id && store.isPlaying;
 
                         return (
@@ -489,44 +487,51 @@ export default function TheFrequency() {
                             onClick={() => store.playTrack(track.id)}
                             className={`flex items-center justify-between p-2.5 rounded-xl transition-all cursor-pointer group ${
                               isPlayingThis
-                                ? 'bg-white/[0.08] text-white border border-white/10'
+                                ? 'bg-cyan-500/10 text-white border border-cyan-400/20'
                                 : 'hover:bg-white/[0.04] text-white/80'
                             }`}
                           >
                             <div className="flex items-center gap-3 min-w-0 flex-1">
+                              {/* Index / Visualizer */}
+                              <div className="w-5 text-center shrink-0 flex items-center justify-center">
+                                {isPlayingThis ? (
+                                  <div className="flex items-end gap-0.5 h-3">
+                                    <span className="w-0.5 bg-cyan-400 rounded-full animate-[bounce_0.8s_infinite_100ms] h-full" />
+                                    <span className="w-0.5 bg-cyan-400 rounded-full animate-[bounce_0.6s_infinite_200ms] h-3/4" />
+                                    <span className="w-0.5 bg-cyan-400 rounded-full animate-[bounce_0.9s_infinite_300ms] h-full" />
+                                  </div>
+                                ) : (
+                                  <span className="text-[11px] font-mono text-white/30 group-hover:hidden">
+                                    {idx + 1}
+                                  </span>
+                                )}
+                                <Play size={11} fill="white" className="hidden group-hover:block text-white" />
+                              </div>
+
                               {/* Square Art */}
-                              <div className="relative w-11 h-11 rounded-lg overflow-hidden shrink-0 border border-white/10 bg-black/40">
+                              <div className="relative w-9 h-9 rounded-lg overflow-hidden shrink-0 border border-white/10 bg-black/40">
                                 <img
                                   src={track.thumbnail}
                                   alt={track.title}
                                   className="w-full h-full object-cover"
                                 />
-                                <div className={`absolute inset-0 bg-black/40 flex items-center justify-center transition-opacity ${
-                                  isPlayingThis ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
-                                }`}>
-                                  {isPlayingThis ? (
-                                    <Pause size={14} fill="white" className="text-white" />
-                                  ) : (
-                                    <Play size={14} fill="white" className="text-white ml-0.5" />
-                                  )}
-                                </div>
                               </div>
 
                               {/* Song & Artist */}
                               <div className="flex flex-col min-w-0 flex-1">
-                                <span className={`text-xs font-heading font-bold truncate ${
-                                  isPlayingThis ? 'text-cyan-300' : 'text-white group-hover:text-white'
+                                <span className={`text-xs font-medium truncate ${
+                                  isPlayingThis ? 'text-cyan-300 font-semibold' : 'text-white'
                                 }`}>
                                   {track.title}
                                 </span>
-                                <span className="text-[11px] font-sans text-white/40 truncate">
+                                <span className="text-[11px] text-white/40 truncate">
                                   {track.artist}
                                 </span>
                               </div>
                             </div>
 
                             {/* Duration / Actions */}
-                            <div className="flex items-center gap-2 pl-2">
+                            <div className="flex items-center gap-3 pl-3">
                               <span className="text-xs font-mono text-white/40">
                                 {formatTime(track.duration || 180)}
                               </span>
@@ -536,7 +541,7 @@ export default function TheFrequency() {
                                   setTrackToAddToPlaylist(track);
                                   setShowAddToPlaylistModal(true);
                                 }}
-                                className="opacity-0 group-hover:opacity-100 p-1 text-white/30 hover:text-cyan-400 transition-opacity cursor-pointer"
+                                className="opacity-0 group-hover:opacity-100 p-1 text-white/40 hover:text-cyan-400 transition-opacity cursor-pointer"
                                 title="Add to playlist"
                               >
                                 <FolderPlus size={13} />
@@ -546,7 +551,7 @@ export default function TheFrequency() {
                                   e.stopPropagation();
                                   store.removeTrack(track.id);
                                 }}
-                                className="opacity-0 group-hover:opacity-100 p-1 text-white/30 hover:text-rose-400 transition-opacity cursor-pointer"
+                                className="opacity-0 group-hover:opacity-100 p-1 text-white/40 hover:text-rose-400 transition-opacity cursor-pointer"
                                 title="Remove track"
                               >
                                 <Trash2 size={13} />
@@ -562,15 +567,11 @@ export default function TheFrequency() {
             </div>
           )}
 
-          {/* TAB 2: PLAYLISTS PAGE INTERFACE (Dedicated Studio & Luxury Vault) */}
+          {/* TAB 2: PLAYLISTS PAGE (Apple Music Style Studio & Vault) */}
           {store.activeTab === 'playlists' && (
-            <div className="space-y-8 pb-24 relative">
-              
-              {/* Background ambient lighting auras for mad premium aesthetic */}
-              <div className="absolute top-10 left-1/4 w-96 h-96 bg-cyan-500/10 rounded-full blur-[120px] pointer-events-none -z-10" />
-              <div className="absolute top-40 right-1/4 w-96 h-96 bg-amber-500/10 rounded-full blur-[140px] pointer-events-none -z-10" />
+            <div className="space-y-6 pb-24">
 
-              {/* VIEW A: DEDICATED PLAYLIST STUDIO (When a playlist is opened for detailed inspection) */}
+              {/* VIEW A: DEDICATED PLAYLIST STUDIO */}
               {selectedPlaylistDetailId && store.playlists.some(p => p.id === selectedPlaylistDetailId) ? (() => {
                 const targetPlaylist = store.playlists.find(p => p.id === selectedPlaylistDetailId)!;
                 const playlistTracks = targetPlaylist.trackIds
@@ -580,154 +581,130 @@ export default function TheFrequency() {
                 const isThisPlaylistPlaying = store.activePlaylistId === targetPlaylist.id && store.isPlaying;
 
                 return (
-                  <div className="space-y-8">
-                    {/* Navigation Top Bar */}
+                  <div className="space-y-6">
+                    {/* Top Navigation */}
                     <div className="flex items-center justify-between">
                       <button
                         onClick={() => setSelectedPlaylistDetailId(null)}
-                        className="flex items-center gap-2 px-4 py-2 rounded-xl bg-white/5 hover:bg-white/10 text-white/70 hover:text-white border border-white/10 text-xs font-sans font-semibold transition-all cursor-pointer group"
+                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white/[0.04] hover:bg-white/[0.08] text-white/60 hover:text-white border border-white/[0.06] text-xs font-medium transition-all cursor-pointer"
                       >
-                        <ArrowLeft size={14} className="group-hover:-translate-x-1 transition-transform text-cyan-400" />
-                        <span>Back to Playlists Vault</span>
+                        <ArrowLeft size={13} className="text-cyan-400" />
+                        <span>All Playlists</span>
                       </button>
 
                       <div className="flex items-center gap-2">
                         <button
                           onClick={() => setShowQuickAddModal(true)}
-                          className="px-4 py-2 rounded-xl bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-300 border border-cyan-400/30 text-xs font-sans font-bold transition-all flex items-center gap-1.5 cursor-pointer shadow-[0_0_15px_rgba(6,182,212,0.2)]"
+                          className="px-3.5 py-1.5 rounded-full bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-300 border border-cyan-400/25 text-xs font-medium transition-all flex items-center gap-1.5 cursor-pointer"
                         >
-                          <Plus size={14} />
-                          <span>+ Add Songs from Vault</span>
+                          <Plus size={13} />
+                          <span>Add Songs</span>
                         </button>
                         <button
                           onClick={() => {
                             store.deletePlaylist(targetPlaylist.id);
                             setSelectedPlaylistDetailId(null);
                           }}
-                          className="p-2 rounded-xl bg-white/5 hover:bg-rose-500/20 text-white/40 hover:text-rose-400 border border-white/10 transition-colors cursor-pointer"
+                          className="p-1.5 rounded-full bg-white/[0.04] hover:bg-rose-500/20 text-white/40 hover:text-rose-400 border border-white/[0.06] transition-colors cursor-pointer"
                           title="Delete Playlist"
                         >
-                          <Trash2 size={14} />
+                          <Trash2 size={13} />
                         </button>
                       </div>
                     </div>
 
-                    {/* Playlist Hero Studio Banner */}
-                    <div className="relative p-6 md:p-8 rounded-3xl bg-gradient-to-r from-white/[0.05] via-white/[0.02] to-transparent border border-white/10 backdrop-blur-2xl overflow-hidden shadow-2xl">
-                      <div className="flex flex-col md:flex-row items-center md:items-end gap-6 md:gap-8 relative z-10">
-                        
-                        {/* Vinyl Disc & Sleeve Visual */}
-                        <div className="relative group shrink-0">
-                          {/* Rotating Vinyl Disc Behind Sleeve */}
-                          <div className={`absolute -top-2 -right-4 w-36 h-36 md:w-44 md:h-44 rounded-full bg-black border-2 border-zinc-800 flex items-center justify-center shadow-2xl transition-transform duration-700 ${
-                            isThisPlaylistPlaying ? 'animate-spin-slow' : 'group-hover:translate-x-4'
-                          }`}>
-                            <div className="w-16 h-16 rounded-full border border-zinc-700/50 flex items-center justify-center">
-                              <div className="w-6 h-6 rounded-full bg-cyan-400/80 border border-black" />
-                            </div>
+                    {/* Apple Music Hero Header */}
+                    <div className="flex flex-col sm:flex-row items-center sm:items-end gap-6 p-6 rounded-3xl bg-white/[0.02] border border-white/[0.06] backdrop-blur-xl">
+                      
+                      {/* Album Cover Art */}
+                      <div className="relative w-36 h-36 sm:w-44 sm:h-44 rounded-2xl overflow-hidden border border-white/15 bg-black shadow-2xl shrink-0">
+                        {targetPlaylist.coverThumbnail ? (
+                          <img
+                            src={targetPlaylist.coverThumbnail}
+                            alt={targetPlaylist.name}
+                            className="w-full h-full object-cover"
+                          />
+                        ) : (
+                          <div className="w-full h-full bg-gradient-to-br from-cyan-900/40 via-blue-900/30 to-purple-900/40 flex flex-col items-center justify-center text-white/30 gap-2">
+                            <Disc size={32} className="text-cyan-400" />
                           </div>
-
-                          {/* Square Sleeve Artwork */}
-                          <div className="relative w-36 h-36 md:w-44 md:h-44 rounded-2xl overflow-hidden border border-white/20 bg-black/80 shadow-2xl z-10">
-                            {targetPlaylist.coverThumbnail ? (
-                              <img
-                                src={targetPlaylist.coverThumbnail}
-                                alt={targetPlaylist.name}
-                                className="w-full h-full object-cover"
-                              />
-                            ) : (
-                              <div className="w-full h-full bg-gradient-to-br from-cyan-900/50 to-purple-900/50 flex flex-col items-center justify-center text-white/40 gap-2">
-                                <Disc size={36} className="text-cyan-400" />
-                                <span className="text-[9px] font-mono tracking-widest uppercase">STUDIO</span>
-                              </div>
-                            )}
-                          </div>
-                        </div>
-
-                        {/* Title, Details & Play Triggers */}
-                        <div className="flex-1 space-y-3 text-center md:text-left min-w-0">
-                          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-cyan-400/10 border border-cyan-400/20 text-cyan-300 text-[10px] font-mono uppercase tracking-widest font-bold">
-                            <Sparkles size={11} />
-                            <span>CURATED STUDIO PLAYLIST</span>
-                          </div>
-
-                          <h1 className="text-3xl md:text-4xl lg:text-5xl font-heading font-extrabold text-white tracking-tight leading-tight truncate">
-                            {targetPlaylist.name}
-                          </h1>
-
-                          <p className="text-xs md:text-sm font-sans text-white/60 line-clamp-2 max-w-2xl">
-                            {targetPlaylist.description || "Bespoke sonic curation compiled for high-performance deep work and cognitive flow."}
-                          </p>
-
-                          <div className="flex flex-wrap items-center justify-center md:justify-start gap-4 pt-2 text-xs font-mono text-white/50">
-                            <span className="text-white font-bold">{playlistTracks.length} tracks</span>
-                            <span>•</span>
-                            <span>{Math.max(1, Math.round(playlistDurationSec / 60))} mins runtime</span>
-                            <span>•</span>
-                            <span className="text-cyan-300 font-semibold">DSP Synchronized</span>
-                          </div>
-
-                          {/* Action Button Row */}
-                          <div className="flex items-center justify-center md:justify-start gap-3 pt-3">
-                            <button
-                              onClick={() => store.playPlaylist(targetPlaylist.id)}
-                              className="px-6 py-3 rounded-2xl bg-white text-black font-sans font-bold text-xs uppercase tracking-wider hover:bg-white/90 active:scale-95 transition-all flex items-center gap-2 cursor-pointer shadow-[0_4px_25px_rgba(255,255,255,0.2)]"
-                            >
-                              {isThisPlaylistPlaying ? (
-                                <>
-                                  <Pause size={15} fill="black" />
-                                  <span>Playing Playlist</span>
-                                </>
-                              ) : (
-                                <>
-                                  <Play size={15} fill="black" className="ml-0.5" />
-                                  <span>Play Studio Session</span>
-                                </>
-                              )}
-                            </button>
-
-                            <button
-                              onClick={() => {
-                                store.playPlaylist(targetPlaylist.id);
-                                if (!store.shuffle) store.toggleShuffle();
-                              }}
-                              className="px-4 py-3 rounded-2xl bg-white/10 hover:bg-white/15 border border-white/15 text-white font-sans text-xs font-bold transition-all flex items-center gap-2 cursor-pointer"
-                            >
-                              <Shuffle size={14} className={store.shuffle ? "text-yellow-400" : ""} />
-                              <span>Shuffle</span>
-                            </button>
-                          </div>
-                        </div>
-
+                        )}
                       </div>
+
+                      {/* Info & Apple Controls */}
+                      <div className="flex-1 space-y-2.5 text-center sm:text-left min-w-0">
+                        <span className="text-[10px] font-mono text-cyan-400 font-semibold tracking-widest uppercase block">
+                          PLAYLIST
+                        </span>
+
+                        <h1 className="text-2xl sm:text-3xl md:text-4xl font-bold text-white tracking-tight leading-tight truncate">
+                          {targetPlaylist.name}
+                        </h1>
+
+                        <p className="text-xs text-white/50 line-clamp-2 max-w-xl">
+                          {targetPlaylist.description || "Curated playlist for deep focus and study sessions."}
+                        </p>
+
+                        <div className="text-xs text-white/40 font-mono">
+                          <span>{playlistTracks.length} {playlistTracks.length === 1 ? 'song' : 'songs'}</span>
+                          <span className="mx-2">•</span>
+                          <span>{Math.max(1, Math.round(playlistDurationSec / 60))} mins</span>
+                        </div>
+
+                        {/* Action Buttons */}
+                        <div className="flex items-center justify-center sm:justify-start gap-2.5 pt-2">
+                          <button
+                            onClick={() => store.playPlaylist(targetPlaylist.id)}
+                            className="px-5 py-2.5 rounded-full bg-white text-black font-semibold text-xs hover:bg-white/90 active:scale-95 transition-all flex items-center gap-2 cursor-pointer shadow-md"
+                          >
+                            {isThisPlaylistPlaying ? (
+                              <>
+                                <Pause size={14} fill="black" />
+                                <span>Pause</span>
+                              </>
+                            ) : (
+                              <>
+                                <Play size={14} fill="black" className="ml-0.5" />
+                                <span>Play</span>
+                              </>
+                            )}
+                          </button>
+
+                          <button
+                            onClick={() => {
+                              store.playPlaylist(targetPlaylist.id);
+                              if (!store.shuffle) store.toggleShuffle();
+                            }}
+                            className="px-4 py-2.5 rounded-full bg-white/[0.08] hover:bg-white/[0.14] border border-white/[0.08] text-white font-medium text-xs transition-all flex items-center gap-1.5 cursor-pointer"
+                          >
+                            <Shuffle size={13} className={store.shuffle ? "text-yellow-400" : ""} />
+                            <span>Shuffle</span>
+                          </button>
+                        </div>
+                      </div>
+
                     </div>
 
-                    {/* Playlist Tracklist Section */}
-                    <div className="space-y-4">
-                      <div className="flex items-center justify-between border-b border-white/10 pb-3">
-                        <div className="flex items-center gap-2">
-                          <ListMusic size={16} className="text-cyan-400" />
-                          <h2 className="text-base font-heading font-bold text-white tracking-tight">Curated Tracklist</h2>
-                        </div>
-                        <span className="text-xs font-mono text-white/40">{playlistTracks.length} Tracks Enrolled</span>
+                    {/* Tracklist */}
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between px-2 text-[11px] font-mono text-white/40 uppercase tracking-wider border-b border-white/[0.04] pb-2">
+                        <span># TRACK</span>
+                        <span>DURATION</span>
                       </div>
 
                       {playlistTracks.length === 0 ? (
-                        <div className="p-12 rounded-3xl bg-white/[0.02] border border-white/10 text-center space-y-4">
-                          <Music size={32} className="text-white/20 mx-auto" />
-                          <div className="space-y-1">
-                            <h4 className="text-base font-heading font-bold text-white">This Playlist is Empty</h4>
-                            <p className="text-xs font-sans text-white/40">Add tracks from your vault library to populate this studio session.</p>
-                          </div>
+                        <div className="p-8 rounded-2xl bg-white/[0.02] border border-white/[0.04] text-center space-y-3">
+                          <Music size={24} className="text-white/20 mx-auto" />
+                          <p className="text-xs text-white/40">This playlist is currently empty.</p>
                           <button
                             onClick={() => setShowQuickAddModal(true)}
-                            className="px-5 py-2.5 rounded-full bg-cyan-400 text-black font-sans font-bold text-xs uppercase tracking-wider hover:bg-cyan-300 transition-all cursor-pointer shadow-lg"
+                            className="px-4 py-2 rounded-full bg-cyan-400 text-black font-medium text-xs hover:bg-cyan-300 transition-all cursor-pointer"
                           >
                             + Add Songs from Vault
                           </button>
                         </div>
                       ) : (
-                        <div className="space-y-1.5">
+                        <div className="space-y-1">
                           {playlistTracks.map((track, idx) => {
                             const isPlayingThis = currentTrack?.id === track.id && store.isPlaying;
 
@@ -735,49 +712,45 @@ export default function TheFrequency() {
                               <div
                                 key={track.id}
                                 onClick={() => store.playTrack(track.id)}
-                                className={`flex items-center justify-between p-3 rounded-2xl transition-all cursor-pointer group border ${
+                                className={`flex items-center justify-between p-2.5 rounded-xl transition-all cursor-pointer group ${
                                   isPlayingThis
-                                    ? 'bg-cyan-500/10 border-cyan-400/30 text-white shadow-[0_0_20px_rgba(6,182,212,0.15)]'
-                                    : 'bg-white/[0.02] hover:bg-white/[0.06] border-white/5 hover:border-white/15 text-white/80'
+                                    ? 'bg-cyan-500/10 text-white border border-cyan-400/20'
+                                    : 'hover:bg-white/[0.04] text-white/80'
                                 }`}
                               >
-                                <div className="flex items-center gap-4 min-w-0 flex-1">
-                                  
-                                  {/* Index or Live Audio Visualizer Equalizer */}
-                                  <div className="w-7 text-center shrink-0 flex items-center justify-center">
+                                <div className="flex items-center gap-3 min-w-0 flex-1">
+                                  {/* Index / Visualizer */}
+                                  <div className="w-5 text-center shrink-0 flex items-center justify-center">
                                     {isPlayingThis ? (
-                                      <div className="flex items-end gap-0.5 h-4">
-                                        <span className="w-1 bg-cyan-400 rounded-full animate-[bounce_0.8s_infinite_100ms] h-full" />
-                                        <span className="w-1 bg-cyan-400 rounded-full animate-[bounce_0.6s_infinite_200ms] h-3/4" />
-                                        <span className="w-1 bg-cyan-400 rounded-full animate-[bounce_0.9s_infinite_300ms] h-full" />
+                                      <div className="flex items-end gap-0.5 h-3">
+                                        <span className="w-0.5 bg-cyan-400 rounded-full animate-[bounce_0.8s_infinite_100ms] h-full" />
+                                        <span className="w-0.5 bg-cyan-400 rounded-full animate-[bounce_0.6s_infinite_200ms] h-3/4" />
+                                        <span className="w-0.5 bg-cyan-400 rounded-full animate-[bounce_0.9s_infinite_300ms] h-full" />
                                       </div>
                                     ) : (
-                                      <span className="text-xs font-mono text-white/30 group-hover:hidden">
-                                        {String(idx + 1).padStart(2, '0')}
+                                      <span className="text-[11px] font-mono text-white/30 group-hover:hidden">
+                                        {idx + 1}
                                       </span>
                                     )}
-                                    <Play size={12} fill="white" className="hidden group-hover:block text-white" />
+                                    <Play size={11} fill="white" className="hidden group-hover:block text-white" />
                                   </div>
 
-                                  {/* Artwork */}
-                                  <div className="relative w-11 h-11 rounded-xl overflow-hidden shrink-0 border border-white/10 bg-black">
+                                  <div className="relative w-9 h-9 rounded-lg overflow-hidden shrink-0 border border-white/10 bg-black">
                                     <img src={track.thumbnail} alt={track.title} className="w-full h-full object-cover" />
                                   </div>
 
-                                  {/* Title & Artist */}
                                   <div className="flex flex-col min-w-0 flex-1">
-                                    <span className={`text-xs font-heading font-bold truncate ${
-                                      isPlayingThis ? 'text-cyan-300' : 'text-white'
+                                    <span className={`text-xs font-medium truncate ${
+                                      isPlayingThis ? 'text-cyan-300 font-semibold' : 'text-white'
                                     }`}>
                                       {track.title}
                                     </span>
-                                    <span className="text-[11px] font-sans text-white/40 truncate">
-                                      {track.artist} {track.year ? `• ${track.year}` : ''}
+                                    <span className="text-[11px] text-white/40 truncate">
+                                      {track.artist}
                                     </span>
                                   </div>
                                 </div>
 
-                                {/* Duration & Remove Action */}
                                 <div className="flex items-center gap-3 pl-3">
                                   <span className="text-xs font-mono text-white/40">
                                     {formatTime(track.duration || 180)}
@@ -787,7 +760,7 @@ export default function TheFrequency() {
                                       e.stopPropagation();
                                       store.removeFromPlaylist(targetPlaylist.id, track.id);
                                     }}
-                                    className="opacity-0 group-hover:opacity-100 p-1.5 text-white/30 hover:text-rose-400 hover:bg-rose-500/10 rounded-lg transition-all cursor-pointer"
+                                    className="opacity-0 group-hover:opacity-100 p-1 text-white/30 hover:text-rose-400 transition-colors cursor-pointer"
                                     title="Remove from playlist"
                                   >
                                     <Trash2 size={13} />
@@ -803,72 +776,38 @@ export default function TheFrequency() {
                 );
               })() : (
                 
-                /* VIEW B: PLAYLISTS SHOWCASE VAULT (High-Level Overview Grid) */
-                <div className="space-y-8">
-                  {/* Premium HUD Header with Statistics */}
-                  <div className="p-6 md:p-8 rounded-3xl bg-gradient-to-r from-cyan-950/30 via-black to-[#0c0e14] border border-white/10 backdrop-blur-2xl relative overflow-hidden shadow-2xl">
-                    <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 relative z-10">
-                      
-                      <div className="space-y-2">
-                        <div className="flex items-center gap-2">
-                          <div className="w-2 h-2 rounded-full bg-cyan-400 animate-ping" />
-                          <span className="text-[10px] font-mono text-cyan-300 font-bold uppercase tracking-widest">
-                            STUDIO ARCHIVE • CURATOR SUITE
-                          </span>
-                        </div>
-                        <h1 className="text-3xl md:text-5xl font-heading font-extrabold text-white tracking-tight">
-                          Playlists Vault
-                        </h1>
-                        <p className="text-xs md:text-sm font-sans text-white/50 max-w-xl">
-                          Architect dedicated moodboards, study sprints, and binaural session playlists with high-fidelity mastering.
-                        </p>
-                      </div>
-
-                      {/* Stat Metrics & Create Action */}
-                      <div className="flex flex-wrap items-center gap-3">
-                        <div className="px-4 py-2.5 rounded-2xl bg-white/[0.04] border border-white/10 text-center">
-                          <span className="text-[9px] font-mono text-white/40 block uppercase tracking-wider">Playlists</span>
-                          <span className="text-base font-mono font-bold text-white">{store.playlists.length}</span>
-                        </div>
-                        <div className="px-4 py-2.5 rounded-2xl bg-white/[0.04] border border-white/10 text-center">
-                          <span className="text-[9px] font-mono text-white/40 block uppercase tracking-wider">Tracks</span>
-                          <span className="text-base font-mono font-bold text-cyan-300">
-                            {store.playlists.reduce((acc, p) => acc + p.trackIds.length, 0)}
-                          </span>
-                        </div>
-                        <button
-                          onClick={() => setShowNewPlaylistModal(true)}
-                          className="px-6 py-3 rounded-2xl bg-white text-black font-sans font-bold text-xs uppercase tracking-wider hover:bg-white/90 active:scale-95 transition-all flex items-center gap-2 cursor-pointer shadow-[0_4px_25px_rgba(255,255,255,0.25)]"
-                        >
-                          <Plus size={15} />
-                          <span>Create Playlist</span>
-                        </button>
-                      </div>
-
+                /* VIEW B: PLAYLISTS SHOWCASE VAULT GRID */
+                <div className="space-y-6">
+                  <div className="flex items-center justify-between border-b border-white/[0.06] pb-4">
+                    <div>
+                      <h1 className="text-3xl font-bold text-white tracking-tight">Playlists</h1>
+                      <p className="text-xs text-white/40 mt-0.5">Your personal music collections</p>
                     </div>
+                    <button
+                      onClick={() => setShowNewPlaylistModal(true)}
+                      className="px-4 py-2 rounded-full bg-white text-black font-semibold text-xs hover:bg-white/90 transition-all flex items-center gap-1.5 cursor-pointer shadow-md"
+                    >
+                      <Plus size={14} />
+                      <span>New Playlist</span>
+                    </button>
                   </div>
 
-                  {/* Playlists 3D Showcase Grid */}
                   {store.playlists.length === 0 ? (
-                    <div className="p-12 md:p-16 rounded-3xl bg-white/[0.02] border border-white/10 text-center space-y-4 max-w-lg mx-auto">
-                      <div className="w-16 h-16 rounded-full bg-cyan-500/10 border border-cyan-400/20 flex items-center justify-center mx-auto text-cyan-400 shadow-inner">
-                        <FolderPlus size={28} />
-                      </div>
+                    <div className="p-10 rounded-2xl bg-white/[0.02] border border-white/[0.04] text-center space-y-3 max-w-sm mx-auto">
+                      <FolderPlus size={28} className="text-white/20 mx-auto" />
                       <div className="space-y-1">
-                        <h3 className="text-xl font-heading font-bold text-white">No Playlists Created Yet</h3>
-                        <p className="text-xs font-sans text-white/40">
-                          Create custom playlists to group and sequence tracks from your master audio vault.
-                        </p>
+                        <h3 className="text-base font-semibold text-white">No Playlists Yet</h3>
+                        <p className="text-xs text-white/40">Organize your study tracks into custom playlists.</p>
                       </div>
                       <button
                         onClick={() => setShowNewPlaylistModal(true)}
-                        className="px-6 py-2.5 rounded-full bg-white text-black font-sans font-bold text-xs uppercase tracking-wider hover:bg-white/90 transition-all cursor-pointer shadow-lg"
+                        className="px-4 py-2 rounded-full bg-white text-black font-semibold text-xs hover:bg-white/90 transition-all cursor-pointer shadow-md"
                       >
-                        + Create First Playlist
+                        Create Playlist
                       </button>
                     </div>
                   ) : (
-                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+                    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
                       {store.playlists.map((playlist) => {
                         const tracksInPlaylist = playlist.trackIds
                           .map(id => store.tracks.find(t => t.id === id))
@@ -878,70 +817,41 @@ export default function TheFrequency() {
                         return (
                           <div
                             key={playlist.id}
-                            className="group relative p-5 rounded-3xl bg-gradient-to-b from-white/[0.04] to-white/[0.01] hover:from-white/[0.08] hover:to-white/[0.03] border border-white/10 hover:border-white/20 transition-all duration-300 flex flex-col justify-between gap-4 shadow-2xl overflow-hidden"
+                            onClick={() => setSelectedPlaylistDetailId(playlist.id)}
+                            className="group flex flex-col gap-2.5 p-3 rounded-2xl bg-white/[0.02] hover:bg-white/[0.06] border border-white/[0.04] hover:border-white/[0.1] transition-all cursor-pointer shadow-md"
                           >
-                            {/* Card Glow Layer */}
-                            <div className="absolute -top-12 -right-12 w-32 h-32 bg-cyan-500/10 group-hover:bg-cyan-500/20 rounded-full blur-2xl transition-all pointer-events-none" />
-
-                            <div className="space-y-4">
-                              {/* Vinyl Disc Sticking Out Effect */}
-                              <div className="relative aspect-[16/10] w-full rounded-2xl overflow-hidden bg-black/60 border border-white/10">
-                                {playlist.coverThumbnail ? (
-                                  <img
-                                    src={playlist.coverThumbnail}
-                                    alt={playlist.name}
-                                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700"
-                                  />
-                                ) : (
-                                  <div className="w-full h-full bg-gradient-to-br from-zinc-900 to-black flex items-center justify-center text-white/20">
-                                    <Disc size={36} className={isPlayingThis ? "animate-spin-slow text-cyan-400" : ""} />
-                                  </div>
-                                )}
-
-                                <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent" />
-
-                                {/* Play Trigger Floating Button */}
-                                <button
-                                  onClick={() => store.playPlaylist(playlist.id)}
-                                  className="absolute bottom-3 right-3 w-11 h-11 rounded-full bg-white text-black flex items-center justify-center shadow-2xl hover:scale-110 active:scale-95 transition-transform cursor-pointer"
-                                  title="Play Playlist"
-                                >
-                                  {isPlayingThis ? <Pause size={16} fill="black" /> : <Play size={16} fill="black" className="ml-0.5" />}
-                                </button>
-
-                                <div className="absolute top-3 left-3 px-2.5 py-1 rounded-full bg-black/60 backdrop-blur-md border border-white/10 text-[9px] font-mono text-cyan-300 font-bold uppercase tracking-wider">
-                                  {tracksInPlaylist.length} {tracksInPlaylist.length === 1 ? 'TRACK' : 'TRACKS'}
+                            <div className="relative aspect-square w-full rounded-xl overflow-hidden bg-black/60 border border-white/10 shadow-lg">
+                              {playlist.coverThumbnail ? (
+                                <img
+                                  src={playlist.coverThumbnail}
+                                  alt={playlist.name}
+                                  className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                                />
+                              ) : (
+                                <div className="w-full h-full bg-gradient-to-br from-zinc-900 to-black flex items-center justify-center text-white/20">
+                                  <Disc size={32} className={isPlayingThis ? "animate-spin-slow text-cyan-400" : ""} />
                                 </div>
-                              </div>
+                              )}
 
-                              {/* Info */}
-                              <div className="space-y-1">
-                                <h3 className="text-lg font-heading font-bold text-white tracking-tight truncate group-hover:text-cyan-300 transition-colors">
-                                  {playlist.name}
-                                </h3>
-                                <p className="text-xs font-sans text-white/40 line-clamp-2 leading-relaxed">
-                                  {playlist.description || "Custom study moodboard and focus sequence."}
-                                </p>
-                              </div>
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  store.playPlaylist(playlist.id);
+                                }}
+                                className="absolute bottom-2.5 right-2.5 w-9 h-9 rounded-full bg-white text-black flex items-center justify-center shadow-xl hover:scale-105 active:scale-95 transition-transform opacity-0 group-hover:opacity-100 cursor-pointer"
+                                title="Play Playlist"
+                              >
+                                {isPlayingThis ? <Pause size={14} fill="black" /> : <Play size={14} fill="black" className="ml-0.5" />}
+                              </button>
                             </div>
 
-                            {/* Card Footer Actions */}
-                            <div className="flex items-center justify-between pt-3 border-t border-white/10">
-                              <button
-                                onClick={() => setSelectedPlaylistDetailId(playlist.id)}
-                                className="px-4 py-1.5 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-white font-sans text-xs font-semibold transition-all flex items-center gap-1.5 cursor-pointer"
-                              >
-                                <span>Open Studio</span>
-                                <ArrowRight size={12} className="text-cyan-400" />
-                              </button>
-
-                              <button
-                                onClick={() => store.deletePlaylist(playlist.id)}
-                                className="p-2 rounded-xl text-white/30 hover:text-rose-400 hover:bg-rose-500/10 transition-colors cursor-pointer"
-                                title="Delete Playlist"
-                              >
-                                <Trash2 size={13} />
-                              </button>
+                            <div className="flex flex-col min-w-0 px-0.5">
+                              <span className="text-xs font-semibold text-white truncate group-hover:text-cyan-300 transition-colors">
+                                {playlist.name}
+                              </span>
+                              <span className="text-[11px] text-white/40 truncate">
+                                {tracksInPlaylist.length} {tracksInPlaylist.length === 1 ? 'song' : 'songs'}
+                              </span>
                             </div>
                           </div>
                         );
@@ -954,40 +864,39 @@ export default function TheFrequency() {
             </div>
           )}
 
-          {/* TAB 3: CREATIVES PAGE INTERFACE (Soundscape & Mood Generator) */}
+          {/* TAB 3: CREATIVES LAB */}
           {store.activeTab === 'creatives' && (
-            <div className="space-y-6 pb-20">
-              <div className="border-b border-white/10 pb-4">
-                <h1 className="text-4xl font-heading font-extrabold text-white tracking-tight">Creatives & Sonic Lab</h1>
-                <p className="text-xs font-sans text-white/40 mt-1">Design ambient generative focus states, binaural tones, and moodboards</p>
+            <div className="space-y-6 pb-24">
+              <div className="border-b border-white/[0.06] pb-4">
+                <h1 className="text-3xl font-bold text-white tracking-tight">Creatives & Sonic Lab</h1>
+                <p className="text-xs text-white/40 mt-0.5">Generative ambient tones, binaural waves, and focus soundscapes</p>
               </div>
 
-              {/* Quick Vibe Generators */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3.5">
                 {[
-                  { title: "Binaural 40Hz Gamma", desc: "Pure focus wave harmonics for peak memory retention", url: "https://www.youtube.com/watch?v=WPni755-Krg", tag: "COGNITIVE" },
-                  { title: "Neo-Tokyo Cyber Nocturne", desc: "Subtle synthesized dark ambient rain soundscapes", url: "https://www.youtube.com/watch?v=S_MOd40zlSk", tag: "NIGHT FLOW" },
-                  { title: "Neoclassical Piano Solitude", desc: "Gentle felt piano acoustic keys with zero vocals", url: "https://www.youtube.com/watch?v=jfKfPfyJRdk", tag: "STUDY" },
-                  { title: "Synthwave Horizon", desc: "Retro-futuristic analog pulses for fast-paced sprints", url: "https://www.youtube.com/watch?v=4xDzrJKXOOY", tag: "ENERGY" },
-                  { title: "Ambient Lo-Fi Radio", desc: "Warm vinyl crackle and chill acoustic instruments", url: "https://www.youtube.com/watch?v=Ui7Hb4cvamY", tag: "CHILL" },
-                  { title: "Atmospheric Deep Sleep & Calm", desc: "Sub-bass theta drone for deep recovery and reset", url: "https://www.youtube.com/watch?v=df4p7bP_MaY", tag: "RECOVERY" }
+                  { title: "Binaural 40Hz Gamma", desc: "Pure focus wave harmonics for cognitive flow", url: "https://www.youtube.com/watch?v=WPni755-Krg", tag: "FOCUS" },
+                  { title: "Neo-Tokyo Nocturne", desc: "Subtle analog synth ambient rain soundscapes", url: "https://www.youtube.com/watch?v=S_MOd40zlSk", tag: "NIGHT" },
+                  { title: "Neoclassical Felt Piano", desc: "Gentle felt piano acoustic keys with zero vocals", url: "https://www.youtube.com/watch?v=jfKfPfyJRdk", tag: "STUDY" },
+                  { title: "Synthwave Horizon", desc: "Retro-futuristic analog pulses for fast sprints", url: "https://www.youtube.com/watch?v=4xDzrJKXOOY", tag: "SPRINT" },
+                  { title: "Ambient Lo-Fi Radio", desc: "Warm vinyl crackle and chill melodic beats", url: "https://www.youtube.com/watch?v=Ui7Hb4cvamY", tag: "CHILL" },
+                  { title: "Deep Theta Calm", desc: "Sub-bass theta drone for mental reset and calm", url: "https://www.youtube.com/watch?v=df4p7bP_MaY", tag: "RESET" }
                 ].map((preset, idx) => (
                   <div
                     key={idx}
-                    className="p-5 rounded-3xl bg-white/[0.03] hover:bg-white/[0.06] border border-white/10 hover:border-cyan-400/30 transition-all flex flex-col justify-between gap-4 group"
+                    className="p-4 rounded-2xl bg-white/[0.02] hover:bg-white/[0.05] border border-white/[0.06] hover:border-cyan-400/20 transition-all flex flex-col justify-between gap-3 group"
                   >
-                    <div className="space-y-2">
+                    <div className="space-y-1.5">
                       <div className="flex items-center justify-between">
-                        <span className="text-[9px] font-mono font-bold text-cyan-400 uppercase tracking-widest px-2 py-0.5 rounded-full bg-cyan-400/10 border border-cyan-400/20">{preset.tag}</span>
-                        <Waves size={16} className="text-white/30 group-hover:text-cyan-400 transition-colors" />
+                        <span className="text-[9px] font-mono font-semibold text-cyan-400 uppercase tracking-widest px-2 py-0.5 rounded-full bg-cyan-400/10 border border-cyan-400/20">{preset.tag}</span>
+                        <Waves size={14} className="text-white/30 group-hover:text-cyan-400 transition-colors" />
                       </div>
-                      <h3 className="text-base font-heading font-bold text-white">{preset.title}</h3>
-                      <p className="text-xs font-sans text-white/50">{preset.desc}</p>
+                      <h3 className="text-sm font-semibold text-white">{preset.title}</h3>
+                      <p className="text-xs text-white/50 leading-relaxed">{preset.desc}</p>
                     </div>
 
                     <button
                       onClick={() => handleAddTrack(undefined, preset.url)}
-                      className="w-full py-2.5 rounded-xl bg-white/5 group-hover:bg-white text-white/70 group-hover:text-black font-sans font-bold text-xs uppercase tracking-wider transition-all flex items-center justify-center gap-2 cursor-pointer"
+                      className="w-full py-2 rounded-xl bg-white/[0.04] group-hover:bg-white text-white/70 group-hover:text-black font-semibold text-xs transition-all flex items-center justify-center gap-1.5 cursor-pointer"
                     >
                       <Plus size={13} />
                       <span>Import into Vault</span>
@@ -995,180 +904,50 @@ export default function TheFrequency() {
                   </div>
                 ))}
               </div>
-
-              {/* Hardware DSP & Edge Lighting Matrix CTA */}
-              <div className="p-6 rounded-3xl bg-gradient-to-r from-cyan-950/40 via-purple-950/30 to-black border border-cyan-500/20 flex items-center justify-between gap-6">
-                <div className="space-y-1">
-                  <div className="flex items-center gap-2">
-                    <Sparkles size={16} className="text-cyan-400" />
-                    <span className="text-xs font-mono font-bold text-cyan-300 uppercase tracking-widest">Web Audio DSP Studio Pro</span>
-                  </div>
-                  <h3 className="text-xl font-heading font-bold text-white">Psychoacoustic Mastering & Screen Edge Lighting</h3>
-                  <p className="text-xs font-sans text-white/50 max-w-xl">
-                    Configure real-time 6-band parametric EQ, bass harmonic saturators, spatial 3D stereo expanders, and real-time screen perimeter ambient glow.
-                  </p>
-                </div>
-
-                <button
-                  onClick={() => store.setStudioOpen(true)}
-                  className="px-6 py-3 rounded-2xl bg-cyan-400 text-black font-sans font-bold text-xs uppercase tracking-wider hover:bg-cyan-300 transition-all shrink-0 cursor-pointer shadow-[0_0_20px_rgba(6,182,212,0.4)]"
-                >
-                  Open DSP Studio
-                </button>
-              </div>
             </div>
           )}
+
         </main>
-
-        {/* 3. RIGHT SIDEBAR: Now Playing Track Details (Replacing Andrew Smith) */}
-        <aside className="w-80 lg:w-96 bg-[#090a0e] border-l border-white/10 p-6 flex flex-col justify-between shrink-0 overflow-y-auto no-scrollbar space-y-6">
-          <div className="space-y-6">
-            
-            {/* Playing Track High-Res Artwork Card */}
-            <div className="relative aspect-[4/3] w-full rounded-2xl overflow-hidden border border-white/15 shadow-2xl bg-black group/art">
-              {currentTrack?.thumbnail ? (
-                <img
-                  src={currentTrack.thumbnail}
-                  alt={currentTrack.title || "Now Playing"}
-                  className="w-full h-full object-cover"
-                />
-              ) : (
-                <div className="w-full h-full flex flex-col items-center justify-center text-white/20 gap-2">
-                  <Disc size={40} className={store.isPlaying ? "animate-spin-slow text-cyan-400" : ""} />
-                  <span className="text-[10px] font-mono uppercase tracking-widest">No Active Track</span>
-                </div>
-              )}
-              <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-transparent to-transparent" />
-              
-              {/* Floating Frosted Glass Full Screen Button on Artwork */}
-              {currentTrack && (
-                <button
-                  onClick={() => store.setExpanded(true)}
-                  className="absolute top-3 right-3 py-1.5 px-3 rounded-xl bg-black/40 hover:bg-white/20 active:scale-95 backdrop-blur-xl border border-white/20 text-white font-sans text-[11px] font-semibold transition-all flex items-center gap-1.5 shadow-lg cursor-pointer"
-                  title="Open Full Screen Player"
-                >
-                  <Maximize2 size={12} className="text-cyan-300" />
-                  <span>Full Screen</span>
-                </button>
-              )}
-
-              <div className="absolute bottom-3 left-4 right-4 space-y-0.5">
-                <span className="text-[9px] font-mono uppercase tracking-[0.2em] text-cyan-300 font-bold flex items-center gap-1.5">
-                  <span className={`w-1.5 h-1.5 rounded-full ${store.isPlaying ? 'bg-cyan-400 animate-ping' : 'bg-white/40'}`} />
-                  {store.isPlaying ? "NOW PLAYING" : "STANDBY"}
-                </span>
-                <span className="text-base font-heading font-extrabold text-white tracking-tight truncate block">
-                  {currentTrack?.artist || "The Frequency Radio"}
-                </span>
-              </div>
-            </div>
-
-            {/* Track Info & Sonic Analysis */}
-            <div className="space-y-2">
-              <span className="text-xs font-heading font-bold text-white tracking-wide block">
-                {currentTrack?.title || "Ambient Lo-Fi & Neural Beats"}
-              </span>
-              <p className="text-xs font-sans text-white/60 leading-relaxed font-normal">
-                {currentTrack 
-                  ? `High-fidelity audio stream from ${currentTrack.artist}. Synchronized with Web Audio DSP ${store.audioPreset.toUpperCase()} filter and perimeter edge lighting.`
-                  : "Finding clarity and concentration through music, even when everything around feels loud and distracting. Each note creates a small space of calm."
-                }
-              </p>
-            </div>
-
-            {/* Real Track Metrics Footer */}
-            <div className="grid grid-cols-2 gap-4 pt-4 border-t border-white/10">
-              <div className="space-y-0.5">
-                <span className="text-[10px] font-sans text-white/40 block">Duration</span>
-                <span className="text-sm font-mono font-bold text-white tracking-tight">
-                  {currentTrack?.duration ? formatTime(currentTrack.duration) : "Live Stream"}
-                </span>
-              </div>
-              <div className="space-y-0.5">
-                <span className="text-[10px] font-sans text-white/40 block">DSP Profile</span>
-                <span className="text-sm font-mono font-bold text-cyan-300 tracking-tight uppercase">
-                  {store.audioPreset}
-                </span>
-              </div>
-            </div>
-          </div>
-
-          {/* Quick Track Actions */}
-          <div className="space-y-2.5 pt-4 border-t border-white/5">
-            {/* Frosted Glass Full Screen Button */}
-            {currentTrack && (
-              <button
-                onClick={() => store.setExpanded(true)}
-                className="w-full py-3 px-4 rounded-2xl bg-white/10 hover:bg-white/20 active:scale-[0.98] backdrop-blur-xl border border-white/20 hover:border-white/35 text-white font-sans text-xs font-bold tracking-wide transition-all flex items-center justify-center gap-2.5 cursor-pointer shadow-[0_8px_25px_rgba(0,0,0,0.4)] group"
-              >
-                <Maximize2 size={15} className="text-cyan-300 group-hover:scale-110 transition-transform" />
-                <span>Full Screen</span>
-              </button>
-            )}
-
-            {currentTrack && (
-              <button
-                onClick={() => {
-                  setTrackToAddToPlaylist(currentTrack);
-                  setShowAddToPlaylistModal(true);
-                }}
-                className="w-full py-2 px-4 rounded-xl bg-white/[0.04] hover:bg-white/[0.08] border border-white/10 text-white/70 hover:text-white font-sans text-xs font-semibold transition-all flex items-center justify-center gap-2 cursor-pointer"
-              >
-                <FolderPlus size={13} />
-                <span>Save to Playlist</span>
-              </button>
-            )}
-
-            <button
-              onClick={() => store.setStudioOpen(true)}
-              className="w-full py-2.5 px-4 rounded-xl bg-cyan-500/10 hover:bg-cyan-500/20 border border-cyan-400/30 text-cyan-300 font-sans text-xs font-bold transition-all text-center flex items-center justify-center gap-2 cursor-pointer"
-            >
-              <SlidersHorizontal size={14} />
-              <span>Studio DSP & Edge Glow</span>
-            </button>
-          </div>
-        </aside>
       </div>
 
-      {/* 4. BOTTOM STICKY PLAYER BAR */}
-      <footer className="h-20 bg-[#07080b] border-t border-white/10 px-6 flex items-center justify-between shrink-0 relative z-30">
+      {/* 3. BOTTOM APPLE-GRADE PLAYER BAR */}
+      <footer className="h-18 md:h-20 bg-black/85 backdrop-blur-3xl border-t border-white/[0.08] px-5 lg:px-8 flex items-center justify-between shrink-0 relative z-30">
         
-        {/* Left: Current Track Thumbnail & Info */}
+        {/* Left: Track Info */}
         <div className="flex items-center gap-3 min-w-0 w-1/4">
-          <div className="relative w-12 h-12 rounded-xl overflow-hidden shrink-0 border border-white/15 bg-black">
+          <div className="relative w-10 h-10 md:w-11 md:h-11 rounded-xl overflow-hidden shrink-0 border border-white/10 bg-black">
             {currentTrack?.thumbnail ? (
               <img
                 src={currentTrack.thumbnail}
                 alt={currentTrack.title || "Track"}
-                className={`w-full h-full object-cover ${store.isPlaying ? 'animate-spin-slow' : ''}`}
+                className="w-full h-full object-cover"
               />
             ) : (
               <div className="w-full h-full bg-zinc-900 flex items-center justify-center text-white/30">
-                <Disc size={20} />
+                <Music size={16} />
               </div>
             )}
           </div>
           <div className="flex flex-col min-w-0">
-            <span className="text-xs font-heading font-bold text-white truncate">
+            <span className="text-xs font-semibold text-white truncate">
               {currentTrack?.title || "No Track Selected"}
             </span>
-            <span className="text-[11px] font-sans text-white/40 truncate">
-              {currentTrack?.artist || "The Frequency"} {currentTrack?.year ? `• ${currentTrack.year}` : ''}
+            <span className="text-[11px] text-white/40 truncate">
+              {currentTrack?.artist || "The Frequency"}
             </span>
           </div>
         </div>
 
-        {/* Center: Playback Controls & Timeline Scrubber */}
-        <div className="flex flex-col items-center gap-1.5 flex-1 max-w-xl px-4">
+        {/* Center: Apple Transport Controls & Timeline */}
+        <div className="flex flex-col items-center gap-1 flex-1 max-w-lg px-4">
           
-          {/* Controls Buttons */}
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-3">
             <button
               onClick={() => store.toggleShuffle()}
-              className={`transition-colors p-1 cursor-pointer ${store.shuffle ? 'text-yellow-400' : 'text-white/30 hover:text-white'}`}
+              className={`p-1 cursor-pointer transition-colors ${store.shuffle ? 'text-yellow-400' : 'text-white/30 hover:text-white'}`}
               title="Shuffle"
             >
-              <Shuffle size={14} />
+              <Shuffle size={13} />
             </button>
 
             <button
@@ -1176,15 +955,15 @@ export default function TheFrequency() {
               className="text-white/60 hover:text-white transition-colors p-1 cursor-pointer"
               title="Previous"
             >
-              <SkipBack size={16} fill="currentColor" />
+              <SkipBack size={15} fill="currentColor" />
             </button>
 
             <button
               onClick={() => store.togglePlay()}
-              className="w-9 h-9 rounded-full bg-white text-black hover:bg-white/90 flex items-center justify-center shadow-lg transition-transform active:scale-95 cursor-pointer"
+              className="w-8 h-8 rounded-full bg-white text-black hover:bg-white/90 flex items-center justify-center shadow-md transition-transform active:scale-95 cursor-pointer"
               title={store.isPlaying ? "Pause" : "Play"}
             >
-              {store.isPlaying ? <Pause size={16} fill="black" /> : <Play size={16} fill="black" className="ml-0.5" />}
+              {store.isPlaying ? <Pause size={14} fill="black" /> : <Play size={14} fill="black" className="ml-0.5" />}
             </button>
 
             <button
@@ -1192,29 +971,27 @@ export default function TheFrequency() {
               className="text-white/60 hover:text-white transition-colors p-1 cursor-pointer"
               title="Next"
             >
-              <SkipForward size={16} fill="currentColor" />
+              <SkipForward size={15} fill="currentColor" />
             </button>
 
             <button
               onClick={() => store.cycleRepeat()}
-              className={`transition-colors p-1 cursor-pointer ${store.repeat !== 'none' ? 'text-yellow-400' : 'text-white/30 hover:text-white'}`}
+              className={`p-1 cursor-pointer transition-colors ${store.repeat !== 'none' ? 'text-yellow-400' : 'text-white/30 hover:text-white'}`}
               title="Repeat"
             >
-              {store.repeat === 'one' ? <Repeat1 size={14} /> : <Repeat size={14} />}
+              {store.repeat === 'one' ? <Repeat1 size={13} /> : <Repeat size={13} />}
             </button>
           </div>
 
           {/* Timeline Scrubber */}
-          <div className="w-full flex items-center gap-3">
-            <span className="text-[10px] font-mono text-white/40 w-9 text-right">
+          <div className="w-full flex items-center gap-2.5">
+            <span className="text-[10px] font-mono text-white/40 w-8 text-right">
               {formatTime(store.currentTime)}
             </span>
 
             <div
               onClick={handleSeek}
-              onMouseMove={handleScrubberMouseMove}
-              onMouseLeave={() => { setScrubberHoverPct(null); setScrubberHoverTime(null); }}
-              className="flex-1 h-1.5 bg-white/10 hover:h-2 rounded-full overflow-hidden cursor-pointer relative transition-all"
+              className="flex-1 h-1 bg-white/10 hover:h-1.5 rounded-full overflow-hidden cursor-pointer relative transition-all"
             >
               <div
                 className="h-full bg-white rounded-full transition-[width] duration-150"
@@ -1226,39 +1003,31 @@ export default function TheFrequency() {
               />
             </div>
 
-            <span className="text-[10px] font-mono text-white/40 w-9 text-left">
+            <span className="text-[10px] font-mono text-white/40 w-8 text-left">
               {formatTime(store.duration)}
             </span>
           </div>
         </div>
 
-        {/* Right: Volume, Full Screen & DSP EQ Modal Trigger */}
+        {/* Right: Full Screen & Volume */}
         <div className="flex items-center justify-end gap-3 w-1/4">
           {currentTrack && (
             <button
               onClick={() => store.setExpanded(true)}
-              className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white/10 hover:bg-white/20 active:scale-95 backdrop-blur-xl border border-white/20 hover:border-white/30 text-white text-xs font-sans font-semibold transition-all shadow-[0_4px_20px_rgba(0,0,0,0.3)] cursor-pointer group"
-              title="Switch to Full Screen Player"
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white/[0.08] hover:bg-white/[0.15] border border-white/[0.1] text-white text-xs font-medium transition-all cursor-pointer"
+              title="Open Full Screen Player"
             >
-              <Maximize2 size={13} className="text-cyan-300 group-hover:scale-110 transition-transform" />
-              <span>Full Screen</span>
+              <Maximize2 size={12} className="text-cyan-300" />
+              <span className="hidden sm:inline">Full Screen</span>
             </button>
           )}
-
-          <button
-            onClick={() => store.setStudioOpen(true)}
-            className="px-2.5 py-1 rounded-xl bg-white/[0.06] hover:bg-white/[0.12] border border-white/10 text-[9px] font-mono uppercase tracking-wider text-cyan-300 font-bold cursor-pointer"
-            title="Open Audio Studio"
-          >
-            {store.audioPreset.toUpperCase()}
-          </button>
 
           <div className="flex items-center gap-2">
             <button
               onClick={() => store.setVolume(store.volume > 0 ? 0 : 80)}
               className="text-white/50 hover:text-white transition-colors cursor-pointer"
             >
-              {store.volume === 0 ? <VolumeX size={16} /> : store.volume < 50 ? <Volume1 size={16} /> : <Volume2 size={16} />}
+              {store.volume === 0 ? <VolumeX size={15} /> : store.volume < 50 ? <Volume1 size={15} /> : <Volume2 size={15} />}
             </button>
             <input
               type="range"
@@ -1266,7 +1035,7 @@ export default function TheFrequency() {
               max="100"
               value={store.volume}
               onChange={(e) => store.setVolume(Number(e.target.value))}
-              className="w-20 h-1 bg-white/20 rounded-full appearance-none accent-white cursor-pointer"
+              className="w-16 md:w-20 h-1 bg-white/20 rounded-full appearance-none accent-white cursor-pointer"
             />
           </div>
         </div>
@@ -1283,7 +1052,7 @@ export default function TheFrequency() {
               className="bg-[#0e0f15] border border-white/15 rounded-3xl p-6 max-w-md w-full shadow-2xl space-y-4"
             >
               <div className="flex items-center justify-between border-b border-white/10 pb-3">
-                <h3 className="font-heading text-lg font-bold text-white">Create New Playlist</h3>
+                <h3 className="text-base font-semibold text-white">Create New Playlist</h3>
                 <button onClick={() => setShowNewPlaylistModal(false)} className="text-white/40 hover:text-white cursor-pointer">
                   <X size={16} />
                 </button>
@@ -1296,23 +1065,23 @@ export default function TheFrequency() {
                     required
                     value={newPlaylistName}
                     onChange={e => setNewPlaylistName(e.target.value)}
-                    placeholder="e.g. Late Night Coding"
-                    className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-xs text-white focus:outline-none focus:border-cyan-400 font-sans"
+                    placeholder="e.g. Deep Study Focus"
+                    className="w-full bg-white/5 border border-white/10 rounded-xl px-3.5 py-2 text-xs text-white focus:outline-none focus:border-cyan-400 font-sans"
                     autoFocus
                   />
                 </div>
                 <div>
-                  <label className="text-[10px] font-mono uppercase tracking-widest text-white/40 block mb-1">Description</label>
+                  <label className="text-[10px] font-mono uppercase tracking-widest text-white/40 block mb-1">Description (Optional)</label>
                   <textarea
                     value={newPlaylistDesc}
                     onChange={e => setNewPlaylistDesc(e.target.value)}
                     placeholder="Describe the sonic vibe..."
-                    className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-xs text-white focus:outline-none focus:border-cyan-400 font-sans h-20 resize-none"
+                    className="w-full bg-white/5 border border-white/10 rounded-xl px-3.5 py-2 text-xs text-white focus:outline-none focus:border-cyan-400 font-sans h-16 resize-none"
                   />
                 </div>
                 <button
                   type="submit"
-                  className="w-full py-3 rounded-xl bg-white text-black font-sans font-bold text-xs uppercase tracking-wider hover:opacity-90 transition-opacity cursor-pointer"
+                  className="w-full py-2.5 rounded-xl bg-white text-black font-semibold text-xs hover:opacity-90 transition-opacity cursor-pointer"
                 >
                   Create Playlist
                 </button>
@@ -1330,16 +1099,16 @@ export default function TheFrequency() {
               initial={{ scale: 0.95, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 0.95, opacity: 0 }}
-              className="bg-[#0e0f15] border border-white/15 rounded-3xl p-6 max-w-sm w-full shadow-2xl space-y-4"
+              className="bg-[#0e0f15] border border-white/15 rounded-3xl p-5 max-w-sm w-full shadow-2xl space-y-3"
             >
               <div className="flex items-center justify-between border-b border-white/10 pb-3">
-                <h3 className="font-heading text-base font-bold text-white truncate">Add to Playlist</h3>
+                <h3 className="text-sm font-semibold text-white truncate">Add to Playlist</h3>
                 <button onClick={() => setShowAddToPlaylistModal(false)} className="text-white/40 hover:text-white cursor-pointer">
                   <X size={16} />
                 </button>
               </div>
 
-              <div className="space-y-2 max-h-60 overflow-y-auto no-scrollbar">
+              <div className="space-y-1.5 max-h-56 overflow-y-auto no-scrollbar">
                 {store.playlists.length === 0 ? (
                   <p className="text-xs text-white/40 text-center py-4">No playlists yet. Create one first!</p>
                 ) : (
@@ -1352,65 +1121,11 @@ export default function TheFrequency() {
                       }}
                       className="w-full text-left p-2.5 rounded-xl bg-white/5 hover:bg-white/10 flex items-center justify-between transition-colors cursor-pointer"
                     >
-                      <span className="text-xs font-bold text-white">{pl.name}</span>
+                      <span className="text-xs font-medium text-white">{pl.name}</span>
                       <span className="text-[10px] text-white/40 font-mono">{pl.trackIds.length} tracks</span>
                     </button>
                   ))
                 )}
-              </div>
-            </motion.div>
-          </div>
-        )}
-      </AnimatePresence>
-
-      {/* Show All Songs Modal */}
-      <AnimatePresence>
-        {showAllSongsModal && (
-          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 md:p-8 bg-black/80 backdrop-blur-xl">
-            <motion.div
-              initial={{ scale: 0.95, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.95, opacity: 0 }}
-              className="bg-[#0e0f15] border border-white/15 rounded-3xl p-6 max-w-3xl w-full max-h-[85vh] flex flex-col shadow-2xl"
-            >
-              <div className="flex items-center justify-between border-b border-white/10 pb-4 mb-4">
-                <div>
-                  <h3 className="font-heading text-xl font-bold text-white">Full Library Vault</h3>
-                  <p className="text-xs font-sans text-white/40">{store.tracks.length} tracks registered in memory</p>
-                </div>
-                <button onClick={() => setShowAllSongsModal(false)} className="text-white/40 hover:text-white p-2 cursor-pointer">
-                  <X size={18} />
-                </button>
-              </div>
-
-              <div className="flex-1 overflow-y-auto no-scrollbar space-y-2 pr-1">
-                {store.tracks.map((track) => (
-                  <div
-                    key={track.id}
-                    onClick={() => {
-                      store.playTrack(track.id);
-                      setShowAllSongsModal(false);
-                    }}
-                    className="flex items-center justify-between p-3 rounded-2xl bg-white/[0.03] hover:bg-white/[0.08] border border-white/5 transition-all cursor-pointer group"
-                  >
-                    <div className="flex items-center gap-3 min-w-0">
-                      <div className="w-10 h-10 rounded-xl overflow-hidden shrink-0 border border-white/10">
-                        <img src={track.thumbnail} alt={track.title} className="w-full h-full object-cover" />
-                      </div>
-                      <div className="flex flex-col min-w-0">
-                        <span className="text-xs font-heading font-bold text-white truncate group-hover:text-cyan-300">
-                          {track.title}
-                        </span>
-                        <span className="text-[11px] font-sans text-white/40 truncate">
-                          {track.artist}
-                        </span>
-                      </div>
-                    </div>
-                    <span className="text-xs font-mono text-white/40">
-                      {formatTime(track.duration || 180)}
-                    </span>
-                  </div>
-                ))}
               </div>
             </motion.div>
           </div>
@@ -1430,21 +1145,21 @@ export default function TheFrequency() {
                   initial={{ scale: 0.95, opacity: 0 }}
                   animate={{ scale: 1, opacity: 1 }}
                   exit={{ scale: 0.95, opacity: 0 }}
-                  className="bg-[#0e0f15] border border-white/15 rounded-3xl p-6 max-w-2xl w-full max-h-[85vh] flex flex-col shadow-2xl"
+                  className="bg-[#0e0f15] border border-white/15 rounded-3xl p-6 max-w-xl w-full max-h-[80vh] flex flex-col shadow-2xl"
                 >
-                  <div className="flex items-center justify-between border-b border-white/10 pb-4 mb-4">
+                  <div className="flex items-center justify-between border-b border-white/10 pb-3 mb-3">
                     <div>
-                      <h3 className="font-heading text-lg font-bold text-white">Add Songs to "{targetPlaylist.name}"</h3>
-                      <p className="text-xs font-sans text-white/40">Select tracks from your vault library to include in this playlist</p>
+                      <h3 className="text-sm font-semibold text-white">Add Songs to "{targetPlaylist.name}"</h3>
+                      <p className="text-[11px] text-white/40">Select tracks to include in this playlist</p>
                     </div>
-                    <button onClick={() => setShowQuickAddModal(false)} className="text-white/40 hover:text-white p-2 cursor-pointer">
-                      <X size={18} />
+                    <button onClick={() => setShowQuickAddModal(false)} className="text-white/40 hover:text-white p-1 cursor-pointer">
+                      <X size={16} />
                     </button>
                   </div>
 
-                  <div className="flex-1 overflow-y-auto no-scrollbar space-y-2 pr-1">
+                  <div className="flex-1 overflow-y-auto no-scrollbar space-y-1.5 pr-1">
                     {store.tracks.length === 0 ? (
-                      <p className="text-xs text-white/40 text-center py-8">No tracks found in your library vault.</p>
+                      <p className="text-xs text-white/40 text-center py-6">No tracks in library.</p>
                     ) : (
                       store.tracks.map((track) => {
                         const isAlreadyIn = targetPlaylist.trackIds.includes(track.id);
@@ -1459,36 +1174,36 @@ export default function TheFrequency() {
                                 store.addToPlaylist(targetPlaylist.id, track.id);
                               }
                             }}
-                            className={`flex items-center justify-between p-3 rounded-2xl border transition-all cursor-pointer ${
+                            className={`flex items-center justify-between p-2 rounded-xl border transition-all cursor-pointer ${
                               isAlreadyIn
                                 ? 'bg-cyan-500/10 border-cyan-400/30 text-white'
-                                : 'bg-white/[0.03] hover:bg-white/[0.08] border-white/5 text-white/80'
+                                : 'bg-white/[0.02] hover:bg-white/[0.06] border-white/5 text-white/80'
                             }`}
                           >
-                            <div className="flex items-center gap-3 min-w-0 flex-1">
-                              <div className="w-10 h-10 rounded-xl overflow-hidden shrink-0 border border-white/10">
+                            <div className="flex items-center gap-2.5 min-w-0 flex-1">
+                              <div className="w-8 h-8 rounded-lg overflow-hidden shrink-0 border border-white/10">
                                 <img src={track.thumbnail} alt={track.title} className="w-full h-full object-cover" />
                               </div>
                               <div className="flex flex-col min-w-0 flex-1">
-                                <span className={`text-xs font-heading font-bold truncate ${isAlreadyIn ? 'text-cyan-300' : 'text-white'}`}>
+                                <span className={`text-xs font-medium truncate ${isAlreadyIn ? 'text-cyan-300' : 'text-white'}`}>
                                   {track.title}
                                 </span>
-                                <span className="text-[11px] font-sans text-white/40 truncate">
+                                <span className="text-[10px] text-white/40 truncate">
                                   {track.artist}
                                 </span>
                               </div>
                             </div>
 
-                            <div className="flex items-center gap-3 pl-3">
-                              <span className="text-xs font-mono text-white/40">
+                            <div className="flex items-center gap-2.5 pl-2">
+                              <span className="text-[11px] font-mono text-white/40">
                                 {formatTime(track.duration || 180)}
                               </span>
-                              <div className={`w-7 h-7 rounded-full flex items-center justify-center transition-all ${
+                              <div className={`w-6 h-6 rounded-full flex items-center justify-center transition-all ${
                                 isAlreadyIn
-                                  ? 'bg-cyan-400 text-black shadow-[0_0_10px_rgba(6,182,212,0.5)]'
-                                  : 'bg-white/10 text-white/50 hover:bg-white/20 hover:text-white'
+                                  ? 'bg-cyan-400 text-black'
+                                  : 'bg-white/10 text-white/50 hover:bg-white/20'
                               }`}>
-                                {isAlreadyIn ? <Check size={14} /> : <Plus size={14} />}
+                                {isAlreadyIn ? <Check size={12} /> : <Plus size={12} />}
                               </div>
                             </div>
                           </div>
@@ -1497,10 +1212,10 @@ export default function TheFrequency() {
                     )}
                   </div>
 
-                  <div className="pt-4 border-t border-white/10 flex justify-end">
+                  <div className="pt-3 border-t border-white/10 flex justify-end">
                     <button
                       onClick={() => setShowQuickAddModal(false)}
-                      className="px-6 py-2.5 rounded-xl bg-white text-black font-sans font-bold text-xs uppercase tracking-wider hover:bg-white/90 transition-all cursor-pointer shadow-lg"
+                      className="px-5 py-2 rounded-xl bg-white text-black font-semibold text-xs hover:bg-white/90 transition-all cursor-pointer"
                     >
                       Done
                     </button>
@@ -1508,6 +1223,60 @@ export default function TheFrequency() {
                 </motion.div>
               );
             })()}
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Show All Songs Modal */}
+      <AnimatePresence>
+        {showAllSongsModal && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 md:p-8 bg-black/80 backdrop-blur-xl">
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.95, opacity: 0 }}
+              className="bg-[#0e0f15] border border-white/15 rounded-3xl p-6 max-w-2xl w-full max-h-[80vh] flex flex-col shadow-2xl"
+            >
+              <div className="flex items-center justify-between border-b border-white/10 pb-3 mb-3">
+                <div>
+                  <h3 className="text-base font-semibold text-white">Full Library Vault</h3>
+                  <p className="text-xs text-white/40">{store.tracks.length} tracks registered</p>
+                </div>
+                <button onClick={() => setShowAllSongsModal(false)} className="text-white/40 hover:text-white p-1 cursor-pointer">
+                  <X size={16} />
+                </button>
+              </div>
+
+              <div className="flex-1 overflow-y-auto no-scrollbar space-y-1.5 pr-1">
+                {store.tracks.map((track) => (
+                  <div
+                    key={track.id}
+                    onClick={() => {
+                      store.playTrack(track.id);
+                      setShowAllSongsModal(false);
+                    }}
+                    className="flex items-center justify-between p-2.5 rounded-xl bg-white/[0.02] hover:bg-white/[0.06] border border-white/5 transition-all cursor-pointer group"
+                  >
+                    <div className="flex items-center gap-3 min-w-0">
+                      <div className="w-9 h-9 rounded-lg overflow-hidden shrink-0 border border-white/10">
+                        <img src={track.thumbnail} alt={track.title} className="w-full h-full object-cover" />
+                      </div>
+                      <div className="flex flex-col min-w-0">
+                        <span className="text-xs font-medium text-white truncate group-hover:text-cyan-300">
+                          {track.title}
+                        </span>
+                        <span className="text-[11px] text-white/40 truncate">
+                          {track.artist}
+                        </span>
+                      </div>
+                    </div>
+                    <span className="text-xs font-mono text-white/40">
+                      {formatTime(track.duration || 180)}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </motion.div>
           </div>
         )}
       </AnimatePresence>
