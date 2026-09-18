@@ -104,33 +104,36 @@ export default function AudioStudioModal() {
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         exit={{ opacity: 0 }}
-        className="fixed inset-0 z-[300] bg-black/85 backdrop-blur-3xl flex items-center justify-center p-4 sm:p-6"
+        className="fixed inset-0 z-[300] bg-black/85 backdrop-blur-3xl flex items-end sm:items-center justify-center p-0 sm:p-6"
         onClick={() => store.setStudioOpen(false)}
       >
         <motion.div
-          initial={{ scale: 0.95, y: 20, opacity: 0 }}
+          initial={{ scale: 0.95, y: 40, opacity: 0 }}
           animate={{ scale: 1, y: 0, opacity: 1 }}
-          exit={{ scale: 0.95, y: 20, opacity: 0 }}
+          exit={{ scale: 0.95, y: 40, opacity: 0 }}
           transition={{ type: "spring", stiffness: 300, damping: 28 }}
           onClick={(e) => e.stopPropagation()}
-          className="bg-zinc-950/95 border border-white/15 rounded-3xl w-full max-w-3xl overflow-hidden shadow-[0_25px_100px_rgba(0,0,0,0.9)] flex flex-col max-h-[90vh]"
+          className="bg-zinc-950/95 border border-white/15 rounded-t-3xl sm:rounded-3xl w-full max-w-3xl overflow-hidden shadow-[0_25px_100px_rgba(0,0,0,0.9)] flex flex-col max-h-[94vh] sm:max-h-[90vh] pb-[calc(1rem+env(safe-area-inset-bottom))] sm:pb-0"
         >
+          {/* Mobile Sheet Drag Indicator */}
+          <div className="w-12 h-1 bg-white/20 rounded-full mx-auto mt-3 sm:hidden" />
+
           {/* Header */}
-          <div className="p-6 border-b border-white/[0.08] flex items-center justify-between bg-white/[0.02]">
-            <div className="flex items-center gap-3.5">
-              <div className="w-10 h-10 rounded-2xl bg-white/[0.06] border border-white/10 flex items-center justify-center text-cyan-300">
+          <div className="p-4 sm:p-6 border-b border-white/[0.08] flex items-center justify-between bg-white/[0.02]">
+            <div className="flex items-center gap-3 sm:gap-3.5">
+              <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-2xl bg-white/[0.06] border border-white/10 flex items-center justify-center text-cyan-300 shrink-0">
                 <Activity size={18} className="text-cyan-400" />
               </div>
               <div>
-                <div className="flex items-center gap-2">
-                  <h2 className="text-base font-semibold text-white tracking-tight">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <h2 className="text-sm sm:text-base font-semibold text-white tracking-tight">
                     Acoustic & Photon Studio
                   </h2>
-                  <span className="text-[10px] font-medium text-cyan-400 bg-cyan-500/10 border border-cyan-500/20 px-2 py-0.5 rounded-full">
+                  <span className="text-[9px] sm:text-[10px] font-medium text-cyan-400 bg-cyan-500/10 border border-cyan-500/20 px-2 py-0.5 rounded-full">
                     Pro Engine
                   </span>
                 </div>
-                <p className="text-xs text-white/40 mt-0.5">
+                <p className="text-[11px] sm:text-xs text-white/40 mt-0.5">
                   Real-time Web Audio DSP & Perimeter Ambient Lighting
                 </p>
               </div>
@@ -155,7 +158,7 @@ export default function AudioStudioModal() {
                     speed: 55,
                   });
                 }}
-                className="h-8 px-3 rounded-xl bg-white/5 hover:bg-white/10 active:scale-[0.98] text-white/50 hover:text-white border border-white/10 text-xs font-medium flex items-center gap-1.5 transition-all cursor-pointer"
+                className="h-9 px-3 rounded-xl bg-white/5 hover:bg-white/10 active:scale-[0.98] text-white/50 hover:text-white border border-white/10 text-xs font-medium flex items-center gap-1.5 transition-all cursor-pointer min-h-[36px]"
                 title="Reset All Values"
               >
                 <RotateCcw size={12} />
@@ -163,7 +166,7 @@ export default function AudioStudioModal() {
               </button>
               <button
                 onClick={() => store.setStudioOpen(false)}
-                className="w-8 h-8 rounded-xl bg-white/5 hover:bg-white/10 active:scale-[0.98] text-white/60 hover:text-white border border-white/10 flex items-center justify-center transition-all cursor-pointer"
+                className="w-9 h-9 rounded-xl bg-white/5 hover:bg-white/10 active:scale-[0.98] text-white/60 hover:text-white border border-white/10 flex items-center justify-center transition-all cursor-pointer min-h-[36px] min-w-[36px]"
                 title="Close Studio (Esc)"
               >
                 <X size={15} />

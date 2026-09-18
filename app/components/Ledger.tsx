@@ -77,6 +77,7 @@ export default function Ledger() {
   const [searchQuery, setSearchQuery] = useState('');
   const [isSyncing, setIsSyncing] = useState(false);
   const [activeCategoryFilter, setActiveCategoryFilter] = useState('All');
+  const [mobileNoteView, setMobileNoteView] = useState<'list' | 'editor'>('list');
 
   // Capital & Transactions State
   const [transactions, setTransactions] = useState<Transaction[]>(INITIAL_TRANSACTIONS);
@@ -155,6 +156,7 @@ export default function Ledger() {
     };
     const updated = [newNote, ...notes];
     setActiveNoteId(newNote.id);
+    setMobileNoteView('editor');
     saveNotes(updated);
   };
 
@@ -163,7 +165,9 @@ export default function Ledger() {
     const updated = notes.filter(n => n.id !== id);
     saveNotes(updated);
     if (activeNoteId === id) {
-      setActiveNoteId(updated.length > 0 ? updated[0].id : null);
+      const nextId = updated.length > 0 ? updated[0].id : null;
+      setActiveNoteId(nextId);
+      if (!nextId) setMobileNoteView('list');
     }
   };
 
@@ -257,29 +261,29 @@ export default function Ledger() {
   });
 
   return (
-    <div className="w-full min-h-[calc(100vh-100px)] p-4 md:p-8 flex flex-col font-sans select-text">
+    <div className="w-full min-h-[calc(100vh-100px)] p-4 sm:p-6 md:p-8 pb-28 md:pb-8 flex flex-col font-sans select-text">
       
       {/* Top Header & Tab Controls */}
       <header className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 border-b border-white/10 pb-6 mb-6">
-        <div className="flex items-center gap-4">
-          <div className="w-12 h-12 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center shadow-2xl">
-            <MaybachLogo size={24} />
+        <div className="flex items-center gap-3 sm:gap-4">
+          <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center shadow-2xl shrink-0">
+            <MaybachLogo size={22} />
           </div>
           <div>
-            <div className="flex items-center gap-3">
-              <span className="text-2xl font-heading font-extrabold text-white lowercase">the ledger.</span>
-              <span className="px-3 py-0.5 rounded-full bg-white/10 text-[9px] font-mono uppercase tracking-widest text-white/70 border border-white/10">
+            <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
+              <span className="text-xl sm:text-2xl font-heading font-extrabold text-white lowercase">the ledger.</span>
+              <span className="px-2.5 py-0.5 rounded-full bg-white/10 text-[9px] font-mono uppercase tracking-widest text-white/70 border border-white/10">
                 Sovereign Capital OS
               </span>
             </div>
-            <div className="text-[10px] text-white/40 tracking-widest uppercase mt-0.5 font-mono">
+            <div className="text-[9px] sm:text-[10px] text-white/40 tracking-widest uppercase mt-0.5 font-mono">
               INTELLIGENCE VAULT • ASSET TRACKING • FOCUS COMPOUNDING
             </div>
           </div>
         </div>
 
         {/* Executive Tab Switcher */}
-        <div className="flex items-center gap-2 bg-zinc-950/80 p-1.5 rounded-2xl border border-white/10 shadow-xl">
+        <div className="flex items-center gap-1.5 sm:gap-2 bg-zinc-950/80 p-1.5 rounded-2xl border border-white/10 shadow-xl w-full md:w-auto overflow-x-auto no-scrollbar">
           {[
             { id: 'notes', label: 'Intelligence Vault', icon: FileText },
             { id: 'capital', label: 'Capital & Yield', icon: Wallet },
@@ -291,9 +295,9 @@ export default function Ledger() {
               <button
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id as any)}
-                className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all ${
+                className={`flex items-center gap-2 px-3 sm:px-4 py-2 rounded-xl text-xs font-bold transition-all shrink-0 min-h-[40px] ${
                   isActive 
-                    ? 'bg-white text-black shadow-lg scale-105' 
+                    ? 'bg-white text-black shadow-lg scale-100 sm:scale-105' 
                     : 'text-white/40 hover:text-white hover:bg-white/5'
                 }`}
               >
@@ -310,14 +314,14 @@ export default function Ledger() {
         <div className="flex-1 grid grid-cols-1 lg:grid-cols-12 gap-6 min-h-[580px]">
           
           {/* Left: Notes Navigator */}
-          <div className="lg:col-span-4 flex flex-col bg-zinc-950/70 border border-white/10 rounded-3xl p-5 shadow-2xl space-y-4">
+          <div className={`lg:col-span-4 ${mobileNoteView === 'editor' ? 'hidden lg:flex' : 'flex'} flex-col bg-zinc-950/70 border border-white/10 rounded-3xl p-4 sm:p-5 shadow-2xl space-y-4`}>
             <div className="flex items-center justify-between">
               <span className="text-xs font-bold text-white/50 uppercase tracking-widest font-mono">Intelligence Archive</span>
               <button
                 onClick={createNote}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white/10 hover:bg-white/20 border border-white/10 text-white text-xs font-bold transition-all"
+                className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-white/10 hover:bg-white/20 border border-white/10 text-white text-xs font-bold transition-all min-h-[40px]"
               >
-                <Plus size={13} />
+                <Plus size={14} />
                 <span>New Record</span>
               </button>
             </div>
@@ -330,7 +334,7 @@ export default function Ledger() {
                 placeholder="Search archive..."
                 value={searchQuery}
                 onChange={e => setSearchQuery(e.target.value)}
-                className="w-full bg-white/5 border border-white/10 rounded-2xl py-2 pl-10 pr-4 text-xs text-white placeholder:text-white/20 focus:outline-none focus:border-white/30 font-mono"
+                className="w-full bg-white/5 border border-white/10 rounded-2xl py-2.5 pl-10 pr-4 text-xs text-white placeholder:text-white/20 focus:outline-none focus:border-white/30 font-mono"
               />
             </div>
 
@@ -340,7 +344,7 @@ export default function Ledger() {
                 <button
                   key={cat}
                   onClick={() => setActiveCategoryFilter(cat)}
-                  className={`px-3 py-1 rounded-full text-[10px] font-mono uppercase tracking-wider transition-colors shrink-0 ${
+                  className={`px-3 py-1.5 rounded-full text-[10px] font-mono uppercase tracking-wider transition-colors shrink-0 min-h-[32px] ${
                     activeCategoryFilter === cat ? 'bg-white/20 text-white border border-white/30' : 'bg-white/5 text-white/40 hover:text-white'
                   }`}
                 >
@@ -354,7 +358,10 @@ export default function Ledger() {
               {filteredNotes.map(note => (
                 <div
                   key={note.id}
-                  onClick={() => setActiveNoteId(note.id)}
+                  onClick={() => {
+                    setActiveNoteId(note.id);
+                    setMobileNoteView('editor');
+                  }}
                   className={`group p-4 rounded-2xl cursor-pointer border transition-all ${
                     activeNoteId === note.id 
                       ? 'bg-white/10 border-white/20 text-white shadow-lg' 
@@ -370,7 +377,8 @@ export default function Ledger() {
                     </div>
                     <button
                       onClick={(e) => deleteNote(note.id, e)}
-                      className="opacity-0 group-hover:opacity-100 p-1 hover:text-red-400 transition-opacity"
+                      className="opacity-70 sm:opacity-0 sm:group-hover:opacity-100 p-1.5 hover:text-red-400 transition-opacity min-w-[32px] min-h-[32px] flex items-center justify-center"
+                      title="Delete record"
                     >
                       <Trash2 size={13} />
                     </button>
@@ -385,21 +393,28 @@ export default function Ledger() {
           </div>
 
           {/* Right: Rich Block Editor */}
-          <div className="lg:col-span-8 flex flex-col bg-zinc-950/70 border border-white/10 rounded-3xl p-6 md:p-8 shadow-2xl space-y-6">
+          <div className={`lg:col-span-8 ${mobileNoteView === 'list' ? 'hidden lg:flex' : 'flex'} flex-col bg-zinc-950/70 border border-white/10 rounded-3xl p-5 sm:p-6 md:p-8 shadow-2xl space-y-5 sm:space-y-6`}>
             {activeNote ? (
               <>
                 {/* Note Editor Header */}
                 <div className="flex items-center justify-between border-b border-white/10 pb-4">
                   <div className="flex items-center gap-3">
+                    {/* Back to archive on mobile */}
+                    <button
+                      onClick={() => setMobileNoteView('list')}
+                      className="lg:hidden flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-white/5 border border-white/10 text-[10px] font-mono uppercase text-white/70 hover:text-white min-h-[36px]"
+                    >
+                      ← Archive
+                    </button>
                     <div className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-                    <span className="text-[10px] font-mono text-white/40 uppercase tracking-widest">
+                    <span className="text-[10px] font-mono text-white/40 uppercase tracking-widest hidden sm:inline">
                       {isSyncing ? 'Syncing...' : 'Encrypted & Saved'}
                     </span>
                   </div>
                   <div className="flex items-center gap-2">
                     <button
                       onClick={exportNote}
-                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-xs text-white/70 hover:text-white transition-colors"
+                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-xs text-white/70 hover:text-white transition-colors min-h-[36px]"
                     >
                       <Download size={13} />
                       <span className="font-mono text-[10px] uppercase">Export .MD</span>
@@ -416,26 +431,28 @@ export default function Ledger() {
                     saveNotes(updated);
                   }}
                   placeholder="UNTITLED RECORD"
-                  className="w-full bg-transparent border-none outline-none text-2xl md:text-3xl font-heading font-extrabold tracking-tight text-white placeholder:text-white/20 uppercase"
+                  className="w-full bg-transparent border-none outline-none text-xl sm:text-2xl md:text-3xl font-heading font-extrabold tracking-tight text-white placeholder:text-white/20 uppercase"
                 />
 
                 {/* Blocks Container */}
                 <div className="flex-1 overflow-y-auto space-y-3 pr-2 custom-scrollbar max-h-[480px]">
                   {activeNote.blocks.map((block, idx) => (
-                    <div key={block.id} className="group relative flex items-start gap-3 p-2 rounded-xl hover:bg-white/[0.02] transition-colors">
+                    <div key={block.id} className="group relative flex items-start gap-2.5 sm:gap-3 p-2 rounded-xl hover:bg-white/[0.02] transition-colors">
                       
                       {/* Block Type Prefix */}
-                      <div className="mt-1 shrink-0">
+                      <div className="mt-1 shrink-0 flex items-center justify-center min-w-[20px]">
                         {block.type === 'h1' && <span className="text-white/30 font-mono text-[10px] font-bold">#</span>}
                         {block.type === 'h2' && <span className="text-white/30 font-mono text-[10px] font-bold">##</span>}
                         {block.type === 'bullet' && <span className="text-cyan-400 text-xs">•</span>}
                         {block.type === 'todo' && (
-                          <input
-                            type="checkbox"
-                            checked={block.metadata?.checked || false}
-                            onChange={e => updateBlock(block.id, block.content, { checked: e.target.checked })}
-                            className="w-4 h-4 rounded border-white/20 bg-white/5 text-emerald-500 cursor-pointer"
-                          />
+                          <div className="min-w-[28px] min-h-[28px] flex items-center justify-center">
+                            <input
+                              type="checkbox"
+                              checked={block.metadata?.checked || false}
+                              onChange={e => updateBlock(block.id, block.content, { checked: e.target.checked })}
+                              className="w-4 h-4 rounded border-white/20 bg-white/5 text-emerald-500 cursor-pointer"
+                            />
+                          </div>
                         )}
                         {block.type === 'quote' && <span className="text-purple-400 font-serif text-sm">“</span>}
                         {block.type === 'code' && <Code size={13} className="text-emerald-400" />}
@@ -469,21 +486,21 @@ export default function Ledger() {
                         placeholder="Type content..."
                       />
 
-                      {/* Block Controls Hover */}
-                      <div className="opacity-0 group-hover:opacity-100 flex items-center gap-1 transition-opacity shrink-0">
+                      {/* Block Controls */}
+                      <div className="opacity-80 sm:opacity-0 sm:group-hover:opacity-100 flex items-center gap-1 transition-opacity shrink-0">
                         <button
                           onClick={() => addBlock(idx, 'p')}
-                          className="p-1 rounded-lg hover:bg-white/10 text-white/40 hover:text-white"
+                          className="p-1.5 rounded-lg hover:bg-white/10 text-white/40 hover:text-white min-w-[32px] min-h-[32px] flex items-center justify-center"
                           title="Add block below"
                         >
-                          <Plus size={12} />
+                          <Plus size={13} />
                         </button>
                         <button
                           onClick={() => deleteBlock(block.id)}
-                          className="p-1 rounded-lg hover:bg-white/10 text-white/40 hover:text-red-400"
+                          className="p-1.5 rounded-lg hover:bg-white/10 text-white/40 hover:text-red-400 min-w-[32px] min-h-[32px] flex items-center justify-center"
                           title="Delete block"
                         >
-                          <Trash2 size={12} />
+                          <Trash2 size={13} />
                         </button>
                       </div>
                     </div>
@@ -491,12 +508,12 @@ export default function Ledger() {
                 </div>
               </>
             ) : (
-              <div className="flex-1 flex flex-col items-center justify-center text-center p-12 space-y-4">
-                <MaybachLogo size={48} className="opacity-20" />
+              <div className="flex-1 flex flex-col items-center justify-center text-center p-8 sm:p-12 space-y-4">
+                <MaybachLogo size={44} className="opacity-20" />
                 <p className="text-white/40 font-mono text-xs uppercase tracking-widest">No Intelligence Record Selected</p>
                 <button
                   onClick={createNote}
-                  className="px-5 py-2.5 rounded-2xl bg-white text-black font-bold text-xs uppercase tracking-wider hover:scale-105 transition-all"
+                  className="px-5 py-3 rounded-2xl bg-white text-black font-bold text-xs uppercase tracking-wider hover:scale-105 transition-all min-h-[44px]"
                 >
                   Create Record
                 </button>
@@ -511,53 +528,53 @@ export default function Ledger() {
         <div className="flex-1 space-y-6">
           
           {/* Top Metric Cards */}
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-            <div className="p-6 rounded-3xl bg-zinc-950/80 border border-white/10 shadow-2xl flex flex-col justify-between space-y-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
+            <div className="p-5 sm:p-6 rounded-3xl bg-zinc-950/80 border border-white/10 shadow-2xl flex flex-col justify-between space-y-3 sm:space-y-4">
               <div className="flex items-center justify-between text-white/40 text-xs font-mono uppercase tracking-widest">
                 <span>Total Sovereign Net Worth</span>
                 <DollarSign size={16} className="text-emerald-400" />
               </div>
               <div>
-                <span className="text-3xl font-extrabold text-white font-mono">${totalNetWorth.toLocaleString('en-US', { minimumFractionDigits: 2 })}</span>
+                <span className="text-2xl sm:text-3xl font-extrabold text-white font-mono">${totalNetWorth.toLocaleString('en-US', { minimumFractionDigits: 2 })}</span>
                 <p className="text-emerald-400 text-xs font-mono mt-1 flex items-center gap-1">
                   <TrendingUp size={12} /> +9.4% Compounded Growth
                 </p>
               </div>
             </div>
 
-            <div className="p-6 rounded-3xl bg-zinc-950/80 border border-white/10 shadow-2xl flex flex-col justify-between space-y-4">
+            <div className="p-5 sm:p-6 rounded-3xl bg-zinc-950/80 border border-white/10 shadow-2xl flex flex-col justify-between space-y-3 sm:space-y-4">
               <div className="flex items-center justify-between text-white/40 text-xs font-mono uppercase tracking-widest">
                 <span>Focus Yield Multiplier</span>
                 <Zap size={16} className="text-cyan-400" />
               </div>
               <div>
-                <span className="text-3xl font-extrabold text-cyan-400 font-mono">${focusYieldEstimate}</span>
+                <span className="text-2xl sm:text-3xl font-extrabold text-cyan-400 font-mono">${focusYieldEstimate}</span>
                 <p className="text-white/40 text-xs font-mono mt-1">
                   {(totalMinutesFocused / 60).toFixed(1)}h Deep Work @ $125/hr
                 </p>
               </div>
             </div>
 
-            <div className="p-6 rounded-3xl bg-zinc-950/80 border border-white/10 shadow-2xl flex flex-col justify-between space-y-4">
+            <div className="p-5 sm:p-6 rounded-3xl bg-zinc-950/80 border border-white/10 shadow-2xl flex flex-col justify-between space-y-3 sm:space-y-4">
               <div className="flex items-center justify-between text-white/40 text-xs font-mono uppercase tracking-widest">
                 <span>Maybach Protocol Coins</span>
                 <Sparkles size={16} className="text-amber-400" />
               </div>
               <div>
-                <span className="text-3xl font-extrabold text-amber-400 font-mono">{maybachCoins} ℳ</span>
+                <span className="text-2xl sm:text-3xl font-extrabold text-amber-400 font-mono">{maybachCoins} ℳ</span>
                 <p className="text-white/40 text-xs font-mono mt-1">
                   Liquid internal capital staking
                 </p>
               </div>
             </div>
 
-            <div className="p-6 rounded-3xl bg-zinc-950/80 border border-white/10 shadow-2xl flex flex-col justify-between space-y-4">
+            <div className="p-5 sm:p-6 rounded-3xl bg-zinc-950/80 border border-white/10 shadow-2xl flex flex-col justify-between space-y-3 sm:space-y-4">
               <div className="flex items-center justify-between text-white/40 text-xs font-mono uppercase tracking-widest">
                 <span>Net Cash Inflow</span>
                 <ArrowUpRight size={16} className="text-emerald-400" />
               </div>
               <div>
-                <span className="text-3xl font-extrabold text-emerald-400 font-mono">+${(totalCredits - totalDebits).toLocaleString()}</span>
+                <span className="text-2xl sm:text-3xl font-extrabold text-emerald-400 font-mono">+${(totalCredits - totalDebits).toLocaleString()}</span>
                 <p className="text-white/40 text-xs font-mono mt-1">
                   {transactions.length} Verified Ledger Events
                 </p>
@@ -567,7 +584,7 @@ export default function Ledger() {
 
           {/* Asset Allocation Breakdown */}
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-            <div className="lg:col-span-5 p-6 rounded-3xl bg-zinc-950/80 border border-white/10 shadow-2xl space-y-5">
+            <div className="lg:col-span-5 p-5 sm:p-6 rounded-3xl bg-zinc-950/80 border border-white/10 shadow-2xl space-y-4 sm:space-y-5">
               <div className="flex items-center justify-between border-b border-white/5 pb-3">
                 <span className="text-xs font-bold text-white uppercase tracking-widest font-mono">Asset Allocation Vault</span>
                 <PieChart size={15} className="text-white/40" />
@@ -587,7 +604,7 @@ export default function Ledger() {
               {/* Asset List */}
               <div className="space-y-3 pt-2">
                 {assets.map((asset, i) => (
-                  <div key={i} className="flex items-center justify-between p-3 rounded-2xl bg-white/[0.02] border border-white/5">
+                  <div key={i} className="flex items-center justify-between p-3.5 rounded-2xl bg-white/[0.02] border border-white/5">
                     <div className="flex items-center gap-3">
                       <div className={`w-3 h-3 rounded-md ${asset.color}`} />
                       <div>
@@ -605,14 +622,14 @@ export default function Ledger() {
             </div>
 
             {/* Transaction Logs */}
-            <div className="lg:col-span-7 p-6 rounded-3xl bg-zinc-950/80 border border-white/10 shadow-2xl space-y-5 flex flex-col">
+            <div className="lg:col-span-7 p-5 sm:p-6 rounded-3xl bg-zinc-950/80 border border-white/10 shadow-2xl space-y-4 sm:space-y-5 flex flex-col">
               <div className="flex items-center justify-between border-b border-white/5 pb-3">
                 <span className="text-xs font-bold text-white uppercase tracking-widest font-mono">Real-Time Transactions</span>
                 <button
                   onClick={() => setShowAddTxModal(true)}
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/30 text-emerald-400 text-xs font-bold transition-all"
+                  className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/30 text-emerald-400 text-xs font-bold transition-all min-h-[40px]"
                 >
-                  <Plus size={13} />
+                  <Plus size={14} />
                   <span>Add Transaction</span>
                 </button>
               </div>
@@ -621,7 +638,7 @@ export default function Ledger() {
                 {transactions.map(tx => (
                   <div key={tx.id} className="flex items-center justify-between p-3.5 rounded-2xl bg-white/[0.02] border border-white/5 hover:bg-white/[0.04] transition-colors">
                     <div className="flex items-center gap-3.5">
-                      <div className={`w-8 h-8 rounded-xl flex items-center justify-center ${
+                      <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${
                         tx.type === 'credit' ? 'bg-emerald-500/10 text-emerald-400' : 'bg-rose-500/10 text-rose-400'
                       }`}>
                         {tx.type === 'credit' ? <ArrowDownRight size={16} /> : <ArrowUpRight size={16} />}
@@ -646,7 +663,7 @@ export default function Ledger() {
 
       {/* ── TAB 3: EXECUTION JOURNAL ────────────────────────────────── */}
       {activeTab === 'journal' && (
-        <div className="flex-1 grid grid-cols-1 md:grid-cols-3 gap-6">
+        <div className="flex-1 grid grid-cols-1 md:grid-cols-3 gap-4 sm:gap-6">
           {[
             {
               title: "HIGH-CONVICTION PRINCIPLE",
@@ -667,12 +684,12 @@ export default function Ledger() {
               status: "ACTIVE"
             }
           ].map((item, idx) => (
-            <div key={idx} className="p-6 rounded-3xl bg-zinc-950/80 border border-white/10 shadow-2xl space-y-4 flex flex-col justify-between">
+            <div key={idx} className="p-5 sm:p-6 rounded-3xl bg-zinc-950/80 border border-white/10 shadow-2xl space-y-4 flex flex-col justify-between">
               <div className="space-y-2">
                 <span className="px-2.5 py-0.5 rounded-full bg-cyan-500/10 border border-cyan-500/20 text-cyan-400 font-mono text-[9px] font-bold">
                   {item.tag}
                 </span>
-                <h4 className="text-base font-bold text-white tracking-wide font-mono mt-2">{item.title}</h4>
+                <h4 className="text-sm sm:text-base font-bold text-white tracking-wide font-mono mt-2">{item.title}</h4>
                 <p className="text-xs text-white/60 leading-relaxed font-sans">{item.desc}</p>
               </div>
               <div className="pt-4 border-t border-white/5 flex items-center justify-between text-[10px] font-mono text-white/40">
@@ -713,7 +730,7 @@ export default function Ledger() {
                     value={newTxTitle}
                     onChange={e => setNewTxTitle(e.target.value)}
                     placeholder="e.g. Focus Sprint Yield Bonus"
-                    className="w-full p-3 bg-white/5 border border-white/10 rounded-2xl text-xs text-white focus:outline-none focus:border-white/30"
+                    className="w-full p-3.5 bg-white/5 border border-white/10 rounded-2xl text-xs text-white focus:outline-none focus:border-white/30"
                   />
                 </div>
 
@@ -727,7 +744,7 @@ export default function Ledger() {
                       value={newTxAmount}
                       onChange={e => setNewTxAmount(e.target.value)}
                       placeholder="500.00"
-                      className="w-full p-3 bg-white/5 border border-white/10 rounded-2xl text-xs text-white focus:outline-none focus:border-white/30 font-mono"
+                      className="w-full p-3.5 bg-white/5 border border-white/10 rounded-2xl text-xs text-white focus:outline-none focus:border-white/30 font-mono"
                     />
                   </div>
                   <div>
@@ -735,7 +752,7 @@ export default function Ledger() {
                     <select
                       value={newTxType}
                       onChange={e => setNewTxType(e.target.value as any)}
-                      className="w-full p-3 bg-zinc-900 border border-white/10 rounded-2xl text-xs text-white focus:outline-none"
+                      className="w-full p-3.5 bg-zinc-900 border border-white/10 rounded-2xl text-xs text-white focus:outline-none"
                     >
                       <option value="credit">Credit (+ Inflow)</option>
                       <option value="debit">Debit (- Outflow)</option>
@@ -748,7 +765,7 @@ export default function Ledger() {
                   <select
                     value={newTxCategory}
                     onChange={e => setNewTxCategory(e.target.value as any)}
-                    className="w-full p-3 bg-zinc-900 border border-white/10 rounded-2xl text-xs text-white focus:outline-none"
+                    className="w-full p-3.5 bg-zinc-900 border border-white/10 rounded-2xl text-xs text-white focus:outline-none"
                   >
                     <option value="Focus Yield">Focus Yield</option>
                     <option value="Asset Staking">Asset Staking</option>
@@ -759,17 +776,17 @@ export default function Ledger() {
                 </div>
               </div>
 
-              <div className="flex gap-2 pt-2">
+              <div className="flex gap-2.5 pt-2">
                 <button
                   type="button"
                   onClick={() => setShowAddTxModal(false)}
-                  className="flex-1 py-3 rounded-2xl bg-white/5 hover:bg-white/10 text-xs font-bold text-white/60"
+                  className="flex-1 py-3.5 rounded-2xl bg-white/5 hover:bg-white/10 text-xs font-bold text-white/60 min-h-[44px]"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="flex-1 py-3 rounded-2xl bg-emerald-500 hover:bg-emerald-400 text-black text-xs font-bold uppercase tracking-wider"
+                  className="flex-1 py-3.5 rounded-2xl bg-emerald-500 hover:bg-emerald-400 text-black text-xs font-bold uppercase tracking-wider min-h-[44px]"
                 >
                   Record Entry
                 </button>

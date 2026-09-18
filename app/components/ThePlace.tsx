@@ -367,21 +367,19 @@ export default function ThePlace() {
             <header className="fixed top-24 w-[calc(100%-48px)] left-6 right-6 z-[100] px-6 md:px-10 py-4 flex items-center justify-between bg-zinc-950/60 backdrop-blur-3xl border border-white/10 rounded-3xl shadow-2xl">
               <div className="flex items-center gap-8 md:gap-12">
                 <div className="flex items-center gap-3">
-                   <div className="w-9 h-9 rounded-2xl bg-white/10 border border-white/10 flex items-center justify-center text-white shadow-inner">
-                      <Monitor size={18} />
-                   </div>
-                   <div>
-                     <span className="font-heading font-extrabold text-2xl tracking-tighter lowercase">the place.</span>
-                     <span className="hidden sm:inline-block ml-3 text-[9px] font-mono uppercase tracking-[0.3em] text-white/40">Atmospheric Vault</span>
-                   </div>
+                  <div className="w-9 h-9 rounded-2xl bg-white/10 border border-white/10 flex items-center justify-center text-white shadow-inner shrink-0">
+                    <div className="w-2.5 h-2.5 rounded-full bg-cyan-400 shadow-[0_0_12px_#22d3ee] animate-pulse" />
+                  </div>
+                  <span className="font-heading font-extrabold text-base sm:text-lg tracking-wider uppercase text-white">The Place</span>
                 </div>
 
-                <nav className="hidden lg:flex items-center gap-6">
+                {/* Subnav Filter */}
+                <nav className="flex items-center gap-1 bg-white/5 p-1 rounded-full border border-white/10 overflow-x-auto no-scrollbar">
                   {(['All', 'Playlists', 'Streams', 'Curated'] as const).map(nav => (
                     <button 
                       key={nav} 
                       onClick={() => setActiveFilter(nav)}
-                      className={`text-[10px] font-mono uppercase tracking-[0.3em] transition-all px-3 py-1.5 rounded-full ${activeFilter === nav ? 'bg-white text-black font-bold shadow-lg' : 'text-white/40 hover:text-white hover:bg-white/5'}`}
+                      className={`text-[9px] sm:text-[10px] font-mono uppercase tracking-[0.2em] sm:tracking-[0.3em] transition-all px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-full whitespace-nowrap min-h-[32px] cursor-pointer ${activeFilter === nav ? 'bg-white text-black font-bold shadow-lg' : 'text-white/40 hover:text-white hover:bg-white/5'}`}
                     >
                       {nav}
                     </button>
@@ -389,31 +387,31 @@ export default function ThePlace() {
                 </nav>
               </div>
 
-              <div className="flex items-center gap-3 md:gap-4">
+              <div className="flex items-center justify-between sm:justify-end gap-2 sm:gap-3 md:gap-4">
                 <button
                   onClick={() => setShowNewPlaylistModal(true)}
-                  className="flex items-center gap-2 px-4 py-2.5 bg-white/10 hover:bg-white/20 border border-white/15 backdrop-blur-xl rounded-full text-white text-[10px] font-bold uppercase tracking-[0.2em] transition-all shadow-lg hover:scale-105 active:scale-95"
+                  className="flex items-center justify-center gap-2 px-3.5 sm:px-4 py-2 sm:py-2.5 bg-white/10 hover:bg-white/20 border border-white/15 backdrop-blur-xl rounded-full text-white text-[9px] sm:text-[10px] font-bold uppercase tracking-[0.2em] transition-all shadow-lg hover:scale-105 active:scale-95 min-h-[38px] cursor-pointer"
                 >
                   <FolderPlus size={14} className="text-cyan-400" />
-                  <span className="hidden sm:inline">New Playlist</span>
+                  <span>Playlist</span>
                 </button>
 
                 <button
                   onClick={() => setViewState('frequency')}
-                  className="flex items-center gap-2 px-4 py-2.5 bg-purple-500/10 border border-purple-500/20 backdrop-blur-xl rounded-full text-purple-300 hover:bg-purple-500/20 hover:text-purple-200 transition-all text-[10px] font-bold uppercase tracking-[0.2em]"
+                  className="flex items-center justify-center gap-2 px-3.5 sm:px-4 py-2 sm:py-2.5 bg-purple-500/10 border border-purple-500/20 backdrop-blur-xl rounded-full text-purple-300 hover:bg-purple-500/20 hover:text-purple-200 transition-all text-[9px] sm:text-[10px] font-bold uppercase tracking-[0.2em] min-h-[38px] cursor-pointer"
                 >
                   <Music size={13} />
-                  <span className="hidden sm:inline">Frequency</span>
+                  <span>Frequency</span>
                 </button>
 
-                <form onSubmit={addToLibrary} className="relative group hidden sm:block">
-                  <Search size={14} className="absolute left-4 top-1/2 -translate-y-1/2 text-white/30 group-focus-within:text-white/70 transition-colors" />
+                <form onSubmit={addToLibrary} className="relative group flex-1 sm:flex-none">
+                  <Search size={14} className="absolute left-3.5 sm:left-4 top-1/2 -translate-y-1/2 text-white/30 group-focus-within:text-white/70 transition-colors" />
                   <input 
                     type="text"
                     placeholder="Paste YouTube Link..."
                     value={videoUrl}
                     onChange={e => setVideoUrl(e.target.value)}
-                    className="bg-white/5 border border-white/10 rounded-2xl py-2.5 pl-11 pr-5 text-xs w-[200px] md:w-[260px] focus:outline-none focus:w-[320px] focus:bg-white/10 focus:border-white/30 transition-all placeholder:text-white/20 font-mono text-white"
+                    className="bg-white/5 border border-white/10 rounded-full py-2 sm:py-2.5 pl-9 sm:pl-11 pr-4 sm:pr-5 text-xs w-full sm:w-[200px] md:w-[260px] focus:outline-none focus:sm:w-[320px] focus:bg-white/10 focus:border-white/30 transition-all placeholder:text-white/20 font-mono text-white min-h-[38px]"
                   />
                 </form>
               </div>
@@ -421,7 +419,7 @@ export default function ThePlace() {
 
             {/* Featured Billboard */}
             {featured && (
-              <div className="relative w-full h-[65vh] min-h-[480px] overflow-hidden">
+              <div className="relative w-full h-[50vh] sm:h-[65vh] min-h-[340px] sm:min-h-[480px] overflow-hidden">
                 <div className="absolute inset-0">
                   <img 
                     src={featured.thumbnail} 
@@ -432,14 +430,14 @@ export default function ThePlace() {
                   <div className="absolute inset-0 bg-gradient-to-r from-black via-black/40 to-transparent" />
                 </div>
 
-                <div className="absolute inset-0 flex flex-col justify-end p-8 md:p-20 space-y-6 max-w-4xl">
+                <div className="absolute inset-0 flex flex-col justify-end p-5 sm:p-8 md:p-20 space-y-4 sm:space-y-6 max-w-4xl">
                   <motion.div
                     initial={{ opacity: 0, x: -30 }}
                     animate={{ opacity: 1, x: 0 }}
-                    className="flex items-center gap-3"
+                    className="flex items-center gap-2 sm:gap-3"
                   >
-                    <div className="px-3 py-1 rounded-full bg-cyan-500/10 border border-cyan-500/20 text-[9px] font-bold uppercase tracking-[0.3em] text-cyan-400 font-mono flex items-center gap-2">
-                      <Sparkles size={11} /> Featured Focus Environment
+                    <div className="px-2.5 sm:px-3 py-1 rounded-full bg-cyan-500/10 border border-cyan-500/20 text-[8px] sm:text-[9px] font-bold uppercase tracking-[0.25em] sm:tracking-[0.3em] text-cyan-400 font-mono flex items-center gap-1.5 sm:gap-2">
+                      <Sparkles size={11} /> Featured Environment
                     </div>
                   </motion.div>
 
@@ -447,7 +445,7 @@ export default function ThePlace() {
                     initial={{ opacity: 0, y: 30 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ delay: 0.1 }}
-                    className="text-4xl md:text-7xl font-heading font-extrabold tracking-tighter text-white lowercase leading-[0.95] drop-shadow-2xl"
+                    className="text-2xl sm:text-4xl md:text-7xl font-heading font-extrabold tracking-tighter text-white lowercase leading-[0.95] drop-shadow-2xl line-clamp-2 sm:line-clamp-none"
                   >
                     {featured.title}
                   </motion.h1>
@@ -456,19 +454,19 @@ export default function ThePlace() {
                      initial={{ opacity: 0, y: 20 }}
                      animate={{ opacity: 1, y: 0 }}
                      transition={{ delay: 0.2 }}
-                     className="flex items-center gap-4 pt-2"
+                     className="flex flex-wrap items-center gap-2.5 sm:gap-4 pt-1 sm:pt-2"
                   >
                     <button 
                       onClick={() => playItem(featured)}
-                      className="flex items-center gap-3 px-8 py-4 bg-white text-black rounded-2xl font-bold uppercase tracking-[0.1em] text-xs hover:scale-105 active:scale-95 transition-all shadow-[0_0_30px_rgba(255,255,255,0.3)]"
+                      className="flex items-center justify-center gap-2.5 sm:gap-3 px-5 sm:px-8 py-3 sm:py-4 bg-white text-black rounded-xl sm:rounded-2xl font-bold uppercase tracking-[0.1em] text-xs hover:scale-105 active:scale-95 transition-all shadow-[0_0_30px_rgba(255,255,255,0.3)] min-h-[44px] cursor-pointer"
                     >
-                      <Play fill="black" size={16} /> Stream Atmosphere
+                      <Play fill="black" size={14} /> Stream Atmosphere
                     </button>
                     <button 
                       onClick={() => setShowNewPlaylistModal(true)}
-                      className="flex items-center gap-2 px-6 py-4 bg-white/10 backdrop-blur-md border border-white/15 text-white rounded-2xl font-bold uppercase tracking-[0.1em] text-xs hover:bg-white/20 transition-all"
+                      className="flex items-center justify-center gap-2 px-4 sm:px-6 py-3 sm:py-4 bg-white/10 backdrop-blur-md border border-white/15 text-white rounded-xl sm:rounded-2xl font-bold uppercase tracking-[0.1em] text-xs hover:bg-white/20 transition-all min-h-[44px] cursor-pointer"
                     >
-                      <Plus size={16} /> Add to Playlist
+                      <Plus size={15} /> Add to Playlist
                     </button>
                   </motion.div>
                 </div>
@@ -476,7 +474,7 @@ export default function ThePlace() {
             )}
 
             {/* Playlists & Vault Rows */}
-            <div className="relative z-10 space-y-16 px-6 md:px-16 pt-8">
+            <div className="relative z-10 space-y-10 sm:space-y-16 px-4 sm:px-6 md:px-16 pt-6 sm:pt-8">
               
               {/* Custom Playlists Section */}
               {(activeFilter === 'All' || activeFilter === 'Playlists' || activeFilter === 'Curated') && (

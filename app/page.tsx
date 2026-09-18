@@ -1232,83 +1232,85 @@ export default function FocusForge() {
   // --- Views ---
 
   const renderHome = () => (
-    <motion.div key="home" variants={containerVariants} initial="hidden" animate="show" exit="hidden" className="p-6 md:p-12 max-w-6xl mx-auto space-y-16 pb-32 md:pb-12">
+    <motion.div key="home" variants={containerVariants} initial="hidden" animate="show" exit="hidden" className="p-4 sm:p-6 md:p-12 max-w-6xl mx-auto space-y-10 sm:space-y-16 pb-32 md:pb-12">
       
-      <motion.header variants={itemVariants} className="pt-8 md:pt-0">
-        <h1 className="font-heading text-6xl md:text-8xl lg:text-9xl font-extrabold tracking-tight leading-[0.9] mb-6 lowercase">
+      <motion.header variants={itemVariants} className="pt-4 sm:pt-8 md:pt-0">
+        <h1 className="font-heading text-4xl sm:text-6xl md:text-8xl lg:text-9xl font-extrabold tracking-tight leading-[0.9] mb-4 sm:mb-6 lowercase">
           crafted for<br/>the focused.
         </h1>
-        <p className="text-white/50 text-lg md:text-xl max-w-xl font-sans">
+        <p className="text-white/50 text-base sm:text-lg md:text-xl max-w-xl font-sans leading-relaxed">
           Focus Forge is a members-only club that enables the trustworthy to make productivity progress.
         </p>
       </motion.header>
 
       <motion.section variants={itemVariants}>
-        <div className="flex items-center justify-between mb-8 border-b border-white/10 pb-4">
-          <h2 className="font-serif text-2xl md:text-3xl lowercase">your focus summary</h2>
+        <div className="flex items-center justify-between mb-6 sm:mb-8 border-b border-white/10 pb-4">
+          <h2 className="font-serif text-xl sm:text-2xl md:text-3xl lowercase">your focus summary</h2>
           <div className="flex gap-2">
             <div className="w-8 h-8 rounded-full bg-white/10 flex items-center justify-center"><Flame size={16} /></div>
             <div className="w-8 h-8 rounded-full bg-white/10 flex items-center justify-center"><Timer size={16} /></div>
           </div>
         </div>
         
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          <motion.div animate={{ opacity: isGlobalLoading ? [0.4, 1, 0.4] : 1 }} transition={{ repeat: Infinity, duration: 1.5 }} className="bg-zinc-950 border border-white/10 p-8 flex flex-col justify-between aspect-square md:aspect-auto md:h-64 group hover:border-white/30 transition-colors duration-500">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 sm:gap-6">
+          <motion.div animate={{ opacity: isGlobalLoading ? [0.4, 1, 0.4] : 1 }} transition={{ repeat: Infinity, duration: 1.5 }} className="bg-zinc-950 border border-white/10 p-6 sm:p-8 flex flex-col justify-between rounded-2xl md:rounded-none min-h-[140px] md:h-64 group hover:border-white/30 transition-colors duration-500">
             <div className="text-white/40 text-[10px] uppercase tracking-[0.2em] font-medium">For Today</div>
-            <div>
-              <div className="font-heading font-extrabold text-5xl md:text-6xl text-white mb-2 tracking-tight">{stats.dayFocus}</div>
+            <div className="mt-4 md:mt-0">
+              <div className="font-heading font-extrabold text-4xl sm:text-5xl md:text-6xl text-white mb-2 tracking-tight">{stats.dayFocus}</div>
               <div className="text-emerald-400 text-sm flex items-center gap-1">
                 <span>↓</span> 15 mins from yesterday
               </div>
             </div>
           </motion.div>
           
-          <motion.div animate={{ opacity: isGlobalLoading ? [0.4, 1, 0.4] : 1 }} transition={{ repeat: Infinity, duration: 1.5, delay: 0.2 }} className="bg-zinc-950 border border-white/10 p-8 flex flex-col justify-between aspect-square md:aspect-auto md:h-64 group hover:border-white/30 transition-colors duration-500">
+          <motion.div animate={{ opacity: isGlobalLoading ? [0.4, 1, 0.4] : 1 }} transition={{ repeat: Infinity, duration: 1.5, delay: 0.2 }} className="bg-zinc-950 border border-white/10 p-6 sm:p-8 flex flex-col justify-between rounded-2xl md:rounded-none min-h-[140px] md:h-64 group hover:border-white/30 transition-colors duration-500">
             <div className="text-white/40 text-[10px] uppercase tracking-[0.2em] font-medium">Current Streak</div>
-            <div>
-              <div className="font-heading font-extrabold text-5xl md:text-6xl text-white mb-2 tracking-tight">{user.streak}</div>
+            <div className="mt-4 md:mt-0">
+              <div className="font-heading font-extrabold text-4xl sm:text-5xl md:text-6xl text-white mb-2 tracking-tight">{user.streak}</div>
               <div className="text-white/50 text-sm">days of unbroken focus</div>
             </div>
           </motion.div>
 
-          <motion.div animate={{ opacity: isGlobalLoading ? [0.4, 1, 0.4] : 1 }} transition={{ repeat: Infinity, duration: 1.5, delay: 0.4 }} className="bg-zinc-950 border border-white/10 p-8 flex flex-col justify-between aspect-square md:aspect-auto md:h-64 group hover:border-white/30 transition-colors duration-500 relative overflow-hidden">
+          <motion.div animate={{ opacity: isGlobalLoading ? [0.4, 1, 0.4] : 1 }} transition={{ repeat: Infinity, duration: 1.5, delay: 0.4 }} className="bg-zinc-950 border border-white/10 p-6 sm:p-8 flex flex-col justify-between rounded-2xl md:rounded-none min-h-[140px] md:h-64 group hover:border-white/30 transition-colors duration-500 relative overflow-hidden">
             <div className="absolute top-0 left-0 w-full h-1 bg-white/5">
               <div className="h-full bg-white shadow-[0_0_15px_rgba(255,255,255,0.8)] transition-all duration-1000" style={{ width: `${(user.xp / 100) * 100}%` }} />
             </div>
             <div className="text-white/40 text-[10px] uppercase tracking-[0.2em] font-medium">Level {user.level}</div>
-            <div>
-              <div className="font-serif text-3xl md:text-4xl text-white mb-2 lowercase">Novice</div>
-              <div className="font-mono text-sm text-white/50">{user.xp} / 100 XP to next level</div>
+            <div className="mt-4 md:mt-0">
+              <div className="font-serif text-2xl sm:text-3xl md:text-4xl text-white mb-2 lowercase">Novice</div>
+              <div className="font-mono text-xs sm:text-sm text-white/50">{user.xp} / 100 XP to next level</div>
             </div>
           </motion.div>
         </div>
       </motion.section>
 
       <motion.section variants={itemVariants}>
-        <div className="flex items-center justify-between mb-8 border-b border-white/10 pb-4">
-          <h2 className="font-serif text-2xl md:text-3xl lowercase">quick start</h2>
+        <div className="flex items-center justify-between mb-6 sm:mb-8 border-b border-white/10 pb-4">
+          <h2 className="font-serif text-xl sm:text-2xl md:text-3xl lowercase">quick start</h2>
         </div>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
           {PRESETS.slice(0, 4).map(p => (
-            <button key={p.id} onClick={() => startTimer(p)} className={`text-left p-8 bg-zinc-950 border border-white/10 hover:border-white/30 transition-all duration-500 hover:-translate-y-1 group relative overflow-hidden`}>
+            <button key={p.id} onClick={() => startTimer(p)} className={`text-left p-6 sm:p-8 bg-zinc-950 border border-white/10 hover:border-white/30 transition-all duration-500 hover:-translate-y-1 rounded-2xl md:rounded-none group relative overflow-hidden min-h-[140px] flex flex-col justify-between cursor-pointer`}>
               <div className="absolute inset-0 bg-gradient-to-br from-white/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
-              <p.icon className={`mb-6 text-white/50 group-hover:text-white transition-colors duration-500`} size={32} />
-              <div className="font-heading text-2xl font-extrabold mb-2 lowercase">{p.name}</div>
-              <div className="font-mono text-xs text-white/40">{p.desc}</div>
+              <div>
+                <p.icon className={`mb-4 sm:mb-6 text-white/50 group-hover:text-white transition-colors duration-500`} size={28} />
+                <div className="font-heading text-xl sm:text-2xl font-extrabold mb-1 lowercase">{p.name}</div>
+              </div>
+              <div className="font-mono text-xs text-white/40 mt-2">{p.desc}</div>
             </button>
           ))}
         </div>
       </motion.section>
 
       {/* End of Page Engagement (CRED Style) */}
-      <motion.section variants={itemVariants} className="py-24 border-t border-white/10 flex flex-col items-center text-center relative">
+      <motion.section variants={itemVariants} className="py-16 sm:py-24 border-t border-white/10 flex flex-col items-center text-center relative px-4">
         <div className="absolute inset-0 bg-gradient-to-t from-white/5 to-transparent pointer-events-none" />
-        <Zap size={48} className="mb-8 text-white/20" />
-        <h2 className="font-heading text-4xl md:text-5xl font-extrabold tracking-tight mb-6 lowercase">enter the hub</h2>
-        <p className="text-white/50 mb-12 max-w-md text-lg">Configure your dopamine rewards and manage your focus environment in the central hub.</p>
-        <button onClick={() => setView('hub')} className="relative group">
+        <Zap size={40} className="mb-6 text-white/20" />
+        <h2 className="font-heading text-3xl sm:text-4xl md:text-5xl font-extrabold tracking-tight mb-4 lowercase">enter the hub</h2>
+        <p className="text-white/50 mb-8 max-w-md text-base sm:text-lg">Configure your dopamine rewards and manage your focus environment in the central hub.</p>
+        <button onClick={() => setView('hub')} className="relative group cursor-pointer min-h-[48px] flex items-center">
           <div className="absolute inset-0 bg-white rounded-full animate-ping opacity-20 group-hover:opacity-40 transition-opacity duration-1000" />
-          <div className="relative bg-white text-black px-10 py-5 rounded-full font-bold uppercase tracking-[0.2em] text-sm flex items-center gap-3 hover:scale-95 transition-transform duration-500 ease-[cubic-bezier(0.8,0,0.2,1)]">
+          <div className="relative bg-white text-black px-8 sm:px-10 py-4 sm:py-5 rounded-full font-bold uppercase tracking-[0.2em] text-xs sm:text-sm flex items-center gap-3 hover:scale-95 transition-transform duration-500 ease-[cubic-bezier(0.8,0,0.2,1)] shadow-[0_0_30px_rgba(255,255,255,0.3)]">
             Go to Hub <ArrowRight size={16} />
           </div>
         </button>
@@ -1317,32 +1319,32 @@ export default function FocusForge() {
   );
 
   const renderTimerList = () => (
-    <motion.div key="timerList" variants={containerVariants} initial="hidden" animate="show" exit="hidden" className="p-6 md:p-12 max-w-6xl mx-auto space-y-12 pb-32 md:pb-12 min-h-screen">
-      <motion.header variants={itemVariants} className="pt-8 md:pt-0 border-b border-white/10 pb-8">
-        <h1 className="font-heading text-5xl md:text-7xl font-extrabold tracking-tight lowercase">timers.</h1>
+    <motion.div key="timerList" variants={containerVariants} initial="hidden" animate="show" exit="hidden" className="p-4 sm:p-6 md:p-12 max-w-6xl mx-auto space-y-8 sm:space-y-12 pb-32 md:pb-12 min-h-screen">
+      <motion.header variants={itemVariants} className="pt-4 sm:pt-8 md:pt-0 border-b border-white/10 pb-6 sm:pb-8">
+        <h1 className="font-heading text-4xl sm:text-5xl md:text-7xl font-extrabold tracking-tight lowercase">timers.</h1>
       </motion.header>
 
-      <motion.div variants={itemVariants} className="flex gap-4 overflow-x-auto no-scrollbar pb-4">
+      <motion.div variants={itemVariants} className="flex gap-2 sm:gap-4 overflow-x-auto no-scrollbar pb-2">
         {['All', 'Work', 'Study', 'Creative', 'Custom'].map(f => (
-          <button key={f} onClick={() => setTimerFilter(f)} className={`whitespace-nowrap px-6 py-3 rounded-full text-xs uppercase tracking-[0.2em] font-bold transition-all duration-500 ${timerFilter === f ? 'bg-white text-black' : 'bg-zinc-950 border border-white/10 text-white/40 hover:text-white/70 hover:border-white/30'}`}>
+          <button key={f} onClick={() => setTimerFilter(f)} className={`whitespace-nowrap px-4 sm:px-6 py-2.5 sm:py-3 rounded-full text-xs uppercase tracking-[0.2em] font-bold transition-all duration-500 min-h-[44px] cursor-pointer ${timerFilter === f ? 'bg-white text-black' : 'bg-zinc-950 border border-white/10 text-white/40 hover:text-white/70 hover:border-white/30'}`}>
             {f}
           </button>
         ))}
       </motion.div>
 
-      <motion.div variants={itemVariants} className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+      <motion.div variants={itemVariants} className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
         {(timerFilter === 'All' || timerFilter === 'Custom') && (
           <button onClick={() => {
             setShowCustomTimer(true);
             setShowAddTask(false);
-          }} className={`text-left p-8 bg-zinc-950 border border-white/10 hover:border-white/30 transition-all duration-500 hover:-translate-y-1 flex flex-col justify-between aspect-square group relative overflow-hidden`}>
+          }} className={`text-left p-6 sm:p-8 bg-zinc-950 border border-white/10 hover:border-white/30 transition-all duration-500 hover:-translate-y-1 flex flex-col justify-between rounded-2xl md:rounded-none min-h-[160px] sm:aspect-square group relative overflow-hidden cursor-pointer`}>
             <div className="absolute inset-0 bg-gradient-to-br from-white/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
             <div>
-              <Sliders className={`mb-6 text-white/50 group-hover:text-white transition-colors duration-500`} size={32} />
-              <div className="font-heading text-3xl font-extrabold leading-tight mb-2 lowercase">Custom</div>
+              <Sliders className={`mb-4 sm:mb-6 text-white/50 group-hover:text-white transition-colors duration-500`} size={28} />
+              <div className="font-heading text-2xl sm:text-3xl font-extrabold leading-tight mb-2 lowercase">Custom</div>
             </div>
             <div>
-              <div className="font-mono text-sm text-white/40 mb-2">Build your own</div>
+              <div className="font-mono text-xs sm:text-sm text-white/40 mb-1">Build your own</div>
               <div className="text-[10px] uppercase tracking-[0.2em] text-white/30 font-medium">Flexible</div>
             </div>
           </button>
@@ -1352,27 +1354,27 @@ export default function FocusForge() {
             setShowCinematicSelector(true);
             setShowAddTask(false);
             setShowCustomTimer(false);
-          }} className={`text-left p-8 bg-zinc-950 border border-white/10 hover:border-white/30 transition-all duration-500 hover:-translate-y-1 flex flex-col justify-between aspect-square group relative overflow-hidden`}>
+          }} className={`text-left p-6 sm:p-8 bg-zinc-950 border border-white/10 hover:border-white/30 transition-all duration-500 hover:-translate-y-1 flex flex-col justify-between rounded-2xl md:rounded-none min-h-[160px] sm:aspect-square group relative overflow-hidden cursor-pointer`}>
             <div className="absolute inset-0 bg-gradient-to-br from-white/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
             <div>
-              <Monitor className={`mb-6 text-white/50 group-hover:text-white transition-colors duration-500`} size={32} />
-              <div className="font-heading text-3xl font-extrabold leading-tight mb-2 lowercase">Cinematic</div>
+              <Monitor className={`mb-4 sm:mb-6 text-white/50 group-hover:text-white transition-colors duration-500`} size={28} />
+              <div className="font-heading text-2xl sm:text-3xl font-extrabold leading-tight mb-2 lowercase">Cinematic</div>
             </div>
             <div>
-              <div className="font-mono text-sm text-white/40 mb-2">Immersive focus</div>
+              <div className="font-mono text-xs sm:text-sm text-white/40 mb-1">Immersive focus</div>
               <div className="text-[10px] uppercase tracking-[0.2em] text-white/30 font-medium">1.5h+ Deep Work</div>
             </div>
           </button>
         )}
         {PRESETS.filter(p => timerFilter === 'All' || p.cat === timerFilter.toLowerCase()).map(p => (
-          <button key={p.id} onClick={() => startTimer(p)} className={`text-left p-8 bg-zinc-950 border border-white/10 hover:border-white/30 transition-all duration-500 hover:-translate-y-1 flex flex-col justify-between aspect-square group relative overflow-hidden`}>
+          <button key={p.id} onClick={() => startTimer(p)} className={`text-left p-6 sm:p-8 bg-zinc-950 border border-white/10 hover:border-white/30 transition-all duration-500 hover:-translate-y-1 flex flex-col justify-between rounded-2xl md:rounded-none min-h-[160px] sm:aspect-square group relative overflow-hidden cursor-pointer`}>
             <div className="absolute inset-0 bg-gradient-to-br from-white/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
             <div>
-              <p.icon className={`mb-6 text-white/50 group-hover:text-white transition-colors duration-500`} size={32} />
-              <div className="font-heading text-3xl font-extrabold leading-tight mb-2 lowercase">{p.name}</div>
+              <p.icon className={`mb-4 sm:mb-6 text-white/50 group-hover:text-white transition-colors duration-500`} size={28} />
+              <div className="font-heading text-2xl sm:text-3xl font-extrabold leading-tight mb-2 lowercase">{p.name}</div>
             </div>
             <div>
-              <div className="font-mono text-sm text-white/40 mb-2">{p.desc}</div>
+              <div className="font-mono text-xs sm:text-sm text-white/40 mb-1">{p.desc}</div>
               <div className="text-[10px] uppercase tracking-[0.2em] text-white/30 font-medium">{p.cycles} cycles</div>
             </div>
           </button>
@@ -1490,22 +1492,22 @@ export default function FocusForge() {
     const completedCount = tasks.filter(t => t.done).length;
 
     return (
-      <motion.div key="tasks" variants={containerVariants} initial="hidden" animate="show" exit="hidden" className="p-6 md:p-12 max-w-6xl mx-auto space-y-10 pb-32 md:pb-12 min-h-screen">
-        <motion.header variants={itemVariants} className="flex flex-col md:flex-row justify-between items-start md:items-end border-b border-white/10 pb-8 pt-8 md:pt-0 gap-6">
+      <motion.div key="tasks" variants={containerVariants} initial="hidden" animate="show" exit="hidden" className="p-4 sm:p-6 md:p-12 max-w-6xl mx-auto space-y-6 sm:space-y-10 pb-32 md:pb-12 min-h-screen">
+        <motion.header variants={itemVariants} className="flex flex-col sm:flex-row justify-between items-start sm:items-end border-b border-white/10 pb-6 sm:pb-8 pt-4 sm:pt-8 md:pt-0 gap-4 sm:gap-6">
           <div>
-            <div className="flex items-center gap-3">
-              <h1 className="font-heading text-5xl md:text-7xl font-extrabold tracking-tight lowercase">tasks.</h1>
+            <div className="flex flex-wrap items-center gap-2 sm:gap-3">
+              <h1 className="font-heading text-4xl sm:text-5xl md:text-7xl font-extrabold tracking-tight lowercase">tasks.</h1>
               <span className="px-3 py-1 rounded-full text-[10px] font-mono uppercase tracking-widest bg-white/5 border border-white/10 text-white/60">
                 {activeCount} PENDING • {completedCount} DONE
               </span>
             </div>
-            <p className="text-white/40 text-sm mt-1">Sovereign task architecture with sub-checklists, focus timers, and XP yields.</p>
+            <p className="text-white/40 text-xs sm:text-sm mt-1">Sovereign task architecture with sub-checklists, focus timers, and XP yields.</p>
           </div>
 
           <button onClick={() => {
             setShowAddTask(true);
             setShowCustomTimer(false);
-          }} className="px-6 py-3.5 rounded-full bg-white text-black font-bold text-xs uppercase tracking-widest flex items-center gap-2 shadow-[0_0_30px_rgba(255,255,255,0.2)] hover:scale-105 active:scale-95 transition-transform duration-300">
+          }} className="w-full sm:w-auto px-6 py-3.5 rounded-full bg-white text-black font-bold text-xs uppercase tracking-widest flex items-center justify-center gap-2 shadow-[0_0_30px_rgba(255,255,255,0.2)] hover:scale-105 active:scale-95 transition-transform duration-300 min-h-[44px] cursor-pointer">
             <Plus size={18} />
             <span>New Task</span>
           </button>
@@ -1513,15 +1515,15 @@ export default function FocusForge() {
 
         {/* Filter Controls & Search */}
         <motion.div variants={itemVariants} className="space-y-4">
-          <div className="flex flex-col md:flex-row gap-4 justify-between items-stretch md:items-center">
+          <div className="flex flex-col md:flex-row gap-3 sm:gap-4 justify-between items-stretch md:items-center">
             {/* Status Tabs */}
-            <div className="flex gap-4 border-b border-white/10 pb-2">
+            <div className="flex gap-2 sm:gap-4 border-b border-white/10 pb-2 overflow-x-auto no-scrollbar">
               {[
                 { id: 'all', label: `All (${tasks.length})` },
                 { id: 'active', label: `Active (${activeCount})` },
                 { id: 'done', label: `Done (${completedCount})` }
               ].map(tab => (
-                <button key={tab.id} onClick={() => setTaskTab(tab.id)} className={`pb-3 text-xs uppercase tracking-[0.2em] font-bold transition-all duration-300 relative ${taskTab === tab.id ? 'text-white' : 'text-white/40 hover:text-white/70'}`}>
+                <button key={tab.id} onClick={() => setTaskTab(tab.id)} className={`pb-3 text-xs uppercase tracking-[0.2em] font-bold transition-all duration-300 relative whitespace-nowrap min-h-[40px] cursor-pointer ${taskTab === tab.id ? 'text-white' : 'text-white/40 hover:text-white/70'}`}>
                   {tab.label}
                   {taskTab === tab.id && <motion.div layoutId="taskTab" className="absolute bottom-0 left-0 w-full h-0.5 bg-white" />}
                 </button>
@@ -1535,24 +1537,24 @@ export default function FocusForge() {
                 value={taskSearchQuery}
                 onChange={e => setTaskSearchQuery(e.target.value)}
                 placeholder="Search tasks, tags..."
-                className="w-full bg-white/5 border border-white/10 rounded-full px-4 py-2 text-xs text-white placeholder:text-white/30 focus:outline-none focus:border-white/40 font-mono transition-colors"
+                className="w-full bg-white/5 border border-white/10 rounded-full px-4 py-2.5 text-xs text-white placeholder:text-white/30 focus:outline-none focus:border-white/40 font-mono transition-colors min-h-[40px]"
               />
               {taskSearchQuery && (
-                <button onClick={() => setTaskSearchQuery('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-white/40 hover:text-white">
-                  <X size={12} />
+                <button onClick={() => setTaskSearchQuery('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-white/40 hover:text-white p-1">
+                  <X size={14} />
                 </button>
               )}
             </div>
           </div>
 
           {/* Priority Quick Filter Chips */}
-          <div className="flex items-center gap-2 flex-wrap">
+          <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap">
             <span className="text-[10px] uppercase font-mono tracking-widest text-white/30 mr-1">Priority:</span>
             {(['all', 'urgent', 'high', 'medium', 'low'] as const).map(p => (
               <button
                 key={p}
                 onClick={() => setTaskPriorityFilter(p)}
-                className={`px-3 py-1 rounded-full text-[10px] font-mono uppercase tracking-wider transition-all ${
+                className={`px-3 py-1.5 rounded-full text-[10px] font-mono uppercase tracking-wider transition-all min-h-[32px] cursor-pointer ${
                   taskPriorityFilter === p
                     ? 'bg-white text-black font-bold shadow'
                     : 'bg-white/5 text-white/40 hover:text-white border border-white/5'
@@ -1567,9 +1569,9 @@ export default function FocusForge() {
         {/* Tasks List */}
         <motion.div variants={itemVariants} className="space-y-4">
           {filteredTasks.length === 0 && (
-            <div className="text-center py-20 text-white/30 border border-dashed border-white/10 rounded-3xl space-y-3 bg-white/[0.01]">
-              <CheckSquare size={48} className="mx-auto opacity-40 text-white" />
-              <div className="font-heading text-2xl lowercase text-white/60">No matching tasks</div>
+            <div className="text-center py-16 sm:py-20 text-white/30 border border-dashed border-white/10 rounded-3xl space-y-3 bg-white/[0.01] px-4">
+              <CheckSquare size={40} className="mx-auto opacity-40 text-white" />
+              <div className="font-heading text-xl sm:text-2xl lowercase text-white/60">No matching tasks</div>
               <p className="text-xs text-white/40">Create a task or clear active filters to get started.</p>
             </div>
           )}
@@ -1584,7 +1586,7 @@ export default function FocusForge() {
             return (
               <div 
                 key={task.id} 
-                className={`p-6 md:p-8 rounded-3xl border transition-all duration-500 relative group overflow-hidden ${
+                className={`p-4 sm:p-6 md:p-8 rounded-2xl sm:rounded-3xl border transition-all duration-500 relative group overflow-hidden ${
                   task.done 
                     ? 'bg-white/[0.01] border-white/5 opacity-40' 
                     : isUrgent 
@@ -1595,11 +1597,11 @@ export default function FocusForge() {
                 }`}
               >
                 {/* Main Task Row */}
-                <div className="flex items-start gap-4">
+                <div className="flex items-start gap-3 sm:gap-4">
                   {/* Checkbox */}
                   <button 
                     onClick={() => toggleTask(task.id)} 
-                    className={`mt-1 w-7 h-7 rounded-xl border-2 flex items-center justify-center transition-all duration-300 shrink-0 ${
+                    className={`mt-0.5 w-8 h-8 sm:w-7 sm:h-7 rounded-xl border-2 flex items-center justify-center transition-all duration-300 shrink-0 cursor-pointer ${
                       task.done 
                         ? 'bg-white border-white text-black' 
                         : isUrgent 
@@ -1613,7 +1615,7 @@ export default function FocusForge() {
                   {/* Body */}
                   <div className="flex-1 min-w-0 space-y-2">
                     <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                      <div className={`font-heading text-2xl md:text-3xl font-extrabold lowercase truncate ${task.done ? 'line-through text-white/50' : 'text-white'}`}>
+                      <div className={`font-heading text-xl sm:text-2xl md:text-3xl font-extrabold lowercase truncate ${task.done ? 'line-through text-white/50' : 'text-white'}`}>
                         {task.title}
                       </div>
 
@@ -1623,8 +1625,8 @@ export default function FocusForge() {
                         {!task.done && (
                           <button
                             onClick={(e) => startFocusOnTask(task, e)}
-                            className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/30 text-emerald-400 text-xs font-mono font-bold transition-all active:scale-95"
-                            title="Start 25m focus timer on this task"
+                            className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/30 text-emerald-400 text-xs font-mono font-bold transition-all active:scale-95 cursor-pointer min-h-[36px]"
+                            title="Start focus timer on this task"
                           >
                             <Play size={11} fill="currentColor" />
                             <span>Focus</span>
@@ -1633,7 +1635,7 @@ export default function FocusForge() {
 
                         <button
                           onClick={(e) => deleteTask(task.id, e)}
-                          className="w-8 h-8 rounded-full bg-white/5 hover:bg-rose-500/20 text-white/30 hover:text-rose-400 flex items-center justify-center transition-colors"
+                          className="w-8 h-8 rounded-full bg-white/5 hover:bg-rose-500/20 text-white/30 hover:text-rose-400 flex items-center justify-center transition-colors cursor-pointer min-h-[36px]"
                           title="Delete task"
                         >
                           <X size={14} />
@@ -1646,7 +1648,7 @@ export default function FocusForge() {
                     )}
 
                     {/* Metadata chips */}
-                    <div className="flex items-center gap-3 pt-2 flex-wrap text-[10px] font-mono">
+                    <div className="flex items-center gap-2 sm:gap-3 pt-1 sm:pt-2 flex-wrap text-[10px] font-mono">
                       <span className={`px-2.5 py-0.5 rounded-full uppercase font-bold ${
                         task.priority === 'urgent' ? 'bg-red-500/20 text-red-400 border border-red-500/30' :
                         task.priority === 'high' ? 'bg-orange-500/20 text-orange-400 border border-orange-500/30' :
@@ -1670,7 +1672,7 @@ export default function FocusForge() {
                     </div>
 
                     {/* Subtasks Section */}
-                    <div className="pt-4 mt-4 border-t border-white/5 space-y-2.5">
+                    <div className="pt-3 sm:pt-4 mt-3 sm:mt-4 border-t border-white/5 space-y-2.5">
                       {subtasks.length > 0 && (
                         <div className="space-y-2">
                           <div className="flex items-center justify-between text-[10px] font-mono text-white/40">
@@ -1692,7 +1694,7 @@ export default function FocusForge() {
                               <div
                                 key={st.id}
                                 onClick={(e) => toggleSubTask(task.id, st.id, e)}
-                                className="flex items-center gap-2.5 p-2 rounded-xl bg-white/[0.02] hover:bg-white/[0.06] border border-white/5 cursor-pointer text-xs transition-colors"
+                                className="flex items-center gap-2.5 p-2.5 sm:p-2 rounded-xl bg-white/[0.02] hover:bg-white/[0.06] border border-white/5 cursor-pointer text-xs transition-colors min-h-[40px]"
                               >
                                 <div className={`w-4 h-4 rounded-md border flex items-center justify-center shrink-0 ${st.done ? 'bg-emerald-500 border-emerald-500 text-black' : 'border-white/30'}`}>
                                   {st.done && <Check size={11} strokeWidth={3} />}
@@ -1715,11 +1717,11 @@ export default function FocusForge() {
                             onKeyDown={(e) => {
                               if (e.key === 'Enter') handleAddSubTask(task.id);
                             }}
-                            className="flex-1 bg-white/5 border border-white/10 rounded-xl px-3 py-1.5 text-xs text-white placeholder:text-white/30 focus:outline-none focus:border-white/30 font-mono"
+                            className="flex-1 bg-white/5 border border-white/10 rounded-xl px-3 py-2 text-xs text-white placeholder:text-white/30 focus:outline-none focus:border-white/30 font-mono min-h-[36px]"
                           />
                           <button
                             onClick={() => handleAddSubTask(task.id)}
-                            className="px-3 py-1.5 rounded-xl bg-white/10 hover:bg-white/20 text-white text-xs font-mono font-bold transition-colors"
+                            className="px-3.5 py-2 rounded-xl bg-white/10 hover:bg-white/20 text-white text-xs font-mono font-bold transition-colors min-h-[36px] cursor-pointer"
                           >
                             Add
                           </button>
@@ -1755,42 +1757,42 @@ export default function FocusForge() {
 
   const renderHub = () => {
     return (
-      <motion.div key="hub" variants={containerVariants} initial="hidden" animate="show" exit="hidden" className="p-6 md:p-12 max-w-7xl mx-auto space-y-8 pb-32 md:pb-12 min-h-screen">
-        <motion.header variants={itemVariants} className="flex flex-col md:flex-row justify-between items-start md:items-end border-b border-white/10 pb-8 pt-8 md:pt-0 gap-4">
-          <div className="space-y-4">
-            <h1 className="font-heading text-4xl md:text-6xl font-extrabold tracking-tight lowercase">focus hub.</h1>
-            <div className="flex gap-6">
+      <motion.div key="hub" variants={containerVariants} initial="hidden" animate="show" exit="hidden" className="p-4 sm:p-6 md:p-12 max-w-7xl mx-auto space-y-6 sm:space-y-8 pb-32 md:pb-12 min-h-screen">
+        <motion.header variants={itemVariants} className="flex flex-col md:flex-row justify-between items-start md:items-end border-b border-white/10 pb-6 sm:pb-8 pt-4 sm:pt-8 md:pt-0 gap-4">
+          <div className="space-y-3 sm:space-y-4">
+            <h1 className="font-heading text-3xl sm:text-4xl md:text-6xl font-extrabold tracking-tight lowercase">focus hub.</h1>
+            <div className="flex gap-4 sm:gap-6">
               <button 
                 onClick={() => setHubTab('learning')}
-                className={`text-xs uppercase tracking-[0.4em] font-bold transition-all ${hubTab === 'learning' ? 'text-white' : 'text-white/20 hover:text-white/40'}`}
+                className={`text-xs uppercase tracking-[0.4em] font-bold transition-all min-h-[36px] cursor-pointer ${hubTab === 'learning' ? 'text-white' : 'text-white/20 hover:text-white/40'}`}
               >
                 Learning
               </button>
               <button 
                 onClick={() => setHubTab('markets')}
-                className={`text-xs uppercase tracking-[0.4em] font-bold transition-all ${hubTab === 'markets' ? 'text-cyan-400 shadow-[0_0_10px_rgba(0,255,255,0.2)]' : 'text-white/20 hover:text-white/40'}`}
+                className={`text-xs uppercase tracking-[0.4em] font-bold transition-all min-h-[36px] cursor-pointer ${hubTab === 'markets' ? 'text-cyan-400 shadow-[0_0_10px_rgba(0,255,255,0.2)]' : 'text-white/20 hover:text-white/40'}`}
               >
                 Markets
               </button>
             </div>
           </div>
           {hubTab === 'learning' && (
-            <div className="flex flex-col md:flex-row gap-4 w-full md:w-auto">
+            <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 w-full md:w-auto">
               <button 
                 onClick={() => setView('pdf')}
-                className="bg-blue-600/20 border border-blue-500/50 text-blue-400 px-6 py-3 rounded-full font-bold text-sm hover:bg-blue-600/30 transition-colors flex items-center justify-center gap-2"
+                className="bg-blue-600/20 border border-blue-500/50 text-blue-400 px-5 sm:px-6 py-3 rounded-full font-bold text-xs sm:text-sm hover:bg-blue-600/30 transition-colors flex items-center justify-center gap-2 min-h-[44px] cursor-pointer"
               >
                 <BookOpen size={16} /> Learn from PDF
               </button>
-              <form onSubmit={handleHubUrlSubmit} className="w-full md:w-auto flex gap-2">
+              <form onSubmit={handleHubUrlSubmit} className="w-full sm:w-auto flex gap-2">
                 <input
                   type="text"
                   value={hubUrl}
                   onChange={(e) => setHubUrl(e.target.value)}
                   placeholder="Paste YouTube URL..."
-                  className="bg-white/5 border border-white/10 rounded-full px-6 py-3 text-sm focus:outline-none focus:border-emerald-500/50 w-full md:w-80 transition-all text-white"
+                  className="bg-white/5 border border-white/10 rounded-full px-4 sm:px-6 py-3 text-xs sm:text-sm focus:outline-none focus:border-emerald-500/50 w-full sm:w-72 md:w-80 transition-all text-white font-mono min-h-[44px]"
                 />
-                <button type="submit" className="bg-emerald-500 text-black px-6 py-3 rounded-full font-bold text-sm hover:bg-emerald-400 transition-colors">
+                <button type="submit" className="bg-emerald-500 text-black px-5 sm:px-6 py-3 rounded-full font-bold text-xs sm:text-sm hover:bg-emerald-400 transition-colors shrink-0 min-h-[44px] cursor-pointer">
                   Load
                 </button>
               </form>
@@ -1800,25 +1802,25 @@ export default function FocusForge() {
 
         {hubTab === 'learning' ? (
           hubVideoData ? (
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 sm:gap-8">
               {/* Main Video Section */}
               <div className="lg:col-span-2 space-y-4">
-                <div className={`relative aspect-video rounded-3xl border transition-all duration-500 ${isHubTimerActive ? 'border-emerald-500/50 shadow-[0_0_50px_rgba(16,185,129,0.2)]' : 'border-white/10'}`}>
+                <div className={`relative aspect-video rounded-2xl sm:rounded-3xl border transition-all duration-500 ${isHubTimerActive ? 'border-emerald-500/50 shadow-[0_0_50px_rgba(16,185,129,0.2)]' : 'border-white/10'}`}>
                   <CustomYouTubePlayer
                     ref={hubPlayerRef}
                     videoId={hubVideoData.videoId}
                     playlistId={hubVideoData.playlistId}
-                    roundedClass="rounded-3xl"
+                    roundedClass="rounded-2xl sm:rounded-3xl"
                     onPlay={() => setIsHubVideoPlaying(true)}
                     onPause={() => setIsHubVideoPlaying(false)}
                     noCrop={true}
                   />
                 </div>
-                <div className="flex justify-between items-center bg-white/5 border border-white/10 rounded-2xl p-4">
-                  <div className="flex items-center gap-4">
-                    <button onClick={() => setShowHubTimer(true)} className="bg-white text-black px-6 py-2 rounded-full font-bold text-sm flex items-center gap-2 hover:bg-gray-200 transition-colors">
+                <div className="flex flex-col sm:flex-row justify-between items-stretch sm:items-center bg-white/5 border border-white/10 rounded-2xl p-4 gap-3">
+                  <div className="flex flex-wrap items-center gap-2 sm:gap-4">
+                    <button onClick={() => setShowHubTimer(true)} className="bg-white text-black px-5 py-2.5 rounded-full font-bold text-xs sm:text-sm flex items-center justify-center gap-2 hover:bg-gray-200 transition-colors min-h-[40px] cursor-pointer flex-1 sm:flex-none">
                       <Target size={16} />
-                      Start Focus Session
+                      Start Session
                     </button>
                     <button 
                       onClick={() => {
@@ -1830,14 +1832,14 @@ export default function FocusForge() {
                           setView('place');
                         }
                       }} 
-                      className="bg-white/10 text-white px-6 py-2 rounded-full font-bold text-sm flex items-center gap-2 hover:bg-white/20 transition-colors border border-white/10"
+                      className="bg-white/10 text-white px-5 py-2.5 rounded-full font-bold text-xs sm:text-sm flex items-center justify-center gap-2 hover:bg-white/20 transition-colors border border-white/10 min-h-[40px] cursor-pointer flex-1 sm:flex-none"
                     >
                       <Monitor size={16} />
-                      Theatre Mode
+                      Theatre
                     </button>
                   </div>
-                  <div className="text-white/50 text-sm font-mono">
-                    Status: {isHubTimerActive ? <span className="text-emerald-400">Focusing</span> : 'Idle'}
+                  <div className="text-white/50 text-xs sm:text-sm font-mono text-center sm:text-right">
+                    Status: {isHubTimerActive ? <span className="text-emerald-400 font-bold">Focusing</span> : 'Idle'}
                   </div>
                 </div>
               </div>
@@ -1845,12 +1847,12 @@ export default function FocusForge() {
               {/* Sidebar */}
               <div className="space-y-6">
                 {/* Anti-Divert Monitor */}
-                <div className="bg-white/5 border border-white/10 rounded-3xl p-6 space-y-4">
+                <div className="bg-white/5 border border-white/10 rounded-2xl sm:rounded-3xl p-5 sm:p-6 space-y-4">
                   <div className="flex justify-between items-center">
-                    <h3 className="font-bold flex items-center gap-2"><Camera size={18} className="text-emerald-400" /> Focus Cam</h3>
+                    <h3 className="font-bold flex items-center gap-2 text-sm sm:text-base"><Camera size={18} className="text-emerald-400" /> Focus Cam</h3>
                     <button
                       onClick={() => setIsFocusCamEnabled(!isFocusCamEnabled)}
-                      className={`w-12 h-6 rounded-full transition-colors relative ${isFocusCamEnabled ? 'bg-emerald-500' : 'bg-white/20'}`}
+                      className={`w-12 h-6 rounded-full transition-colors relative cursor-pointer ${isFocusCamEnabled ? 'bg-emerald-500' : 'bg-white/20'}`}
                     >
                       <div className={`absolute top-1 left-1 w-4 h-4 rounded-full bg-white transition-transform ${isFocusCamEnabled ? 'translate-x-6' : ''}`} />
                     </button>
@@ -2013,15 +2015,15 @@ export default function FocusForge() {
   };
 
   const renderProfile = () => (
-    <motion.div key="profile" variants={containerVariants} initial="hidden" animate="show" exit="hidden" className="p-6 md:p-12 max-w-6xl mx-auto space-y-16 pb-32 md:pb-12 min-h-screen">
-      <motion.header variants={itemVariants} className="flex justify-between items-end border-b border-white/10 pb-8 pt-8 md:pt-0">
+    <motion.div key="profile" variants={containerVariants} initial="hidden" animate="show" exit="hidden" className="p-4 sm:p-6 md:p-12 max-w-6xl mx-auto space-y-8 sm:space-y-16 pb-32 md:pb-12 min-h-screen">
+      <motion.header variants={itemVariants} className="flex flex-col sm:flex-row justify-between items-start sm:items-end border-b border-white/10 pb-6 sm:pb-8 pt-4 sm:pt-8 md:pt-0 gap-4">
         <div>
-          <h1 className="font-heading text-5xl md:text-7xl font-extrabold tracking-tight lowercase">profile.</h1>
+          <h1 className="font-heading text-4xl sm:text-5xl md:text-7xl font-extrabold tracking-tight lowercase">profile.</h1>
           <p className="text-white/40 text-xs font-mono mt-1">SOVEREIGN EXECUTIVE IDENTITY • COGNITIVE TELEMETRY</p>
         </div>
         <button 
           onClick={() => setIsEditingProfile(!isEditingProfile)}
-          className="px-5 py-2.5 rounded-full border border-white/10 bg-white/5 hover:bg-white/10 text-xs font-mono font-bold uppercase tracking-wider transition-all flex items-center gap-2"
+          className="px-5 py-2.5 rounded-full border border-white/10 bg-white/5 hover:bg-white/10 text-xs font-mono font-bold uppercase tracking-wider transition-all flex items-center gap-2 min-h-[40px] cursor-pointer"
         >
           <Settings size={14} />
           <span>{isEditingProfile ? 'Cancel Edit' : 'Edit Identity'}</span>
@@ -2029,8 +2031,8 @@ export default function FocusForge() {
       </motion.header>
 
       {/* User Hero Section & Stats */}
-      <motion.section variants={itemVariants} className="flex flex-col md:flex-row gap-8 items-center md:items-start bg-zinc-950/80 border border-white/10 rounded-3xl p-8 backdrop-blur-2xl">
-        <div className="w-28 h-28 md:w-36 md:h-36 rounded-3xl bg-gradient-to-br from-cyan-500/20 via-zinc-900 to-purple-500/20 border border-white/15 flex items-center justify-center font-heading font-extrabold text-5xl md:text-6xl shadow-[0_0_50px_rgba(255,255,255,0.05)] relative group overflow-hidden shrink-0">
+      <motion.section variants={itemVariants} className="flex flex-col md:flex-row gap-6 sm:gap-8 items-center md:items-start bg-zinc-950/80 border border-white/10 rounded-2xl sm:rounded-3xl p-6 sm:p-8 backdrop-blur-2xl">
+        <div className="w-20 h-20 sm:w-28 sm:h-28 md:w-36 md:h-36 rounded-2xl sm:rounded-3xl bg-gradient-to-br from-cyan-500/20 via-zinc-900 to-purple-500/20 border border-white/15 flex items-center justify-center font-heading font-extrabold text-3xl sm:text-5xl md:text-6xl shadow-[0_0_50px_rgba(255,255,255,0.05)] relative group overflow-hidden shrink-0">
           <div className="absolute inset-0 bg-gradient-to-br from-cyan-400/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
           <span className="text-white drop-shadow-lg">{user.name[0] || 'F'}</span>
         </div>

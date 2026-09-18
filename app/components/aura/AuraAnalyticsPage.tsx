@@ -234,7 +234,7 @@ export const AuraAnalyticsPage: React.FC<AuraAnalyticsPageProps> = ({ isDarkMode
               initial={{ opacity: 0, y: -10 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.6, delay: 0.1 }}
-              className="flex items-center gap-1 bg-white/[0.04] border border-white/[0.06] rounded-full px-1.5 py-1"
+              className="hidden sm:flex items-center gap-1 bg-white/[0.04] border border-white/[0.06] rounded-full px-1.5 py-1"
             >
               {tabs.map((tab) => (
                 <button
@@ -267,16 +267,16 @@ export const AuraAnalyticsPage: React.FC<AuraAnalyticsPageProps> = ({ isDarkMode
             >
               <button
                 onClick={() => generateShareCard('recap')}
-                className="hidden sm:flex items-center gap-2 px-3.5 py-1.5 text-xs rounded-full border border-white/10 bg-white/[0.04] hover:bg-white/[0.08] transition-colors text-white/70"
+                className="hidden sm:flex items-center gap-2 px-3.5 py-1.5 text-xs rounded-full border border-white/10 bg-white/[0.04] hover:bg-white/[0.08] transition-colors text-white/70 min-h-[36px]"
               >
                 <Download className="w-3.5 h-3.5" />
                 Export
               </button>
               <button
                 onClick={() => setShowSettings(!showSettings)}
-                className="w-8 h-8 flex items-center justify-center rounded-full border border-white/10 bg-white/[0.04] hover:bg-white/[0.08] transition-colors"
+                className="w-9 h-9 flex items-center justify-center rounded-full border border-white/10 bg-white/[0.04] hover:bg-white/[0.08] transition-colors min-h-[36px] min-w-[36px]"
               >
-                <Settings className="w-3.5 h-3.5 text-white/50" />
+                <Settings className="w-4 h-4 text-white/50" />
               </button>
             </motion.div>
           </div>
@@ -482,14 +482,14 @@ export const AuraAnalyticsPage: React.FC<AuraAnalyticsPageProps> = ({ isDarkMode
       </main>
 
       {/* ── MOBILE TAB BAR ──────────────────────────────────────────────── */}
-      <nav className="fixed bottom-0 inset-x-0 md:hidden z-50 border-t border-white/[0.06] glass-panel">
+      <nav className="fixed bottom-0 inset-x-0 sm:hidden z-50 border-t border-white/[0.06] glass-panel pb-[env(safe-area-inset-bottom)]">
         <div className="flex items-center">
           {tabs.map((tab) => (
             <button
               key={tab.key}
               onClick={() => setActiveTab(tab.key)}
-              className={`flex-1 py-4 text-[10px] uppercase tracking-widest transition-colors ${
-                activeTab === tab.key ? 'text-lime-400' : 'text-white/30'
+              className={`flex-1 py-3.5 text-[10px] uppercase tracking-widest transition-colors min-h-[48px] flex items-center justify-center ${
+                activeTab === tab.key ? 'text-lime-400 font-bold' : 'text-white/40'
               }`}
             >
               {tab.label}

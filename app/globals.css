@@ -432,6 +432,18 @@ body {
   --sab: env(safe-area-inset-bottom, 0px);
   --sal: env(safe-area-inset-left, 0px);
   --sar: env(safe-area-inset-right, 0px);
+
+  /* Centralized Mobile Design Tokens */
+  --mobile-page-padding: 16px;
+  --mobile-section-gap: 24px;
+  --mobile-card-radius: 20px;
+  --mobile-control-radius: 14px;
+  --mobile-touch-target: 48px;
+  --mobile-icon-size: 20px;
+  --mobile-header-height: 60px;
+  --mobile-bottom-nav-height: 68px;
+  --mobile-player-height: 64px;
+  --mobile-sheet-radius: 28px;
 }
 
 .pt-safe {
@@ -448,6 +460,25 @@ body {
 
 .pr-safe {
   padding-right: max(1rem, env(safe-area-inset-right));
+}
+
+.px-mobile {
+  padding-left: 1rem;
+  padding-right: 1rem;
+}
+
+@media (min-width: 640px) {
+  .px-mobile {
+    padding-left: 2rem;
+    padding-right: 2rem;
+  }
+}
+
+@media (min-width: 768px) {
+  .px-mobile {
+    padding-left: 3rem;
+    padding-right: 3rem;
+  }
 }
 
 /* Mobile Touch Target and Tap Feedback */

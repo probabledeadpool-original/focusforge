@@ -463,7 +463,7 @@ export const MaybachTerminal = () => {
   };
 
   return (
-    <div className="relative w-full min-h-[calc(100vh-100px)] p-4 md:p-8 flex flex-col font-mono selection:bg-white/20">
+    <div className="relative w-full min-h-[calc(100vh-100px)] p-4 sm:p-6 md:p-8 pb-28 md:pb-8 flex flex-col font-mono selection:bg-white/20">
       <IncinerationOverlay canvasRef={canvasRef} />
 
       {/* Matrix digital rain overlay */}
@@ -475,31 +475,31 @@ export const MaybachTerminal = () => {
 
       {/* Top Status HUD Bar */}
       <header className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 border-b border-white/10 pb-6 mb-6">
-        <div className="flex items-center gap-4">
-          <div className="w-10 h-10 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center shadow-2xl">
+        <div className="flex items-center gap-3 sm:gap-4">
+          <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center shadow-2xl shrink-0">
             <TerminalIcon size={20} className={currentTheme.text} />
           </div>
           <div>
-            <div className="flex items-center gap-3">
-              <span className="text-xl font-heading font-extrabold text-white lowercase">maybach terminal.</span>
+            <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
+              <span className="text-lg sm:text-xl font-heading font-extrabold text-white lowercase">maybach terminal.</span>
               <span className={`px-2.5 py-0.5 rounded-full text-[9px] font-mono uppercase tracking-widest border ${currentTheme.badge}`}>
                 CLI // LIVE
               </span>
             </div>
-            <div className="text-[10px] text-white/40 tracking-widest uppercase">
+            <div className="text-[9px] sm:text-[10px] text-white/40 tracking-widest uppercase mt-0.5">
               NODE: MAYBACH-PRIME-01 • QUANTUM LATENCY: 0.2MS
             </div>
           </div>
         </div>
 
         {/* Quick controls */}
-        <div className="flex items-center gap-3 flex-wrap">
+        <div className="flex items-center gap-2 sm:gap-3 flex-wrap w-full md:w-auto overflow-x-auto no-scrollbar">
           <button
             onClick={() => {
               playBeep(800, 0.05);
               setSoundEnabled(!soundEnabled);
             }}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white/5 hover:bg-white/10 border border-white/10 text-xs text-white/70 transition-all active:scale-95 cursor-pointer"
+            className="flex items-center gap-1.5 px-3 py-2 rounded-full bg-white/5 hover:bg-white/10 border border-white/10 text-xs text-white/70 transition-all active:scale-95 cursor-pointer min-h-[38px] shrink-0"
           >
             {soundEnabled ? <Volume2 size={13} className="text-emerald-400" /> : <VolumeX size={13} className="text-white/40" />}
             <span className="text-[10px] uppercase font-bold">{soundEnabled ? 'Acoustic ON' : 'Muted'}</span>
@@ -510,12 +510,12 @@ export const MaybachTerminal = () => {
               playBeep(1000, 0.05);
               setIsMatrixActive(!isMatrixActive);
             }}
-            className={`px-3 py-1.5 rounded-full text-[10px] font-bold uppercase transition-all active:scale-95 cursor-pointer border ${isMatrixActive ? 'bg-cyan-500/20 text-cyan-400 border-cyan-500/40' : 'bg-white/5 text-white/60 border-white/10 hover:bg-white/10'}`}
+            className={`px-3 py-2 rounded-full text-[10px] font-bold uppercase transition-all active:scale-95 cursor-pointer border min-h-[38px] shrink-0 ${isMatrixActive ? 'bg-cyan-500/20 text-cyan-400 border-cyan-500/40' : 'bg-white/5 text-white/60 border-white/10 hover:bg-white/10'}`}
           >
             Matrix Mode
           </button>
 
-          <div className="flex bg-white/5 border border-white/10 rounded-full p-1">
+          <div className="flex bg-white/5 border border-white/10 rounded-full p-1 shrink-0">
             {(['cli', 'telemetry', 'mastery'] as const).map(tab => (
               <button
                 key={tab}
@@ -523,7 +523,7 @@ export const MaybachTerminal = () => {
                   playBeep(700, 0.04);
                   setActiveTab(tab);
                 }}
-                className={`px-4 py-1 rounded-full text-[10px] font-bold uppercase transition-all cursor-pointer ${activeTab === tab ? 'bg-white text-black font-bold shadow' : 'text-white/40 hover:text-white'}`}
+                className={`px-3.5 sm:px-4 py-1.5 rounded-full text-[10px] font-bold uppercase transition-all cursor-pointer min-h-[32px] ${activeTab === tab ? 'bg-white text-black font-bold shadow' : 'text-white/40 hover:text-white'}`}
               >
                 {tab}
               </button>
@@ -538,7 +538,7 @@ export const MaybachTerminal = () => {
         {/* Left Column: Interactive REPL CLI Buffer */}
         <div 
           onClick={() => inputRef.current?.focus()}
-          className={`${activeTab === 'cli' ? 'lg:col-span-8 flex' : 'hidden lg:flex lg:col-span-8'} flex-col bg-zinc-950/80 backdrop-blur-2xl border ${currentTheme.border} rounded-3xl p-6 shadow-2xl relative overflow-hidden cursor-text`}
+          className={`${activeTab === 'cli' ? 'lg:col-span-8 flex' : 'hidden lg:flex lg:col-span-8'} flex-col bg-zinc-950/80 backdrop-blur-2xl border ${currentTheme.border} rounded-3xl p-4 sm:p-6 shadow-2xl relative overflow-hidden cursor-text`}
         >
           
           {/* Terminal Screen Header */}
@@ -550,13 +550,13 @@ export const MaybachTerminal = () => {
               <span className="ml-2 font-bold text-white/60">bash - maybach-os</span>
             </div>
             <div className="flex items-center gap-2">
-              <span className="text-[9px] font-mono text-cyan-400">CLICK ANY BUTTON TO RUN</span>
+              <span className="text-[9px] font-mono text-cyan-400 hidden sm:inline">CLICK ANY BUTTON TO RUN</span>
               <span>• UTF-8 // TTY-01</span>
             </div>
           </div>
 
           {/* Quick Command Action Chips */}
-          <div className="flex items-center gap-1.5 overflow-x-auto pb-2 mb-2 no-scrollbar">
+          <div className="flex items-center gap-1.5 overflow-x-auto pb-2.5 mb-2 no-scrollbar">
             {[
               { label: 'help', cmd: 'help' },
               { label: 'focus 25', cmd: 'focus 25' },
@@ -575,7 +575,7 @@ export const MaybachTerminal = () => {
                   e.stopPropagation();
                   executeCommand(item.cmd);
                 }}
-                className="px-2.5 py-1 rounded-lg bg-white/5 hover:bg-white/15 border border-white/10 text-[9px] font-mono uppercase text-white/70 hover:text-white transition-all shrink-0 cursor-pointer active:scale-95"
+                className="px-3 py-1.5 rounded-xl bg-white/5 hover:bg-white/15 border border-white/10 text-[10px] font-mono uppercase text-white/70 hover:text-white transition-all shrink-0 cursor-pointer active:scale-95 min-h-[34px]"
               >
                 ${item.label}
               </button>
@@ -587,7 +587,7 @@ export const MaybachTerminal = () => {
             {lines.map((line) => (
               <div key={line.id} className="space-y-1">
                 {line.type === 'ascii' ? (
-                  <pre className={`font-mono text-[10px] sm:text-xs leading-tight ${currentTheme.text} overflow-x-auto select-none opacity-90`}>
+                  <pre className={`font-mono text-[8px] sm:text-[10px] md:text-xs leading-tight ${currentTheme.text} overflow-x-auto select-none opacity-90 pb-2`}>
                     {line.content}
                   </pre>
                 ) : line.type === 'input' ? (
@@ -618,16 +618,16 @@ export const MaybachTerminal = () => {
           </div>
 
           {/* Command Input Bar */}
-          <div className="mt-4 pt-4 border-t border-white/10 flex items-center gap-3">
-            <span className={`text-xs font-bold ${currentTheme.text}`}>MAYBACH ❯</span>
+          <div className="mt-4 pt-4 border-t border-white/10 flex items-center gap-2.5 sm:gap-3">
+            <span className={`text-xs font-bold shrink-0 ${currentTheme.text}`}>MAYBACH ❯</span>
             <input
               ref={inputRef}
               type="text"
               value={inputVal}
               onChange={e => setInputVal(e.target.value)}
               onKeyDown={handleKeyDown}
-              placeholder="type command (e.g. 'help', 'focus 25', 'aura', 'crypto')..."
-              className="flex-1 bg-transparent border-none text-xs text-white focus:outline-none placeholder:text-white/20 font-mono"
+              placeholder="type command (e.g. 'help', 'focus 25', 'aura')..."
+              className="flex-1 bg-transparent border-none text-xs sm:text-sm text-white focus:outline-none placeholder:text-white/20 font-mono py-1"
               autoFocus
             />
           </div>
@@ -637,7 +637,7 @@ export const MaybachTerminal = () => {
         <div id="terminal-hud-box" className={`${activeTab !== 'cli' ? 'lg:col-span-4 flex' : 'hidden lg:flex lg:col-span-4'} flex-col gap-6`}>
           
           {/* Sovereign Treasury Box with interactive action buttons */}
-          <div className="bg-zinc-950/80 backdrop-blur-2xl border border-white/10 rounded-3xl p-6 shadow-2xl space-y-4">
+          <div className="bg-zinc-950/80 backdrop-blur-2xl border border-white/10 rounded-3xl p-5 sm:p-6 shadow-2xl space-y-4">
             <div className="flex justify-between items-center border-b border-white/5 pb-3">
               <span className="text-[10px] uppercase font-mono tracking-widest text-white/40">Sovereign Treasury</span>
               <Shield size={14} className="text-emerald-400" />
@@ -661,21 +661,21 @@ export const MaybachTerminal = () => {
             <div className="grid grid-cols-2 gap-2 pt-1 border-t border-white/5">
               <button
                 onClick={handleDepositYield}
-                className="px-3 py-2 rounded-xl bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/30 text-[9px] font-bold font-mono text-emerald-400 transition-all flex items-center justify-center gap-1 active:scale-95 cursor-pointer"
+                className="px-3 py-2.5 rounded-xl bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/30 text-[10px] font-bold font-mono text-emerald-400 transition-all flex items-center justify-center gap-1 active:scale-95 cursor-pointer min-h-[40px]"
               >
-                <Plus size={11} /> Harvest Yield
+                <Plus size={12} /> Harvest Yield
               </button>
               <button
                 onClick={handleSiphonFund}
-                className="px-3 py-2 rounded-xl bg-cyan-500/10 hover:bg-cyan-500/20 border border-cyan-500/30 text-[9px] font-bold font-mono text-cyan-400 transition-all flex items-center justify-center gap-1 active:scale-95 cursor-pointer"
+                className="px-3 py-2.5 rounded-xl bg-cyan-500/10 hover:bg-cyan-500/20 border border-cyan-500/30 text-[10px] font-bold font-mono text-cyan-400 transition-all flex items-center justify-center gap-1 active:scale-95 cursor-pointer min-h-[40px]"
               >
-                <ArrowUpRight size={11} /> Siphon to Fund
+                <ArrowUpRight size={12} /> Siphon to Fund
               </button>
             </div>
           </div>
 
           {/* Discipline Habits Tracker */}
-          <div className="bg-zinc-950/80 backdrop-blur-2xl border border-white/10 rounded-3xl p-6 shadow-2xl space-y-4">
+          <div className="bg-zinc-950/80 backdrop-blur-2xl border border-white/10 rounded-3xl p-5 sm:p-6 shadow-2xl space-y-4">
             <div className="flex justify-between items-center border-b border-white/5 pb-3">
               <div>
                 <span className="text-[10px] uppercase font-mono tracking-widest text-white/40">Discipline Protocol</span>
@@ -688,17 +688,17 @@ export const MaybachTerminal = () => {
                 <button
                   key={habit.id}
                   onClick={() => handleHabitClick(habit.id)}
-                  className={`p-2.5 rounded-2xl border text-left transition-all active:scale-95 cursor-pointer flex items-center justify-between ${
+                  className={`p-3 rounded-2xl border text-left transition-all active:scale-95 cursor-pointer flex items-center justify-between min-h-[44px] ${
                     habit.completedToday 
                       ? 'bg-emerald-950/30 border-emerald-500/40 text-white' 
                       : 'bg-white/5 border-white/5 text-white/60 hover:text-white hover:bg-white/10'
                   }`}
                 >
-                  <div className="flex items-center gap-1.5">
-                    <span className="text-sm">{habit.icon}</span>
-                    <span className="text-[9px] font-bold uppercase tracking-wider">{habit.title}</span>
+                  <div className="flex items-center gap-1.5 truncate">
+                    <span className="text-sm shrink-0">{habit.icon}</span>
+                    <span className="text-[9px] font-bold uppercase tracking-wider truncate">{habit.title}</span>
                   </div>
-                  <div className="flex items-center gap-1">
+                  <div className="flex items-center gap-1 shrink-0 ml-1">
                     {habit.completedToday && <Check size={10} className="text-emerald-400" />}
                     <span className={`text-[10px] font-bold ${habit.completedToday ? 'text-emerald-400' : 'text-white/40'}`}>
                       {habit.streak}d
@@ -710,7 +710,7 @@ export const MaybachTerminal = () => {
           </div>
 
           {/* Sovereign Domain Mastery Nodes */}
-          <div className="bg-zinc-950/80 backdrop-blur-2xl border border-white/10 rounded-3xl p-6 shadow-2xl space-y-3">
+          <div className="bg-zinc-950/80 backdrop-blur-2xl border border-white/10 rounded-3xl p-5 sm:p-6 shadow-2xl space-y-3">
             <div className="flex justify-between items-center border-b border-white/5 pb-2">
               <div>
                 <span className="text-[10px] uppercase font-mono tracking-widest text-white/40">Mastery Nodes</span>
@@ -723,13 +723,13 @@ export const MaybachTerminal = () => {
                 <button
                   key={node.id}
                   onClick={() => handleMasteryClick(node.id)}
-                  className="w-full text-left p-2.5 rounded-2xl bg-white/[0.02] hover:bg-white/[0.07] border border-white/5 transition-all active:scale-98 cursor-pointer space-y-1.5 group"
+                  className="w-full text-left p-3 rounded-2xl bg-white/[0.02] hover:bg-white/[0.07] border border-white/5 transition-all active:scale-98 cursor-pointer space-y-1.5 group min-h-[44px]"
                 >
                   <div className="flex justify-between text-[10px] font-mono">
-                    <span className="font-bold text-white/90 uppercase group-hover:text-cyan-400 transition-colors">
+                    <span className="font-bold text-white/90 uppercase group-hover:text-cyan-400 transition-colors truncate">
                       {node.name} <span className="text-white/30 font-normal">[{node.code}]</span>
                     </span>
-                    <span className="text-cyan-400 font-bold">{node.mastery}%</span>
+                    <span className="text-cyan-400 font-bold ml-2 shrink-0">{node.mastery}%</span>
                   </div>
                   <div className="w-full h-1.5 bg-white/10 rounded-full overflow-hidden">
                     <div 
