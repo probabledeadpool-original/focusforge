@@ -717,7 +717,7 @@ export default function TheFrequency() {
           <div className="space-y-6">
             
             {/* Playing Track High-Res Artwork Card */}
-            <div className="relative aspect-[4/3] w-full rounded-2xl overflow-hidden border border-white/15 shadow-2xl bg-black">
+            <div className="relative aspect-[4/3] w-full rounded-2xl overflow-hidden border border-white/15 shadow-2xl bg-black group/art">
               {currentTrack?.thumbnail ? (
                 <img
                   src={currentTrack.thumbnail}
@@ -732,6 +732,18 @@ export default function TheFrequency() {
               )}
               <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-transparent to-transparent" />
               
+              {/* Floating Frosted Glass Full Screen Button on Artwork */}
+              {currentTrack && (
+                <button
+                  onClick={() => store.setExpanded(true)}
+                  className="absolute top-3 right-3 py-1.5 px-3 rounded-xl bg-black/40 hover:bg-white/20 active:scale-95 backdrop-blur-xl border border-white/20 text-white font-sans text-[11px] font-semibold transition-all flex items-center gap-1.5 shadow-lg cursor-pointer"
+                  title="Open Full Screen Player"
+                >
+                  <Maximize2 size={12} className="text-cyan-300" />
+                  <span>Full Screen</span>
+                </button>
+              )}
+
               <div className="absolute bottom-3 left-4 right-4 space-y-0.5">
                 <span className="text-[9px] font-mono uppercase tracking-[0.2em] text-cyan-300 font-bold flex items-center gap-1.5">
                   <span className={`w-1.5 h-1.5 rounded-full ${store.isPlaying ? 'bg-cyan-400 animate-ping' : 'bg-white/40'}`} />
@@ -774,7 +786,18 @@ export default function TheFrequency() {
           </div>
 
           {/* Quick Track Actions */}
-          <div className="space-y-2 pt-4 border-t border-white/5">
+          <div className="space-y-2.5 pt-4 border-t border-white/5">
+            {/* Frosted Glass Full Screen Button */}
+            {currentTrack && (
+              <button
+                onClick={() => store.setExpanded(true)}
+                className="w-full py-3 px-4 rounded-2xl bg-white/10 hover:bg-white/20 active:scale-[0.98] backdrop-blur-xl border border-white/20 hover:border-white/35 text-white font-sans text-xs font-bold tracking-wide transition-all flex items-center justify-center gap-2.5 cursor-pointer shadow-[0_8px_25px_rgba(0,0,0,0.4)] group"
+              >
+                <Maximize2 size={15} className="text-cyan-300 group-hover:scale-110 transition-transform" />
+                <span>Full Screen</span>
+              </button>
+            )}
+
             {currentTrack && (
               <button
                 onClick={() => {
@@ -901,8 +924,19 @@ export default function TheFrequency() {
           </div>
         </div>
 
-        {/* Right: Volume & DSP EQ Modal Trigger */}
+        {/* Right: Volume, Full Screen & DSP EQ Modal Trigger */}
         <div className="flex items-center justify-end gap-3 w-1/4">
+          {currentTrack && (
+            <button
+              onClick={() => store.setExpanded(true)}
+              className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white/10 hover:bg-white/20 active:scale-95 backdrop-blur-xl border border-white/20 hover:border-white/30 text-white text-xs font-sans font-semibold transition-all shadow-[0_4px_20px_rgba(0,0,0,0.3)] cursor-pointer group"
+              title="Switch to Full Screen Player"
+            >
+              <Maximize2 size={13} className="text-cyan-300 group-hover:scale-110 transition-transform" />
+              <span>Full Screen</span>
+            </button>
+          )}
+
           <button
             onClick={() => store.setStudioOpen(true)}
             className="px-2.5 py-1 rounded-xl bg-white/[0.06] hover:bg-white/[0.12] border border-white/10 text-[9px] font-mono uppercase tracking-wider text-cyan-300 font-bold cursor-pointer"
