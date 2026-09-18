@@ -1,6 +1,6 @@
 "use client";
 
-import React from 'react';
+import React, { useRef, useState, useCallback } from 'react';
 import { LucideIcon } from 'lucide-react';
 
 interface PresetOption {
@@ -16,7 +16,7 @@ interface QuickSliderProps {
   max?: number;
   step?: number;
   onChange: (val: number) => void;
-  accentColor?: 'amber' | 'cyan' | 'emerald' | 'purple';
+  accentColor?: 'amber' | 'cyan' | 'emerald' | 'purple' | 'white';
   valueDisplay?: string;
   presets?: PresetOption[];
   onIconClick?: () => void;
@@ -26,32 +26,34 @@ interface QuickSliderProps {
 
 const ACCENT_STYLES = {
   amber: {
-    iconBg: 'bg-amber-400/10 border-amber-400/20 text-amber-400',
-    badge: 'text-amber-300 bg-amber-400/10 border-amber-400/25',
-    sliderClass: 'accent-amber-400',
+    trackFill: 'bg-gradient-to-r from-amber-500 to-amber-400',
+    iconColor: 'text-amber-400',
+    glow: 'shadow-[0_0_15px_rgba(245,158,11,0.3)]',
     presetActive: 'bg-amber-400/20 border-amber-400/50 text-amber-300 font-bold',
-    fillTrack: 'bg-amber-400',
   },
   cyan: {
-    iconBg: 'bg-cyan-400/10 border-cyan-400/20 text-cyan-400',
-    badge: 'text-cyan-300 bg-cyan-400/10 border-cyan-400/25',
-    sliderClass: 'accent-cyan-400',
+    trackFill: 'bg-gradient-to-r from-cyan-500 to-cyan-400',
+    iconColor: 'text-cyan-400',
+    glow: 'shadow-[0_0_15px_rgba(6,182,212,0.3)]',
     presetActive: 'bg-cyan-400/20 border-cyan-400/50 text-cyan-300 font-bold',
-    fillTrack: 'bg-cyan-400',
   },
   emerald: {
-    iconBg: 'bg-emerald-400/10 border-emerald-400/20 text-emerald-400',
-    badge: 'text-emerald-300 bg-emerald-400/10 border-emerald-400/25',
-    sliderClass: 'accent-emerald-400',
+    trackFill: 'bg-gradient-to-r from-emerald-500 to-emerald-400',
+    iconColor: 'text-emerald-400',
+    glow: 'shadow-[0_0_15px_rgba(16,185,129,0.3)]',
     presetActive: 'bg-emerald-400/20 border-emerald-400/50 text-emerald-300 font-bold',
-    fillTrack: 'bg-emerald-400',
   },
   purple: {
-    iconBg: 'bg-purple-400/10 border-purple-400/20 text-purple-400',
-    badge: 'text-purple-300 bg-purple-400/10 border-purple-400/25',
-    sliderClass: 'accent-purple-400',
+    trackFill: 'bg-gradient-to-r from-purple-500 to-purple-400',
+    iconColor: 'text-purple-400',
+    glow: 'shadow-[0_0_15px_rgba(168,85,247,0.3)]',
     presetActive: 'bg-purple-400/20 border-purple-400/50 text-purple-300 font-bold',
-    fillTrack: 'bg-purple-400',
+  },
+  white: {
+    trackFill: 'bg-white',
+    iconColor: 'text-white',
+    glow: 'shadow-[0_0_15px_rgba(255,255,255,0.3)]',
+    presetActive: 'bg-white/20 border-white/50 text-white font-bold',
   },
 };
 
@@ -63,65 +65,117 @@ export const QuickSlider: React.FC<QuickSliderProps> = ({
   max = 100,
   step = 1,
   onChange,
-  accentColor = 'cyan',
+  accentColor = 'white',
   valueDisplay,
   presets,
   onIconClick,
   iconTitle,
   ariaLabel
 }) => {
-  const styles = ACCENT_STYLES[accentColor];
+  const styles = ACCENT_STYLES[accentColor] || ACCENT_STYLES.white;
   const percentage = Math.max(0, Math.min(100, ((value - min) / (max - min)) * 100));
+  const trackRef = useRef<HTMLDivElement>(null);
+  const [isDragging, setIsDragging] = useState(false);
+
+  const calculateValueFromPointer = useCallback((clientX: number) => {
+    if (!trackRef.current) return;
+    const rect = trackRef.current.getBoundingClientRect();
+    const pos = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
+    const rawVal = min + pos * (max - min);
+    const steppedVal = Math.round(rawVal / step) * step;
+    const clamped = Math.max(min, Math.min(max, steppedVal));
+    onChange(clamped);
+  }, [min, max, step, onChange]);
+
+  const handlePointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
+    const target = e.target as HTMLElement;
+    if (target.closest('button.slider-icon-btn')) return;
+
+    e.preventDefault();
+    setIsDragging(true);
+    calculateValueFromPointer(e.clientX);
+
+    const onPointerMove = (moveEvent: PointerEvent) => {
+      calculateValueFromPointer(moveEvent.clientX);
+    };
+
+    const onPointerUp = () => {
+      setIsDragging(false);
+      window.removeEventListener('pointermove', onPointerMove);
+      window.removeEventListener('pointerup', onPointerUp);
+    };
+
+    window.addEventListener('pointermove', onPointerMove);
+    window.addEventListener('pointerup', onPointerUp);
+  };
 
   return (
-    <div className="p-3.5 rounded-2xl bg-white/[0.04] border border-white/10 hover:border-white/20 transition-all backdrop-blur-2xl flex flex-col justify-between gap-2.5 shadow-lg">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          {onIconClick ? (
-            <button
-              type="button"
-              onClick={onIconClick}
-              className={`w-6 h-6 rounded-lg flex items-center justify-center border transition-colors cursor-pointer ${styles.iconBg} hover:opacity-80 focus:outline-none focus:ring-2 focus:ring-cyan-500/50`}
-              title={iconTitle}
-              aria-label={iconTitle || label}
-            >
-              {typeof icon === 'function' ? React.createElement(icon as any, { size: 13 }) : icon}
-            </button>
-          ) : (
-            <div className={`w-6 h-6 rounded-lg flex items-center justify-center border ${styles.iconBg}`}>
-              {typeof icon === 'function' ? React.createElement(icon as any, { size: 13 }) : icon}
-            </div>
-          )}
-          <span className="text-[10px] font-mono font-bold uppercase tracking-wider text-white/90">
-            {label}
+    <div className="flex flex-col gap-1.5 w-full select-none">
+      {/* Thick Pill Capsule Slider (Apple Control Center / Samsung One UI Style) */}
+      <div
+        ref={trackRef}
+        onPointerDown={handlePointerDown}
+        role="slider"
+        aria-label={ariaLabel}
+        aria-valuemin={min}
+        aria-valuemax={max}
+        aria-valuenow={value}
+        tabIndex={0}
+        onKeyDown={(e) => {
+          if (e.key === 'ArrowRight' || e.key === 'ArrowUp') {
+            e.preventDefault();
+            onChange(Math.min(max, value + (step * 5)));
+          } else if (e.key === 'ArrowLeft' || e.key === 'ArrowDown') {
+            e.preventDefault();
+            onChange(Math.max(min, value - (step * 5)));
+          }
+        }}
+        className={`relative w-full h-12 rounded-2xl bg-white/[0.08] hover:bg-white/[0.12] border border-white/10 hover:border-white/20 transition-all cursor-pointer overflow-hidden flex items-center justify-between px-3.5 focus:outline-none focus:ring-2 focus:ring-cyan-400/40 ${isDragging ? 'scale-[0.99] border-white/30' : ''}`}
+      >
+        {/* Filled Level Fill */}
+        <div
+          className={`absolute left-0 top-0 bottom-0 ${styles.trackFill} transition-[width] duration-75 ease-out rounded-r-xl opacity-90`}
+          style={{ width: `${percentage}%` }}
+        />
+
+        {/* Content Container (Above the filled background) */}
+        <div className="relative z-10 flex items-center justify-between w-full pointer-events-none">
+          {/* Icon & Label */}
+          <div className="flex items-center gap-2.5">
+            {onIconClick ? (
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onIconClick();
+                }}
+                className="slider-icon-btn pointer-events-auto p-1.5 -ml-1 rounded-xl hover:bg-black/20 active:scale-95 transition-all text-white/90 hover:text-white"
+                title={iconTitle}
+                aria-label={iconTitle || label}
+              >
+                {typeof icon === 'function' ? React.createElement(icon as any, { size: 18, strokeWidth: 2 }) : icon}
+              </button>
+            ) : (
+              <div className="text-white/90 p-1">
+                {typeof icon === 'function' ? React.createElement(icon as any, { size: 18, strokeWidth: 2 }) : icon}
+              </div>
+            )}
+            
+            <span className="text-[11px] font-sans font-semibold tracking-wide text-white/90 mix-blend-difference drop-shadow-sm">
+              {label}
+            </span>
+          </div>
+
+          {/* Value Display */}
+          <span className="text-xs font-mono font-bold text-white/90 mix-blend-difference drop-shadow-sm px-1.5">
+            {valueDisplay || `${value}%`}
           </span>
         </div>
-
-        <span className={`text-[11px] font-mono font-bold px-2 py-0.5 rounded-lg border ${styles.badge}`}>
-          {valueDisplay || `${value}%`}
-        </span>
       </div>
 
-      {/* Capsule Slider Track */}
-      <div className="relative flex items-center h-4 group">
-        <input
-          type="range"
-          min={min}
-          max={max}
-          step={step}
-          value={value}
-          onChange={(e) => onChange(Number(e.target.value))}
-          aria-label={ariaLabel}
-          aria-valuemin={min}
-          aria-valuemax={max}
-          aria-valuenow={value}
-          className={`w-full h-2 bg-white/10 rounded-full appearance-none cursor-pointer ${styles.sliderClass} focus:outline-none focus:ring-2 focus:ring-cyan-500/50`}
-        />
-      </div>
-
-      {/* Quick Presets */}
+      {/* Preset Quick Chips */}
       {presets && presets.length > 0 && (
-        <div className="grid grid-cols-4 gap-1">
+        <div className="grid grid-cols-4 gap-1.5 px-0.5">
           {presets.map((preset) => {
             const isSelected = value === preset.val;
             return (
@@ -129,10 +183,10 @@ export const QuickSlider: React.FC<QuickSliderProps> = ({
                 key={preset.label}
                 type="button"
                 onClick={() => onChange(preset.val)}
-                className={`py-0.5 rounded-lg text-[8px] font-mono uppercase tracking-wider transition-all border cursor-pointer text-center focus:outline-none focus:ring-1 focus:ring-cyan-500/50 ${
+                className={`py-1 rounded-xl text-[9px] font-mono uppercase tracking-wider transition-all border cursor-pointer text-center focus:outline-none focus:ring-1 focus:ring-cyan-500/50 ${
                   isSelected
                     ? styles.presetActive
-                    : 'bg-white/[0.02] border-white/[0.05] text-white/40 hover:text-white hover:bg-white/5'
+                    : 'bg-white/[0.03] border-white/[0.06] text-white/50 hover:text-white hover:bg-white/[0.08]'
                 }`}
               >
                 {preset.label}

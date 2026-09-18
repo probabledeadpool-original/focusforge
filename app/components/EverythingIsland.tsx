@@ -295,15 +295,33 @@ export default function EverythingIsland() {
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key !== 'Escape') return;
-      if (islandState === 'frequency' && isIslandMusicExpanded) {
-        setIsIslandMusicExpanded(false);
+      if (event.key === 'Escape') {
+        if (islandState === 'settings') {
+          setIslandState('mini');
+          event.preventDefault();
+        } else if (islandState === 'frequency' && isIslandMusicExpanded) {
+          setIsIslandMusicExpanded(false);
+          event.preventDefault();
+        } else if (islandState !== 'mini') {
+          setIslandState('mini');
+          event.preventDefault();
+        }
+      } else if (event.ctrlKey && event.key === ',') {
         event.preventDefault();
+        setIslandState(prev => prev === 'settings' ? 'mini' : 'settings');
       }
     };
 
+    const handleOpenSettings = () => {
+      setIslandState('settings');
+    };
+
     window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
+    window.addEventListener('open-quick-settings', handleOpenSettings);
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+      window.removeEventListener('open-quick-settings', handleOpenSettings);
+    };
   }, [islandState, isIslandMusicExpanded]);
 
   useEffect(() => {
@@ -1214,7 +1232,7 @@ Answer directly, clearly, and concisely in normal natural language. Provide dire
     if (islandState === 'wiki') return 800;
     if (islandState === 'youtube') return 800;
     if (islandState === 'ai') return 680;
-    if (islandState === 'settings') return 600;
+    if (islandState === 'settings') return typeof window !== 'undefined' ? Math.min(540, window.innerWidth - 24) : 540;
     if (jarvisStore.isOpen && (jarvisStore.isMinimized || jarvisStore.displayMode === 'minimized') && islandState === 'mini') return 58;
     if (islandState === 'mini') return 250;
     if (islandState === 'search') return 600;
@@ -1233,7 +1251,7 @@ Answer directly, clearly, and concisely in normal natural language. Provide dire
     if (islandState === 'wiki') return 600;
     if (islandState === 'youtube') return 450;
     if (islandState === 'ai') return chatHistory.length > 0 ? 560 : 440;
-    if (islandState === 'settings') return 600;
+    if (islandState === 'settings') return typeof window !== 'undefined' ? Math.min(680, window.innerHeight - 50) : 680;
     if (jarvisStore.isOpen && (jarvisStore.isMinimized || jarvisStore.displayMode === 'minimized') && islandState === 'mini') return 58;
     if (islandState === 'mini') return 40;
     if (islandState === 'search') {
@@ -1315,6 +1333,20 @@ Answer directly, clearly, and concisely in normal natural language. Provide dire
                </h1>
             </motion.div>
           </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Outside Click Backdrop for Quick Settings */}
+      <AnimatePresence>
+        {islandState === 'settings' && (
+          <motion.div 
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.2 }}
+            onClick={() => setIslandState('mini')}
+            className="fixed inset-0 z-[9990] bg-black/50 backdrop-blur-sm pointer-events-auto"
+          />
         )}
       </AnimatePresence>
 
@@ -2776,11 +2808,20 @@ Answer directly, clearly, and concisely in normal natural language. Provide dire
 
           {/* State: Quick Settings (Apple Control Center & Samsung Quick Panel Polish) */}
           {islandState === 'settings' && (
-            <QuickSettingsPanel 
-              isOpen={islandState === 'settings'} 
-              onClose={() => setIslandState('mini')} 
-              isEmbeddedInIsland={true} 
-            />
+            <motion.div
+              key="settings"
+              initial={{ opacity: 0, scale: 0.96 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.96 }}
+              transition={{ duration: 0.2 }}
+              className="w-full h-full flex flex-col p-1 sm:p-2 relative z-10 overflow-hidden"
+            >
+              <QuickSettingsPanel 
+                isOpen={islandState === 'settings'} 
+                onClose={() => setIslandState('mini')} 
+                isEmbeddedInIsland={true} 
+              />
+            </motion.div>
           )}
 
         {/* YouTube Embed State */}

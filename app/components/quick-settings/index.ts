@@ -1,7 +1,10 @@
 export { QuickSettingsPanel } from './QuickSettingsPanel';
 export { QuickSettingsHeader } from './QuickSettingsHeader';
+export { QuickDualPillHeader } from './QuickDualPillHeader';
+export { QuickNowPlayingCard } from './QuickNowPlayingCard';
 export { QuickActionTile } from './QuickActionTile';
 export { QuickSlider } from './QuickSlider';
+export { QuickCircleGrid } from './QuickCircleGrid';
 export { QuickHardwareRouting } from './QuickHardwareRouting';
 export { QuickEdgeLightingSection } from './QuickEdgeLightingSection';
 export { QuickDspSection } from './QuickDspSection';
