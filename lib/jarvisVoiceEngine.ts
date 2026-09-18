@@ -1,6 +1,7 @@
 "use client";
 
 import { jarvisAudio } from './jarvisAudio';
+import { cleanJarvisOutput } from './jarvisOutputCleaner';
 
 export type VoicePhase = 
   | 'IDLE'
@@ -764,7 +765,9 @@ class JarvisVoiceEngine {
     try {
       window.speechSynthesis.cancel();
 
-      const cleanText = text
+      // Defensive cleaning to ensure TTS never speaks role tags, delimiters, or internal tokens
+      let cleanText = cleanJarvisOutput(text);
+      cleanText = cleanText
         .replace(/\[ACTION:[\s\S]*?\]/g, '')
         .replace(/\*\*(.*?)\*\*/g, '$1')
         .replace(/\*(.*?)\*/g, '$1')

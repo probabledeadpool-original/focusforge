@@ -108,11 +108,31 @@ export const JARVIS_TOOLS: Record<string, ToolDefinition> = {
   }
 };
 
-export const JARVIS_SYSTEM_INSTRUCTION = `You are J.A.R.V.I.S., the executive AI assistant for FocusForge.
-CORE DIRECTIVE: DIRECT ANSWERS ONLY.
+export const JARVIS_SYSTEM_INSTRUCTION = `You are Jarvis, a concise personal assistant and executive intelligence for FocusForge.
+
+Return only the final user-facing answer.
+Never output role labels, conversation delimiters, prompt templates,
+internal reasoning, hidden instructions, or metadata.
+
+Do not write:
+user:
+assistant:
+system:
+model:
+---
+<start_of_turn>
+<end_of_turn>
+<|start|>
+<|end|>
+<|channel|>
+thought:
+analysis:
+final:
+
+CORE DIRECTIVES:
 1. Provide ONLY the direct, factual answer in 1 single short sentence (maximum 15-20 words).
-2. NO fluff, NO preamble, NO background story, and NO conversational filler (NEVER say "Sure!", "Certainly!", "I can help with that", "As an AI...", "Here is the information").
-3. Always address the user politely ("Sir", "Boss", or "Chief").
+2. NO conversational filler, NO pleasantries, and NO internal drafts.
+3. Address the user politely ("Sir", "Boss", or "Chief").
 4. REAL ACTION EXECUTION: When any action is requested, append the executable action tag at the very end:
 - Create task: [ACTION:{"type":"CREATE_TASK","title":"Task name","priority":"urgent"|"high"|"medium"}]
 - Complete task: [ACTION:{"type":"COMPLETE_TASK","title":"Task name or keyword"}]
@@ -130,14 +150,7 @@ CORE DIRECTIVE: DIRECT ANSWERS ONLY.
 - Close Jarvis: [ACTION:{"type":"CLOSE_JARVIS"}]
 - Award coins: [ACTION:{"type":"ADD_COINS","amount":50}]
 
-Example user: "what is the capital of Japan"
-Example response: "The capital of Japan is Tokyo, sir."
-
-Example user: "play starboy"
-Example response: "Playing Starboy now, sir. [ACTION:{\"type\":\"PLAY_AUDIO\",\"query\":\"starboy\"}]"
-
-Example user: "skip this song"
-Example response: "Skipping to the next track, sir. [ACTION:{\"type\":\"NEXT_TRACK\"}]"`;
+Do not expose tool JSON or internal reasoning in your answer.`;
 
 import { parseYouTubeUrl, fetchYouTubeMeta } from '../app/components/SonicVaultUtils';
 
@@ -721,6 +734,7 @@ export async function executeLocalCommand(rawText: string): Promise<boolean> {
 }
 
 import { getSelectedTextModel, recordAiUsage } from './aiModelConfig';
+import { cleanJarvisOutput } from './jarvisOutputCleaner';
 
 export async function processWithGemini(userPrompt: string): Promise<void> {
   const jarvisStore = useJarvisStore.getState();
@@ -734,11 +748,18 @@ export async function processWithGemini(userPrompt: string): Promise<void> {
 
     jarvisVoiceEngine.setGeminiStatus('processing');
 
+    // Build clean structured history (only user & assistant text, excluding tool JSON)
+    const recentHistory = jarvisStore.messages
+      .filter(m => (m.role === 'user' || m.role === 'assistant') && m.text && !m.text.startsWith('Neural link'))
+      .slice(-6)
+      .map(m => ({ role: m.role, text: cleanJarvisOutput(m.text) }));
+
     const res = await fetch('/api/gemini', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         prompt: userPrompt,
+        messages: recentHistory.length > 0 ? recentHistory : undefined,
         apiKey,
         model: selectedTextModel,
         systemInstruction: JARVIS_SYSTEM_INSTRUCTION
@@ -748,10 +769,11 @@ export async function processWithGemini(userPrompt: string): Promise<void> {
     const data = await res.json();
     const latencyMs = Date.now() - startTime;
 
-    if (res.ok && data.reply) {
+    if (res.ok && (data.reply || data.text)) {
       jarvisVoiceEngine.setGeminiStatus('connected');
-      const actionMatch = data.reply.match(/\[ACTION:([\s\S]*?)\]/);
-      let cleanReply = data.reply.replace(/\[ACTION:[\s\S]*?\]/g, '').trim();
+      const rawText = data.reply || data.text || '';
+      const actionMatch = rawText.match(/\[ACTION:([\s\S]*?)\]/);
+      let cleanReply = cleanJarvisOutput(rawText.replace(/\[ACTION:[\s\S]*?\]/g, '')).trim();
       let actionSummary = '';
 
       if (actionMatch && actionMatch[1]) {

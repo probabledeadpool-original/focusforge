@@ -1,39 +1,12 @@
 import { NextResponse } from 'next/server';
-
-function cleanAiResponse(raw: string): string {
-  if (!raw) return "Standing by for your directive, sir.";
-  let text = raw.trim();
-
-  // 1. Strip thinking tags if any model outputs <thought>...</thought>
-  text = text.replace(/<thought>[\s\S]*?<\/thought>/gi, '').trim();
-
-  // 2. If Gemma or reasoning model leaked draft monologue (e.g. * Draft 2 (Applying Persona Constraints): ...)
-  const draftMatches = [...text.matchAll(/(?:^|\n)\s*\*?\s*\*?Draft\s*\d+[^:\n]*:\*?\s*([\s\S]*?)(?=(?:\n\s*\*?\s*\*?Draft\s*\d+|$))/gi)];
-  if (draftMatches.length > 0) {
-    const lastDraft = draftMatches[draftMatches.length - 1][1].trim();
-    if (lastDraft) {
-      text = lastDraft;
-    }
-  }
-
-  // 3. Strip internal persona breakdown headers if present (e.g. "* Persona: ... \n * User Query: ...")
-  text = text.replace(/^\s*\*?\s*Persona\s*:[\s\S]*?(?=\n\n|\n[A-Z]|\n\s*\*?\s*Draft|\nDirect|$)/i, '').trim();
-  text = text.replace(/^\s*\*?\s*User Query\s*:[\s\S]*?(?=\n\n|\n[A-Z]|$)/i, '').trim();
-  text = text.replace(/^\s*\*?\s*Attributes\s*:[\s\S]*?(?=\n\n|\n[A-Z]|$)/i, '').trim();
-  text = text.replace(/^\s*\*?\s*Format\s*:[\s\S]*?(?=\n\n|\n[A-Z]|$)/i, '').trim();
-  text = text.replace(/^\s*\*?\s*Draft\s*\d+[\s\S]*?:\s*/i, '').trim();
-
-  // 4. Remove any remaining raw internal monologue prefixes
-  text = text.replace(/^(Internal Monologue|Thought Process|Thinking Process|Draft \d+):\s*[\s\S]*?\n/i, '').trim();
-
-  return text || raw.trim();
-}
+import { cleanJarvisOutput, extractFinalResponse } from '@/lib/jarvisOutputCleaner';
 
 export async function POST(req: Request) {
   const startTime = Date.now();
   try {
     const { 
       prompt, 
+      messages,
       apiKey, 
       systemInstruction, 
       model, 
@@ -65,8 +38,6 @@ export async function POST(req: Request) {
 
     const buildEndpoint = (m: string) => 
       `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(m.replace(/^models\//, ''))}:generateContent?key=${encodeURIComponent(key)}`;
-
-    const isGemmaModel = selectedModel.toLowerCase().includes('gemma');
 
     // --- 1. MODEL CAPABILITY & PING TEST MODE ---
     if (isTest) {
@@ -164,56 +135,66 @@ export async function POST(req: Request) {
       });
     }
 
-    // --- 2. STANDARD INFERENCE & TOOL ROUTING MODE ---
-    if (!prompt || typeof prompt !== 'string' || !prompt.trim()) {
-      return NextResponse.json({ error: 'Prompt is required.' }, { status: 400 });
+    // --- 2. STANDARD INFERENCE & DIRECT EXECUTION MODE ---
+    if ((!prompt || typeof prompt !== 'string' || !prompt.trim()) && (!Array.isArray(messages) || messages.length === 0)) {
+      return NextResponse.json({ error: 'Prompt or conversation messages required.' }, { status: 400 });
     }
 
-    const defaultSystem = 'You are J.A.R.V.I.S., the executive AI assistant for Focus Forge. Answer directly in 1 short sentence (15-20 words max). NO conversational filler, NO pleasantries, and NO internal drafts.';
+    const defaultSystem = `You are Jarvis, a concise personal assistant.
+
+Return only the final user-facing answer.
+Never output role labels, conversation delimiters, prompt templates,
+internal reasoning, hidden instructions, or metadata.
+
+Do not write:
+user:
+assistant:
+system:
+model:
+---
+<start_of_turn>
+<end_of_turn>
+<|start|>
+<|end|>
+<|channel|>
+thought:
+analysis:
+final:
+
+If a tool is required, use the application's tool-calling format.
+Do not expose tool-call JSON to the user.
+After a tool result is received, answer the user directly.`;
+
     const systemText = systemInstruction || defaultSystem;
 
-    // Construct model-specific generation payload
-    let requestBody: any;
-    if (isGemmaModel) {
-      // Gemma format: clean direct user content without system_instruction object
-      requestBody = {
-        contents: [
-          {
-            role: 'user',
-            parts: [
-              {
-                text: `${systemText}\n\nUser Question: ${prompt.trim()}\n\nDirect Answer:`
-              }
-            ]
-          }
-        ],
-        generationConfig: {
-          temperature: 0.2,
-          maxOutputTokens: 200,
-        }
-      };
+    // Structured contents construction
+    let structuredContents: any[] = [];
+
+    if (Array.isArray(messages) && messages.length > 0) {
+      structuredContents = messages.map((m: any) => ({
+        role: m.role === 'assistant' ? 'model' : 'user',
+        parts: [{ text: typeof m.text === 'string' ? m.text.trim() : (m.parts?.[0]?.text || '') }]
+      }));
     } else {
-      // Gemini format: native system_instruction support
-      requestBody = {
-        system_instruction: {
-          parts: [{ text: systemText }]
-        },
-        contents: [
-          {
-            role: 'user',
-            parts: [
-              {
-                text: prompt.trim()
-              }
-            ]
-          }
-        ],
-        generationConfig: {
-          temperature: 0.2,
-          maxOutputTokens: 200,
+      structuredContents = [
+        {
+          role: 'user',
+          parts: [{ text: prompt.trim() }]
         }
-      };
+      ];
     }
+
+    // Standard Google GenAI structured payload
+    const requestBody: any = {
+      system_instruction: {
+        parts: [{ text: systemText }]
+      },
+      contents: structuredContents,
+      generationConfig: {
+        temperature: 0.2,
+        maxOutputTokens: 250,
+      }
+    };
 
     if (jsonSchema) {
       requestBody.generationConfig.responseMimeType = "application/json";
@@ -231,7 +212,7 @@ export async function POST(req: Request) {
     let isFallback = false;
     let fallbackReason = null;
 
-    // Automatic fallback if model encounters error (e.g. 500, 404, 400)
+    // Fallback logic for unreachable / error states
     if (!response.ok && selectedModel !== 'gemini-2.5-flash') {
       const isAuthOrQuota = response.status === 401 || response.status === 403 || response.status === 429;
       if (!isAuthOrQuota) {
@@ -241,8 +222,8 @@ export async function POST(req: Request) {
         try {
           const fallbackBody = {
             system_instruction: { parts: [{ text: systemText }] },
-            contents: [{ role: 'user', parts: [{ text: prompt.trim() }] }],
-            generationConfig: { temperature: 0.2, maxOutputTokens: 200 }
+            contents: structuredContents,
+            generationConfig: { temperature: 0.2, maxOutputTokens: 250 }
           };
 
           const fallbackResponse = await fetch(fallbackEndpoint, {
@@ -289,14 +270,29 @@ export async function POST(req: Request) {
       );
     }
 
-    const rawReply = data?.candidates?.[0]?.content?.parts?.[0]?.text ||
-                     data?.output_text ||
-                     "Standing by for your focus directive, sir.";
+    // Extract raw text using standard response parts inspector
+    const rawReply = extractFinalResponse(data) || "Standing by for your directive, sir.";
 
-    // Clean any leaked thoughts, persona headers, or Draft 1/Draft 2 monologues
-    const cleanReply = cleanAiResponse(rawReply);
+    // Defensive sanitizer: removes any accidental role headers, delimiter lines, thoughts, or metadata
+    const cleanReply = cleanJarvisOutput(rawReply);
 
-    const estimatedInputTokens = Math.round((prompt.length + systemText.length) / 4);
+    // Development-only telemetry logging
+    if (process.env.NODE_ENV !== 'production') {
+      const parts = data?.candidates?.[0]?.content?.parts || [];
+      const hasThought = parts.some((p: any) => p.thought || /<thought>/i.test(p.text || ''));
+      const partTypes = parts.map((p: any) => p.thought ? 'thought' : 'text');
+      
+      console.log('[API /api/gemini] Inference telemetry:', {
+        model: selectedModel,
+        conversationTurnCount: structuredContents.length,
+        responsePartTypes: partTypes,
+        hasThoughtContent: hasThought,
+        extractedRawLength: rawReply.length,
+        sanitizedFinalLength: cleanReply.length
+      });
+    }
+
+    const estimatedInputTokens = Math.round(((prompt?.length || 0) + systemText.length) / 4);
     const estimatedOutputTokens = Math.round(cleanReply.length / 4);
     const latencyMs = Date.now() - startTime;
 
