@@ -61,8 +61,8 @@ export function useJarvisHotword() {
     const handleHotwordTriggered = (e: any) => {
       const { trailingCommand } = e?.detail || {};
       const store = useJarvisStore.getState();
-      // Always transition to full screen mode when wake word is spoken
-      store.openJarvis(trailingCommand || undefined, 'fullscreen');
+      const targetMode = store.displayMode === 'minimized' || store.isMinimized ? 'minimized' : 'fullscreen';
+      store.openJarvis(trailingCommand || undefined, targetMode);
     };
 
     window.addEventListener('jarvis-hotword-triggered', handleHotwordTriggered);

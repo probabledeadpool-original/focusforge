@@ -467,6 +467,9 @@ class JarvisVoiceEngine {
         if (this.isCooldownActive) return;
         if (this.phase !== 'WAKE_WORD_LISTENING') return;
 
+        const store = typeof window !== 'undefined' ? (window as any).__jarvisStore?.getState?.() : null;
+        const isMinimizedOpen = Boolean(store?.isOpen && (store?.isMinimized || store?.displayMode === 'minimized'));
+
         for (let i = event.resultIndex; i < event.results.length; i++) {
           const item = event.results[i];
           for (let k = 0; k < item.length; k++) {
@@ -480,13 +483,18 @@ class JarvisVoiceEngine {
               this.isHighSensitivityMode
             );
 
-            if (isMatched) {
-              voiceLog("WAKE_WORD_TRIGGERED", { 
+            if (isMatched || (isMinimizedOpen && transcript.length >= 2)) {
+              voiceLog("VOICE_TRIGGERED", { 
                 matchedPhrase: transcript,
                 altIndex: k,
-                highSensitivity: this.isHighSensitivityMode 
+                isWakeWord: isMatched,
+                isMinimizedMode: isMinimizedOpen 
               });
-              this.triggerWakeWord(transcript);
+              if (isMinimizedOpen && !isMatched) {
+                this.startCommandListening(transcript);
+              } else {
+                this.triggerWakeWord(transcript);
+              }
               return;
             }
           }

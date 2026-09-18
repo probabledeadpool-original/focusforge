@@ -14,6 +14,8 @@ import { useMarketsStore } from '../../hooks/useMarketsStore';
 
 import { useFrequencyStore } from '../../hooks/useFrequencyStore';
 import { useJarvisStore } from '../../hooks/useJarvisStore';
+import { jarvisVoiceEngine } from '../../lib/jarvisVoiceEngine';
+import { jarvisAudio } from '../../lib/jarvisAudio';
 import { getSelectedTextModel, recordAiUsage } from '../../lib/aiModelConfig';
 import { QuickSettingsPanel } from './quick-settings';
 
@@ -1753,15 +1755,15 @@ Answer directly, clearly, and concisely in normal natural language. Provide dire
                 <div 
                   onClick={(e) => {
                     e.stopPropagation();
-                    jarvisStore.setDisplayMode('expanded');
-                    setIslandState('ai');
+                    jarvisVoiceEngine.startCommandListening();
+                    jarvisAudio.playActivate();
                   }}
                   onDoubleClick={(e) => {
                     e.stopPropagation();
                     jarvisStore.setDisplayMode('fullscreen');
                   }}
                   className="relative w-full h-full rounded-full flex items-center justify-center cursor-pointer group select-none overflow-hidden"
-                  title="J.A.R.V.I.S. Neural Core (Click to Expand • Double-click for Fullscreen)"
+                  title="J.A.R.V.I.S. Neural Core (Click to Speak • Double-click for Fullscreen)"
                 >
                   {/* Pure SiriWave & Fluid-Dots Core */}
                   <div className="relative w-full h-full rounded-full overflow-hidden flex items-center justify-center pointer-events-none">

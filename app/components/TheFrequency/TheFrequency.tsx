@@ -316,7 +316,7 @@ export default function TheFrequency({ onBack }: TheFrequencyProps) {
         </aside>
 
         {/* 2. CENTER MAIN STAGE: Expansive, Uncluttered Apple Canvas */}
-        <main className="flex-1 overflow-y-auto no-scrollbar p-6 lg:p-8 space-y-7 min-w-0 bg-gradient-to-b from-[#0a0b10] via-[#06070a] to-[#040406]">
+        <main className="flex-1 overflow-y-auto no-scrollbar p-6 lg:p-8 space-y-7 min-w-0 pb-48 md:pb-52 bg-gradient-to-b from-[#0a0b10] via-[#06070a] to-[#040406]">
           
           {/* Top Bar: Clean Search & Action Pills */}
           <div className="flex items-center justify-between gap-4">
@@ -375,7 +375,7 @@ export default function TheFrequency({ onBack }: TheFrequencyProps) {
 
           {/* TAB 1: HOME (Master Library Lounge) */}
           {store.activeTab === 'home' && (
-            <div className="space-y-7 pb-24">
+            <div className="space-y-7">
               
               {/* Clean Library Header */}
               <section className="space-y-1">
@@ -569,7 +569,7 @@ export default function TheFrequency({ onBack }: TheFrequencyProps) {
 
           {/* TAB 2: PLAYLISTS PAGE (Apple Music Style Studio & Vault) */}
           {store.activeTab === 'playlists' && (
-            <div className="space-y-6 pb-24">
+            <div className="space-y-6">
 
               {/* VIEW A: DEDICATED PLAYLIST STUDIO */}
               {selectedPlaylistDetailId && store.playlists.some(p => p.id === selectedPlaylistDetailId) ? (() => {
@@ -866,7 +866,7 @@ export default function TheFrequency({ onBack }: TheFrequencyProps) {
 
           {/* TAB 3: CREATIVES LAB */}
           {store.activeTab === 'creatives' && (
-            <div className="space-y-6 pb-24">
+            <div className="space-y-6">
               <div className="border-b border-white/[0.06] pb-4">
                 <h1 className="text-3xl font-bold text-white tracking-tight">Creatives & Sonic Lab</h1>
                 <p className="text-xs text-white/40 mt-0.5">Generative ambient tones, binaural waves, and focus soundscapes</p>
@@ -910,8 +910,8 @@ export default function TheFrequency({ onBack }: TheFrequencyProps) {
         </main>
       </div>
 
-      {/* 3. BOTTOM APPLE-GRADE PLAYER BAR */}
-      <footer className="h-18 md:h-20 bg-black/85 backdrop-blur-3xl border-t border-white/[0.08] px-5 lg:px-8 flex items-center justify-between shrink-0 relative z-30">
+      {/* 3. FLOATING APPLE-GRADE PLAYER BAR (Positioned along Y-axis ABOVE the bottom navigation dock) */}
+      <footer className="fixed bottom-24 md:bottom-28 left-4 right-4 md:left-8 md:right-8 max-w-5xl mx-auto z-40 bg-[#0c0e14]/95 backdrop-blur-3xl border border-white/15 rounded-2xl md:rounded-3xl px-4 md:px-6 py-2.5 md:py-3 shadow-[0_20px_60px_rgba(0,0,0,0.85)] flex items-center justify-between">
         
         {/* Left: Track Info */}
         <div className="flex items-center gap-3 min-w-0 w-1/4">
