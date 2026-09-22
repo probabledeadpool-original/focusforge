@@ -815,11 +815,11 @@ class JarvisVoiceEngine {
             }
           } catch (e) {}
 
-          // Immediate return to continuous wake-word listening
+          // Continuous Conversational Listening:
+          // Once Jarvis finishes responding, continue listening for follow-up commands until user is done talking
           setTimeout(() => {
             if (this.isSessionActive(sessionId)) {
-              this.transitionTo('WAKE_WORD_LISTENING', 'Speech playback completed');
-              this.startWakeWordDetection();
+              this.startCommandListening();
             }
           }, VOICE_CONFIG.acknowledgementGuardMs);
         }
@@ -835,8 +835,11 @@ class JarvisVoiceEngine {
               window.dispatchEvent(new CustomEvent('jarvis-auto-minimize'));
             }
           } catch (err) {}
-          this.transitionTo('WAKE_WORD_LISTENING', 'TTS error/interrupted');
-          this.startWakeWordDetection();
+          setTimeout(() => {
+            if (this.isSessionActive(sessionId)) {
+              this.startCommandListening();
+            }
+          }, VOICE_CONFIG.acknowledgementGuardMs);
         }
       };
 

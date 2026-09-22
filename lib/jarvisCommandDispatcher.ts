@@ -685,11 +685,71 @@ export async function executeLocalCommand(rawText: string): Promise<boolean> {
     }
   }
 
-  // 6C. STOCK & MARKET ANALYSIS DIRECTIVE ("search stock AAPL", "check stock TSLA", "show chart for NVDA", "stock price for BTC", "chart for SPY", "market for ETH")
-  const stockMatch = text.match(/^(?:jarvis\s*,?\s*)?(?:search\s+stock|check\s+stock|show\s+stock|show\s+chart\s+(?:for)?|pull\s+up\s+chart\s+(?:for)?|stock\s+price\s+(?:of|for)?|chart\s+for|market\s+for)\s+([a-zA-Z0-9:\.\-]+)$/i);
+  // 6B-2. VOICE VIDEO SELECTION FROM SEARCH RESULTS ("play 1", "play the first one", "watch video 2", "play #3", "stream the second one", "play last")
+  const videoSelectMatch = text.match(/^(?:jarvis\s*,?\s*)?(?:play|watch|stream|open|select)(?:\s+the)?\s+(?:video\s+|option\s+|track\s+)?(?:number\s+|#)?(first|1st|1|one|second|2nd|2|two|third|3rd|3|three|fourth|4th|4|four|fifth|5th|5|five|sixth|6th|6|six|last)(?:\s+(?:one|video))?$/i);
+  
+  // Find latest message with video search results
+  const messages = jarvisStore.messages;
+  let latestMediaMessage = null;
+  for (let i = messages.length - 1; i >= 0; i--) {
+    if (messages[i].mediaResults && (messages[i].mediaResults?.length || 0) > 0) {
+      latestMediaMessage = messages[i];
+      break;
+    }
+  }
+
+  if (videoSelectMatch && latestMediaMessage && latestMediaMessage.mediaResults) {
+    const rawOrdinal = videoSelectMatch[1].toLowerCase();
+    const ordinalMap: Record<string, number> = {
+      'first': 0, '1st': 0, '1': 0, 'one': 0,
+      'second': 1, '2nd': 1, '2': 1, 'two': 1,
+      'third': 2, '3rd': 2, '3': 2, 'three': 2,
+      'fourth': 3, '4th': 3, '4': 3, 'four': 3,
+      'fifth': 4, '5th': 4, '5': 4, 'five': 4,
+      'sixth': 5, '6th': 5, '6': 5, 'six': 5,
+      'last': latestMediaMessage.mediaResults.length - 1
+    };
+
+    const targetIndex = ordinalMap[rawOrdinal] !== undefined ? ordinalMap[rawOrdinal] : 0;
+    const selectedVideo = latestMediaMessage.mediaResults[targetIndex];
+
+    if (selectedVideo) {
+      jarvisVoiceEngine.setActiveTool('PLAY_AUDIO');
+      useAppStore.getState().setView('place');
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('changeView', { detail: { view: 'place' } }));
+        setTimeout(() => {
+          window.dispatchEvent(new CustomEvent('start-theatre', {
+            detail: {
+              url: selectedVideo.url,
+              videoId: selectedVideo.id,
+              title: selectedVideo.title,
+              thumbnail: selectedVideo.thumbnail
+            }
+          }));
+        }, 50);
+      }
+      const reply = `Streaming "${selectedVideo.title}" in The Place, sir.`;
+      jarvisStore.addMessage({
+        role: 'assistant',
+        text: reply,
+        actionSummary: `Playing #${targetIndex + 1}: ${selectedVideo.title}`
+      });
+      jarvisVoiceEngine.speakResponse(reply);
+      return true;
+    }
+  }
+
+  // 6C. STOCK & MARKET ANALYSIS DIRECTIVE (US, Indian NSE/BSE Equities & Global Indices)
+  // e.g. "search stock tata motors", "chart for reliance", "nifty 50 chart", "stock price of infy", "show stock zomato", "check stock TSLA"
+  const stockMatch = text.match(/^(?:jarvis\s*,?\s*)?(?:search\s+stock|check\s+stock|show\s+stock|stock\s+(?:price|quote|chart|info)\s+(?:of|for)?|show\s+chart\s+(?:for)?|pull\s+up\s+chart\s+(?:for)?|chart\s+(?:for|of)?|market\s+for|stock\s+for)\s+(.+)$/i);
   if (stockMatch && stockMatch[1]) {
-    const rawSymbol = stockMatch[1].trim().toUpperCase();
-    const symbolMap: Record<string, string> = {
+    const rawInput = stockMatch[1].trim();
+    const cleanInput = rawInput.replace(/[?.,!]/g, '').trim();
+    const upperInput = cleanInput.toUpperCase();
+
+    const GLOBAL_STOCK_MAP: Record<string, string> = {
+      // Global Tech & Crypto
       'APPLE': 'NASDAQ:AAPL',
       'AAPL': 'NASDAQ:AAPL',
       'TESLA': 'NASDAQ:TSLA',
@@ -703,7 +763,12 @@ export async function executeLocalCommand(rawText: string): Promise<boolean> {
       'SOLANA': 'BINANCE:SOLUSDT',
       'SOL': 'BINANCE:SOLUSDT',
       'SPX': 'SP:SPX',
+      'S&P 500': 'SP:SPX',
+      'S&P': 'SP:SPX',
       'SPY': 'AMEX:SPY',
+      'NASDAQ': 'NASDAQ:IXIC',
+      'DOW': 'DJ:DJI',
+      'DOW JONES': 'DJ:DJI',
       'AMAZON': 'NASDAQ:AMZN',
       'AMZN': 'NASDAQ:AMZN',
       'GOOGLE': 'NASDAQ:GOOGL',
@@ -713,18 +778,103 @@ export async function executeLocalCommand(rawText: string): Promise<boolean> {
       'META': 'NASDAQ:META',
       'COINBASE': 'NASDAQ:COIN',
       'COIN': 'NASDAQ:COIN',
-      'GOLD': 'TVC:GOLD'
+      'GOLD': 'TVC:GOLD',
+      'CRUDE OIL': 'TVC:USOIL',
+      'OIL': 'TVC:USOIL',
+
+      // Indian Equities & Indices (NSE / BSE)
+      'RELIANCE': 'NSE:RELIANCE',
+      'RELIANCE INDUSTRIES': 'NSE:RELIANCE',
+      'RIL': 'NSE:RELIANCE',
+      'TCS': 'NSE:TCS',
+      'TATA CONSULTANCY SERVICES': 'NSE:TCS',
+      'TATA CONSULTANCY': 'NSE:TCS',
+      'HDFC': 'NSE:HDFCBANK',
+      'HDFC BANK': 'NSE:HDFCBANK',
+      'HDFCBANK': 'NSE:HDFCBANK',
+      'INFY': 'NSE:INFY',
+      'INFOSYS': 'NSE:INFY',
+      'TATAMOTORS': 'NSE:TATAMOTORS',
+      'TATA MOTORS': 'NSE:TATAMOTORS',
+      'TATA MOTOR': 'NSE:TATAMOTORS',
+      'TATASTEEL': 'NSE:TATASTEEL',
+      'TATA STEEL': 'NSE:TATASTEEL',
+      'ICICI': 'NSE:ICICIBANK',
+      'ICICI BANK': 'NSE:ICICIBANK',
+      'ICICIBANK': 'NSE:ICICIBANK',
+      'SBIN': 'NSE:SBIN',
+      'SBI': 'NSE:SBIN',
+      'STATE BANK OF INDIA': 'NSE:SBIN',
+      'STATE BANK': 'NSE:SBIN',
+      'ITC': 'NSE:ITC',
+      'BHARTIARTL': 'NSE:BHARTIARTL',
+      'BHARTI AIRTEL': 'NSE:BHARTIARTL',
+      'AIRTEL': 'NSE:BHARTIARTL',
+      'KOTAKBANK': 'NSE:KOTAKBANK',
+      'KOTAK': 'NSE:KOTAKBANK',
+      'KOTAK MAHINDRA BANK': 'NSE:KOTAKBANK',
+      'LT': 'NSE:LT',
+      'L&T': 'NSE:LT',
+      'LARSEN': 'NSE:LT',
+      'LARSEN & TOUBRO': 'NSE:LT',
+      'LARSEN AND TOUBRO': 'NSE:LT',
+      'ZOMATO': 'NSE:ZOMATO',
+      'WIPRO': 'NSE:WIPRO',
+      'BAJFINANCE': 'NSE:BAJFINANCE',
+      'BAJAJ FINANCE': 'NSE:BAJFINANCE',
+      'MARUTI': 'NSE:MARUTI',
+      'MARUTI SUZUKI': 'NSE:MARUTI',
+      'SUNPHARMA': 'NSE:SUNPHARMA',
+      'SUN PHARMA': 'NSE:SUNPHARMA',
+      'ADANIENT': 'NSE:ADANIENT',
+      'ADANI ENTERPRISES': 'NSE:ADANIENT',
+      'ADANI': 'NSE:ADANIENT',
+      'ADANIPORTS': 'NSE:ADANIPORTS',
+      'ADANI PORTS': 'NSE:ADANIPORTS',
+      'NIFTY': 'NSE:NIFTY',
+      'NIFTY 50': 'NSE:NIFTY',
+      'NIFTY50': 'NSE:NIFTY',
+      'BANKNIFTY': 'NSE:BANKNIFTY',
+      'BANK NIFTY': 'NSE:BANKNIFTY',
+      'NIFTY BANK': 'NSE:BANKNIFTY',
+      'SENSEX': 'BSE:SENSEX',
+      'BSE SENSEX': 'BSE:SENSEX',
+      'BSESENSEX': 'BSE:SENSEX',
+      'PAYTM': 'NSE:PAYTM',
+      'ONE97': 'NSE:PAYTM',
+      'JIOFIN': 'NSE:JIOFIN',
+      'JIO FINANCIAL': 'NSE:JIOFIN'
     };
-    const normSymbol = symbolMap[rawSymbol] || (rawSymbol.includes(':') ? rawSymbol : `NASDAQ:${rawSymbol}`);
+
+    let normSymbol = GLOBAL_STOCK_MAP[upperInput];
+
+    if (!normSymbol) {
+      if (upperInput.includes(':')) {
+        normSymbol = upperInput;
+      } else if (upperInput.endsWith('.NS')) {
+        normSymbol = `NSE:${upperInput.replace(/\.NS$/, '')}`;
+      } else if (upperInput.endsWith('.BO')) {
+        normSymbol = `BSE:${upperInput.replace(/\.BO$/, '')}`;
+      } else if (upperInput.startsWith('NSE ')) {
+        normSymbol = `NSE:${upperInput.replace(/^NSE\s+/, '')}`;
+      } else if (upperInput.startsWith('BSE ')) {
+        normSymbol = `BSE:${upperInput.replace(/^BSE\s+/, '')}`;
+      } else {
+        // Fallback for single tickers without spaces
+        normSymbol = cleanInput.includes(' ') ? `NSE:${upperInput.replace(/\s+/g, '')}` : `NASDAQ:${upperInput}`;
+      }
+    }
+
     jarvisVoiceEngine.setActiveTool('SHOW_STOCK');
-    const reply = `Pulling up live chart and technicals for ${rawSymbol}, sir.`;
+    const displayName = cleanInput;
+    const reply = `Pulling up live chart and technicals for ${displayName}, sir.`;
     jarvisStore.addMessage({
       role: 'assistant',
       text: reply,
       actionSummary: `Chart: ${normSymbol}`,
-      stockData: { symbol: normSymbol, name: rawSymbol }
+      stockData: { symbol: normSymbol, name: displayName }
     });
-    jarvisVoiceEngine.speakResponse(`Pulling up chart for ${rawSymbol}, sir.`);
+    jarvisVoiceEngine.speakResponse(`Pulling up chart for ${displayName}, sir.`);
     return true;
   }
 

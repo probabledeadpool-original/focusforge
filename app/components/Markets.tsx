@@ -20,6 +20,20 @@ const ASSET_CATEGORIES = {
     { symbol: 'BINANCE:XRPUSDT', name: 'XRP', ticker: 'XRP/USDT', price: 1.48, change: 4.60, high: 1.54, low: 1.39, vol: '5.2B' },
     { symbol: 'BINANCE:NEARUSDT', name: 'NEAR Protocol', ticker: 'NEAR/USDT', price: 6.84, change: 8.90, high: 7.10, low: 6.20, vol: '980M' },
   ],
+  indian: [
+    { symbol: 'NSE:RELIANCE', name: 'Reliance Industries', ticker: 'RELIANCE', price: 2980.50, change: 1.24, high: 3010, low: 2950, vol: '6.4M' },
+    { symbol: 'NSE:TCS', name: 'Tata Consultancy Services', ticker: 'TCS', price: 4190.00, change: 0.85, high: 4230, low: 4150, vol: '2.1M' },
+    { symbol: 'NSE:HDFCBANK', name: 'HDFC Bank Ltd', ticker: 'HDFCBANK', price: 1745.20, change: -0.45, high: 1760, low: 1730, vol: '14.2M' },
+    { symbol: 'NSE:INFY', name: 'Infosys Limited', ticker: 'INFY', price: 1890.75, change: 2.10, high: 1910, low: 1860, vol: '8.7M' },
+    { symbol: 'NSE:TATAMOTORS', name: 'Tata Motors Ltd', ticker: 'TATAMOTORS', price: 978.40, change: 3.65, high: 990, low: 955, vol: '11.5M' },
+    { symbol: 'NSE:ICICIBANK', name: 'ICICI Bank Ltd', ticker: 'ICICIBANK', price: 1260.10, change: 1.15, high: 1275, low: 1245, vol: '9.8M' },
+    { symbol: 'NSE:SBIN', name: 'State Bank of India', ticker: 'SBIN', price: 815.30, change: 0.95, high: 825, low: 805, vol: '16.1M' },
+    { symbol: 'NSE:ITC', name: 'ITC Limited', ticker: 'ITC', price: 495.60, change: -0.20, high: 502, low: 491, vol: '12.0M' },
+    { symbol: 'NSE:BHARTIARTL', name: 'Bharti Airtel Ltd', ticker: 'BHARTIARTL', price: 1580.00, change: 1.40, high: 1595, low: 1560, vol: '5.3M' },
+    { symbol: 'NSE:ZOMATO', name: 'Zomato Limited', ticker: 'ZOMATO', price: 265.40, change: 4.80, high: 272, low: 252, vol: '38.0M' },
+    { symbol: 'NSE:NIFTY', name: 'Nifty 50 Index', ticker: 'NIFTY 50', price: 24850.30, change: 0.72, high: 24920, low: 24710, vol: 'N/A' },
+    { symbol: 'BSE:SENSEX', name: 'BSE Sensex Index', ticker: 'SENSEX', price: 81650.10, change: 0.65, high: 81890, low: 81300, vol: 'N/A' },
+  ],
   tech: [
     { symbol: 'NASDAQ:NVDA', name: 'NVIDIA Corp', ticker: 'NVDA', price: 145.80, change: 2.75, high: 147.20, low: 142.10, vol: '42.1M' },
     { symbol: 'NASDAQ:AAPL', name: 'Apple Inc', ticker: 'AAPL', price: 232.50, change: 0.94, high: 234.00, low: 230.10, vol: '35.4M' },
@@ -30,6 +44,8 @@ const ASSET_CATEGORIES = {
   ],
   indices: [
     { symbol: 'SP:SPX', name: 'S&P 500', ticker: 'SPX', price: 5988.40, change: 0.62, high: 6010, low: 5950, vol: '3.2B' },
+    { symbol: 'NSE:NIFTY', name: 'Nifty 50 Index', ticker: 'NIFTY', price: 24850.30, change: 0.72, high: 24920, low: 24710, vol: 'N/A' },
+    { symbol: 'BSE:SENSEX', name: 'BSE Sensex Index', ticker: 'SENSEX', price: 81650.10, change: 0.65, high: 81890, low: 81300, vol: 'N/A' },
     { symbol: 'NASDAQ:IXIC', name: 'Nasdaq Composite', ticker: 'IXIC', price: 19120.80, change: 0.88, high: 19200, low: 18980, vol: '4.8B' },
     { symbol: 'DJ:DJI', name: 'Dow Jones', ticker: 'DJI', price: 43910.20, change: 0.35, high: 44100, low: 43750, vol: '1.9B' },
     { symbol: 'TVC:GOLD', name: 'Gold Spot', ticker: 'XAU/USD', price: 2684.50, change: 0.42, high: 2698, low: 2670, vol: '18.4B' },
@@ -39,6 +55,7 @@ const ASSET_CATEGORIES = {
   forex: [
     { symbol: 'FX:EURUSD', name: 'Euro / US Dollar', ticker: 'EUR/USD', price: 1.0542, change: -0.32, high: 1.0590, low: 1.0510, vol: '84.2B' },
     { symbol: 'FX:USDJPY', name: 'US Dollar / Yen', ticker: 'USD/JPY', price: 154.20, change: 0.48, high: 154.80, low: 153.60, vol: '62.1B' },
+    { symbol: 'FX:USDINR', name: 'US Dollar / Indian Rupee', ticker: 'USD/INR', price: 84.45, change: 0.12, high: 84.60, low: 84.35, vol: '22.0B' },
     { symbol: 'FX:GBPUSD', name: 'British Pound / USD', ticker: 'GBP/USD', price: 1.2640, change: -0.15, high: 1.2690, low: 1.2590, vol: '45.0B' },
     { symbol: 'TVC:US10Y', name: 'US 10Y Yield', ticker: 'US10Y', price: 4.42, change: 1.25, high: 4.46, low: 4.38, vol: 'N/A' },
   ]
@@ -67,7 +84,7 @@ const injectWidget = (src: string, containerId: string, config: object) => {
 export default function Markets() {
   const { activeSymbol, setSymbol } = useMarketsStore();
   const { recordSession } = useAuraIntegration();
-  const [activeCategory, setActiveCategory] = useState<'crypto' | 'tech' | 'indices' | 'forex' | 'custom'>('crypto');
+  const [activeCategory, setActiveCategory] = useState<'crypto' | 'indian' | 'tech' | 'indices' | 'forex' | 'custom'>('crypto');
   const [chartInterval, setChartInterval] = useState('D');
   const [searchQuery, setSearchQuery] = useState('');
   const [isIntroLoading, setIsIntroLoading] = useState(false);
@@ -82,6 +99,7 @@ export default function Markets() {
 
   // Custom Watchlist State
   const [customWatchlist, setCustomWatchlist] = useState<any[]>([
+    { symbol: 'NSE:TATAMOTORS', name: 'Tata Motors', ticker: 'TATAMOTORS', price: 978.40, change: 3.65 },
     { symbol: 'NASDAQ:AMD', name: 'Advanced Micro Devices', ticker: 'AMD', price: 154.30, change: 3.12 },
     { symbol: 'BINANCE:ADAUSDT', name: 'Cardano', ticker: 'ADA/USDT', price: 0.824, change: 5.40 },
     { symbol: 'TVC:SILVER', name: 'Silver Spot', ticker: 'SILVER', price: 31.45, change: 1.20 }
@@ -107,10 +125,25 @@ export default function Markets() {
   const handleAddCustomSymbol = (e: React.FormEvent) => {
     e.preventDefault();
     if (!newCustomSymbol.trim()) return;
-    const formattedSymbol = newCustomSymbol.trim().toUpperCase();
+    let formattedSymbol = newCustomSymbol.trim().toUpperCase();
+    
+    // Auto-convert Indian exchange suffixes & prefixes
+    if (formattedSymbol.endsWith('.NS')) {
+      formattedSymbol = `NSE:${formattedSymbol.replace(/\.NS$/, '')}`;
+    } else if (formattedSymbol.endsWith('.BO')) {
+      formattedSymbol = `BSE:${formattedSymbol.replace(/\.BO$/, '')}`;
+    } else if (formattedSymbol.startsWith('NSE ')) {
+      formattedSymbol = `NSE:${formattedSymbol.replace(/^NSE\s+/, '')}`;
+    } else if (formattedSymbol.startsWith('BSE ')) {
+      formattedSymbol = `BSE:${formattedSymbol.replace(/^BSE\s+/, '')}`;
+    } else if (!formattedSymbol.includes(':')) {
+      // Default to NSE if known or uppercase standard ticker
+      formattedSymbol = `NSE:${formattedSymbol}`;
+    }
+
     const ticker = formattedSymbol.includes(':') ? formattedSymbol.split(':')[1] : formattedSymbol;
     const newItem = {
-      symbol: formattedSymbol.includes(':') ? formattedSymbol : `BINANCE:${formattedSymbol}`,
+      symbol: formattedSymbol,
       name: newCustomName.trim() || ticker,
       ticker: ticker,
       price: 100.00,
@@ -353,14 +386,14 @@ export default function Markets() {
               </div>
 
               {/* Category Tabs */}
-              <div className="grid grid-cols-5 gap-1 bg-white/5 p-1 rounded-xl border border-white/5 text-[8px] font-mono uppercase font-bold text-center">
-                {(['crypto', 'tech', 'indices', 'forex', 'custom'] as const).map(cat => (
+              <div className="grid grid-cols-6 gap-1 bg-white/5 p-1 rounded-xl border border-white/5 text-[8px] font-mono uppercase font-bold text-center">
+                {(['crypto', 'indian', 'tech', 'indices', 'forex', 'custom'] as const).map(cat => (
                   <button
                     key={cat}
                     onClick={() => setActiveCategory(cat)}
                     className={`py-1.5 rounded-lg transition-all ${activeCategory === cat ? 'bg-white text-black font-bold shadow' : 'text-white/40 hover:text-white'}`}
                   >
-                    {cat}
+                    {cat === 'indian' ? 'India' : cat}
                   </button>
                 ))}
               </div>

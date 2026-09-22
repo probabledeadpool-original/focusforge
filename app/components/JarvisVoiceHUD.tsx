@@ -66,7 +66,7 @@ function SpotVideoWidget({
               YouTube Search Results
             </span>
             <span className="text-[9px] font-mono text-white/40 uppercase tracking-widest">
-              {videos.length} videos • Click to stream in The Place
+              {videos.length} videos • Say &ldquo;Play 1&rdquo; or click to stream in The Place
             </span>
           </div>
         </div>
@@ -85,11 +85,11 @@ function SpotVideoWidget({
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3.5 max-h-[44vh] overflow-y-auto no-scrollbar pr-1">
-        {videos.map((item) => (
+        {videos.map((item, idx) => (
           <div
             key={item.id}
             onClick={() => onWatch(item)}
-            className="group bg-white/[0.04] hover:bg-white/[0.08] border border-white/10 hover:border-white/25 rounded-2xl p-3 cursor-pointer transition-all duration-300 flex flex-col justify-between space-y-2.5 hover:scale-[1.02] shadow-sm"
+            className="group bg-white/[0.04] hover:bg-white/[0.08] border border-white/10 hover:border-white/25 rounded-2xl p-3 cursor-pointer transition-all duration-300 flex flex-col justify-between space-y-2.5 hover:scale-[1.02] shadow-sm relative"
           >
             <div className="relative aspect-video rounded-xl overflow-hidden bg-black/60 border border-white/5">
               <img 
@@ -97,6 +97,10 @@ function SpotVideoWidget({
                 alt={item.title} 
                 className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500 brightness-95 group-hover:brightness-100"
               />
+              {/* Card Index Badge for Voice Selection */}
+              <div className="absolute top-2 left-2 z-10 px-2 py-0.5 rounded-full bg-black/70 backdrop-blur-md border border-white/20 text-[10px] font-mono font-bold text-white tracking-wide shadow-md">
+                #{idx + 1}
+              </div>
               <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity backdrop-blur-[2px]">
                 <div className="w-10 h-10 rounded-full bg-white text-black flex items-center justify-center shadow-xl transform group-hover:scale-110 transition-transform">
                   <Play size={14} fill="black" className="ml-0.5" />
