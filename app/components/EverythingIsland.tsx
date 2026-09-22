@@ -713,6 +713,7 @@ export default function EverythingIsland() {
   };
 
   const isGoogleMode = searchResults.length > 0 && searchResults[0].type === 'google';
+  const isYouTubeMode = islandState === 'youtube' || (islandState === 'search' && inputValue.trim().toLowerCase().startsWith('/yt'));
 
   // Initialize data
   useEffect(() => {
@@ -1365,9 +1366,8 @@ Answer directly, clearly, and concisely in normal natural language. Provide dire
     }
     if (islandState === 'ai') return "0 35px 80px rgba(0,0,0,0.85), 0 0 50px rgba(0, 240, 255, 0.15)";
     if (islandState === 'settings') return "0 30px 70px rgba(0,0,0,0.85), 0 0 40px rgba(255, 255, 255, 0.06)";
-    if (islandState === 'search' && isGoogleMode) return "0 30px 60px rgba(0,0,0,0.6), 0 0 80px rgba(66, 133, 244, 0.4)";
-    const isYouTubeMode = inputValue.startsWith('/yt');
-    if ((islandState === 'search' && isYouTubeMode) || islandState === 'youtube') return "0 30px 60px rgba(0,0,0,0.6), 0 0 80px rgba(239, 68, 68, 0.5)";
+    if (islandState === 'search' && isGoogleMode) return "0 30px 60px rgba(0,0,0,0.6), 0 0 80px rgba(66, 133, 244, 0.45), 0 0 30px rgba(139, 92, 246, 0.35)";
+    if (isYouTubeMode) return "0 30px 60px rgba(0,0,0,0.6), 0 0 80px rgba(239, 68, 68, 0.6), 0 0 35px rgba(220, 38, 38, 0.4)";
     if (islandState === 'search' && !isGoogleMode && !isYouTubeMode) return "0 30px 60px rgba(0,0,0,0.6), 0 0 40px rgba(255,255,255,0.05)";
     if (islandState === 'fog') return "0 20px 60px rgba(0,0,0,0.5)";
     if (isDragOver) return "0 0 40px rgba(168, 85, 247, 0.8)"; 
@@ -1508,6 +1508,40 @@ Answer directly, clearly, and concisely in normal natural language. Provide dire
              z-index: -2;
              mix-blend-mode: screen;
           }
+          .youtube-glow-border {
+            position: absolute;
+            inset: 0;
+            border-radius: inherit;
+            padding: 2px;
+            background: linear-gradient(90deg, #ef4444, #dc2626, #f87171, #ef4444, #b91c1c, #ef4444);
+            background-size: 200% auto;
+            animation: rotate-gradient 2.5s linear infinite;
+            -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+            -webkit-mask-composite: xor;
+            mask-composite: exclude;
+            pointer-events: none;
+          }
+          .youtube-glow-back1 {
+             position: absolute;
+             inset: -20px;
+             border-radius: 60px;
+             background: linear-gradient(90deg, rgba(239,68,68,0.85), rgba(220,38,38,0.85), rgba(248,113,113,0.85), rgba(239,68,68,0.85));
+             background-size: 200% auto;
+             animation: rotate-gradient 2.5s linear infinite;
+             filter: blur(30px);
+             z-index: -1;
+          }
+          .youtube-glow-back2 {
+             position: absolute;
+             inset: -40px;
+             border-radius: 80px;
+             background: linear-gradient(90deg, rgba(220,38,38,0.65), rgba(185,28,28,0.65), rgba(239,68,68,0.65), rgba(220,38,38,0.65));
+             background-size: 200% auto;
+             animation: rotate-gradient 3.5s linear infinite reverse;
+             filter: blur(60px);
+             z-index: -2;
+             mix-blend-mode: screen;
+          }
           .prismatic-glow-border {
             position: absolute;
             inset: 0;
@@ -1609,7 +1643,7 @@ Answer directly, clearly, and concisely in normal natural language. Provide dire
 
         {/* Background Glow Leak */}
         <AnimatePresence>
-           {((islandState === 'search' && isGoogleMode && !isShooting) || isSiphoning || islandState === 'youtube' || islandState === 'ai' || (islandState === 'search' && inputValue.startsWith('/yt '))) && (
+           {(((islandState === 'search' && (isGoogleMode || isYouTubeMode)) && !isShooting) || isSiphoning || islandState === 'youtube' || islandState === 'ai') && (
              <motion.div
                initial={{ opacity: 0, width: getWidth(), height: getHeight(), x: "-50%" }}
                animate={{ 
@@ -1622,8 +1656,8 @@ Answer directly, clearly, and concisely in normal natural language. Provide dire
                className="absolute top-0 left-1/2 pointer-events-none z-[-1]"
                transition={{ ...getTransition(), opacity: { duration: 0.5, ease: "easeInOut" } }}
              >
-               <div className={islandState === 'ai' ? "prismatic-glow-back1" : islandState === 'youtube' || inputValue.startsWith('/yt ') ? "youtube-glow-back1" : "google-glow-back1"} />
-               <div className={islandState === 'ai' ? "prismatic-glow-back2" : islandState === 'youtube' || inputValue.startsWith('/yt ') ? "youtube-glow-back2" : "google-glow-back2"} />
+               <div className={islandState === 'ai' ? "prismatic-glow-back1" : isYouTubeMode ? "youtube-glow-back1" : "google-glow-back1"} />
+               <div className={islandState === 'ai' ? "prismatic-glow-back2" : isYouTubeMode ? "youtube-glow-back2" : "google-glow-back2"} />
              </motion.div>
            )}
         </AnimatePresence>
@@ -1648,7 +1682,7 @@ Answer directly, clearly, and concisely in normal natural language. Provide dire
                     (jarvisStore.isOpen && (jarvisStore.isMinimized || jarvisStore.displayMode === 'minimized') && islandState === 'mini') ? "1px solid rgba(255, 255, 255, 0.12)" :
                     islandState === 'ai' ? "1px solid rgba(255, 255, 255, 0.15)" :
                     islandState === 'settings' ? "1px solid rgba(255, 255, 255, 0.18)" :
-                    ((islandState === 'search' && (isGoogleMode || inputValue.startsWith('/yt '))) || isShooting || isSiphoning || islandState === 'youtube') ? "1px solid transparent" : 
+                    ((islandState === 'search' && (isGoogleMode || isYouTubeMode)) || isShooting || isSiphoning || islandState === 'youtube') ? "1px solid transparent" : 
                     "0.5px solid rgba(255, 255, 255, 0.2)",
             boxShadow: getShadow(),
           }}
@@ -1672,13 +1706,13 @@ Answer directly, clearly, and concisely in normal natural language. Provide dire
           }}
         >
         <AnimatePresence>
-           {((islandState === 'search' && isGoogleMode && !isShooting) || isSiphoning || islandState === 'youtube' || (islandState === 'search' && inputValue.startsWith('/yt '))) && (
+           {(((islandState === 'search' && (isGoogleMode || isYouTubeMode)) && !isShooting) || isSiphoning || islandState === 'youtube') && (
              <motion.div 
                initial={{ opacity: 0 }}
                animate={{ opacity: 1 }}
                exit={{ opacity: 0 }}
                transition={{ duration: 0.5, ease: "easeInOut" }}
-               className={islandState === 'youtube' || inputValue.startsWith('/yt ') ? "youtube-glow-border z-0" : "google-glow-border z-0"} 
+               className={isYouTubeMode ? "youtube-glow-border z-0" : "google-glow-border z-0"} 
              />
            )}
         </AnimatePresence>
@@ -2027,9 +2061,20 @@ Answer directly, clearly, and concisely in normal natural language. Provide dire
                               animate={{ scale: 1, rotate: 0, opacity: 1 }}
                               exit={{ scale: 0, rotate: 180, opacity: 0 }}
                               transition={{ type: "spring", stiffness: 300, damping: 20 }}
-                              className="absolute inset-0 rounded-full bg-white flex items-center justify-center"
+                              className="absolute inset-0 rounded-full bg-white flex items-center justify-center shadow-[0_0_12px_rgba(66,133,244,0.6)]"
                             >
                                <span className="text-black font-extrabold text-[10px]">G</span>
+                            </motion.div>
+                         ) : isYouTubeMode ? (
+                            <motion.div 
+                              key="youtube-icon"
+                              initial={{ scale: 0, rotate: -180, opacity: 0 }}
+                              animate={{ scale: 1, rotate: 0, opacity: 1 }}
+                              exit={{ scale: 0, rotate: 180, opacity: 0 }}
+                              transition={{ type: "spring", stiffness: 300, damping: 20 }}
+                              className="absolute inset-0 rounded-full bg-gradient-to-tr from-red-600 to-rose-500 flex items-center justify-center shadow-[0_0_15px_rgba(239,68,68,0.8)]"
+                            >
+                               <Youtube size={11} className="text-white fill-current" />
                             </motion.div>
                          ) : (
                             <motion.div
@@ -2048,7 +2093,13 @@ Answer directly, clearly, and concisely in normal natural language. Provide dire
                      <input
                          autoFocus
                          type="text"
-                         placeholder="Search internal or type /g for web..."
+                         placeholder={
+                           isGoogleMode 
+                             ? "Search Google..." 
+                             : isYouTubeMode 
+                             ? "Search YouTube videos..." 
+                             : "Search internal, /yt for video, or /g for web..."
+                         }
                          value={inputValue}
                          onChange={(e) => setInputValue(e.target.value)}
                          onKeyDown={handleInputKeyDown}

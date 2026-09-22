@@ -442,26 +442,36 @@ export default function ThePlace() {
             exit={{ opacity: 0 }}
             className="min-h-screen flex flex-col pb-32 pt-36"
           >
-            {/* Navigation Header */}
-            <header className="fixed top-24 w-[calc(100%-48px)] left-6 right-6 z-[100] px-6 md:px-10 py-4 flex items-center justify-between bg-zinc-950/60 backdrop-blur-3xl border border-white/10 rounded-3xl shadow-2xl">
-              <div className="flex items-center gap-8 md:gap-12">
-                <div className="flex items-center gap-3">
-                  <div className="w-9 h-9 rounded-2xl bg-white/10 border border-white/10 flex items-center justify-center text-white shadow-inner shrink-0">
-                    <div className="w-2.5 h-2.5 rounded-full bg-cyan-400 shadow-[0_0_12px_#22d3ee] animate-pulse" />
+            {/* Ultra-Luxury Navigation Header */}
+            <header className="fixed top-20 sm:top-24 w-[calc(100%-32px)] sm:w-[calc(100%-48px)] left-4 sm:left-6 right-4 sm:right-6 z-[100] px-4 sm:px-6 md:px-8 py-3 flex flex-wrap xl:flex-nowrap items-center justify-between gap-3 md:gap-4 bg-zinc-950/75 backdrop-blur-2xl border border-white/10 rounded-2xl md:rounded-3xl shadow-[0_20px_60px_rgba(0,0,0,0.85),inset_0_1px_1px_rgba(255,255,255,0.15)] relative overflow-hidden group">
+              {/* Ambient Specular Highlight */}
+              <div className="absolute inset-x-12 top-0 h-[1px] bg-gradient-to-r from-transparent via-cyan-400/40 via-purple-400/30 to-transparent pointer-events-none" />
+
+              {/* Left Brand & Subnav Filter */}
+              <div className="flex flex-wrap sm:flex-nowrap items-center gap-4 sm:gap-6 md:gap-8">
+                <div className="flex items-center gap-3 shrink-0">
+                  <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-white/10 to-white/5 border border-white/15 flex items-center justify-center text-white shadow-[inset_0_1px_1px_rgba(255,255,255,0.2)] shrink-0 relative overflow-hidden group/badge">
+                    <div className="w-2.5 h-2.5 rounded-full bg-cyan-400 shadow-[0_0_14px_#22d3ee] animate-pulse" />
+                    <div className="absolute inset-0 bg-cyan-400/10 opacity-0 group-hover/badge:opacity-100 transition-opacity" />
                   </div>
-                  <span className="font-heading font-extrabold text-base sm:text-lg tracking-wider uppercase text-white">The Place</span>
+                  <div className="flex flex-col">
+                    <span className="font-heading font-black text-sm sm:text-base tracking-wider uppercase text-white leading-none">The Place</span>
+                    <span className="text-[8px] font-mono uppercase tracking-[0.25em] text-white/40 leading-none mt-1">Immersive Cinema</span>
+                  </div>
                 </div>
 
-                {/* Subnav Filter */}
-                <nav className="flex items-center gap-1 bg-white/5 p-1 rounded-full border border-white/10 overflow-x-auto no-scrollbar">
+                {/* Subnav Filter Tabs */}
+                <nav className="flex items-center gap-1 bg-black/40 p-1 rounded-xl border border-white/[0.08] shadow-inner overflow-x-auto no-scrollbar">
                   {(['All', 'Playlists', 'Streams', 'Curated', 'YouTube'] as const).map(nav => (
                     <button 
                       key={nav} 
                       onClick={() => setActiveFilter(nav)}
-                      className={`text-[9px] sm:text-[10px] font-mono uppercase tracking-[0.2em] sm:tracking-[0.3em] transition-all px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-full whitespace-nowrap min-h-[32px] cursor-pointer flex items-center gap-1.5 ${
+                      className={`text-[9px] sm:text-[10px] font-mono uppercase tracking-[0.2em] transition-all px-3 py-1.5 rounded-lg whitespace-nowrap min-h-[30px] cursor-pointer flex items-center gap-1.5 ${
                         activeFilter === nav 
-                          ? (nav === 'YouTube' ? 'bg-red-500 text-white font-bold shadow-[0_0_20px_rgba(239,68,68,0.5)]' : 'bg-white text-black font-bold shadow-lg') 
-                          : 'text-white/40 hover:text-white hover:bg-white/5'
+                          ? (nav === 'YouTube' 
+                              ? 'bg-gradient-to-r from-red-600 to-rose-600 text-white font-extrabold shadow-[0_0_18px_rgba(239,68,68,0.6)]' 
+                              : 'bg-white text-black font-extrabold shadow-[0_2px_10px_rgba(255,255,255,0.3)]') 
+                          : 'text-white/45 hover:text-white hover:bg-white/[0.06]'
                       }`}
                     >
                       {nav === 'YouTube' && <Youtube size={12} className={activeFilter === nav ? "text-white" : "text-red-400"} />}
@@ -476,44 +486,47 @@ export default function ThePlace() {
                 </nav>
               </div>
 
-              <div className="flex items-center justify-between sm:justify-end gap-2 sm:gap-3 md:gap-4">
+              {/* Right Action Buttons & YouTube Search */}
+              <div className="flex items-center justify-between sm:justify-end gap-2 sm:gap-3 flex-1 xl:flex-none">
                 <button
                   onClick={() => setShowNewPlaylistModal(true)}
-                  className="flex items-center justify-center gap-2 px-3.5 sm:px-4 py-2 sm:py-2.5 bg-white/10 hover:bg-white/20 border border-white/15 backdrop-blur-xl rounded-full text-white text-[9px] sm:text-[10px] font-bold uppercase tracking-[0.2em] transition-all shadow-lg hover:scale-105 active:scale-95 min-h-[38px] cursor-pointer"
+                  className="flex items-center justify-center gap-2 px-3.5 py-2 bg-white/[0.06] hover:bg-white/[0.12] border border-white/10 hover:border-cyan-400/40 rounded-xl text-white text-[9px] sm:text-[10px] font-bold uppercase tracking-[0.2em] transition-all duration-300 shadow-sm hover:shadow-[0_0_16px_rgba(34,211,238,0.2)] hover:scale-[1.02] active:scale-[0.98] min-h-[36px] cursor-pointer shrink-0"
                 >
-                  <FolderPlus size={14} className="text-cyan-400" />
+                  <FolderPlus size={13} className="text-cyan-400" />
+                  <span className="hidden sm:inline">New</span>
                   <span>Playlist</span>
                 </button>
 
                 <button
                   onClick={() => setViewState('frequency')}
-                  className="flex items-center justify-center gap-2 px-3.5 sm:px-4 py-2 sm:py-2.5 bg-purple-500/10 border border-purple-500/20 backdrop-blur-xl rounded-full text-purple-300 hover:bg-purple-500/20 hover:text-purple-200 transition-all text-[9px] sm:text-[10px] font-bold uppercase tracking-[0.2em] min-h-[38px] cursor-pointer"
+                  className="flex items-center justify-center gap-2 px-3.5 py-2 bg-purple-500/10 hover:bg-purple-500/20 border border-purple-500/25 hover:border-purple-400/60 rounded-xl text-purple-200 text-[9px] sm:text-[10px] font-bold uppercase tracking-[0.2em] transition-all duration-300 shadow-sm hover:shadow-[0_0_20px_rgba(168,85,247,0.3)] hover:scale-[1.02] active:scale-[0.98] min-h-[36px] cursor-pointer shrink-0"
                 >
-                  <Music size={13} />
+                  <Music size={13} className="text-purple-400" />
+                  <span className="hidden sm:inline">The</span>
                   <span>Frequency</span>
                 </button>
 
-                <form onSubmit={handleSearchOrAdd} className="relative group flex-1 sm:flex-none flex items-center">
-                  <Search size={14} className="absolute left-3.5 sm:left-4 top-1/2 -translate-y-1/2 text-white/30 group-focus-within:text-white/70 transition-colors pointer-events-none" />
+                <form onSubmit={handleSearchOrAdd} className="relative group flex-1 sm:flex-none flex items-center min-w-[180px]">
+                  <Search size={13} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-white/30 group-focus-within:text-red-400 transition-colors pointer-events-none" />
                   <input 
                     type="text"
-                    placeholder="Search YouTube or paste link..."
+                    placeholder="Search YouTube or paste URL..."
                     value={videoUrl}
                     onChange={e => setVideoUrl(e.target.value)}
-                    className="bg-white/5 border border-white/10 rounded-full py-2 sm:py-2.5 pl-9 sm:pl-11 pr-10 sm:pr-12 text-xs w-full sm:w-[220px] md:w-[280px] focus:outline-none focus:sm:w-[340px] focus:bg-white/10 focus:border-red-400/50 transition-all placeholder:text-white/20 font-mono text-white min-h-[38px]"
+                    className="bg-black/40 hover:bg-black/60 focus:bg-black/85 border border-white/10 hover:border-white/20 focus:border-red-500/60 focus:shadow-[0_0_20px_rgba(239,68,68,0.3)] rounded-xl py-2 pl-9 pr-9 text-xs w-full sm:w-[220px] md:w-[260px] lg:w-[300px] focus:sm:w-[280px] focus:md:w-[340px] focus:outline-none transition-all placeholder:text-white/25 font-mono text-white min-h-[36px]"
                   />
                   {videoUrl && !isSearchingYt && (
                     <button
                       type="button"
                       onClick={clearYouTubeSearch}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 p-1 text-white/40 hover:text-white cursor-pointer"
+                      className="absolute right-2.5 top-1/2 -translate-y-1/2 p-1 text-white/40 hover:text-white hover:bg-white/10 rounded-lg transition-colors cursor-pointer"
                     >
-                      <X size={13} />
+                      <X size={12} />
                     </button>
                   )}
                   {isSearchingYt && (
-                    <div className="absolute right-3.5 top-1/2 -translate-y-1/2 text-red-400 animate-spin pointer-events-none">
-                      <RefreshCw size={13} />
+                    <div className="absolute right-3 top-1/2 -translate-y-1/2 text-red-400 animate-spin pointer-events-none">
+                      <RefreshCw size={12} />
                     </div>
                   )}
                 </form>
