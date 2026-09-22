@@ -9,19 +9,37 @@ import {
   RotateCcw, Shield, Cpu, ChevronRight, Terminal,
   Clock, CheckSquare, Music, RefreshCw, SlidersHorizontal,
   FileText, Hand, Search, Award, MessageSquare, Bug, AlertTriangle,
-  Youtube, ExternalLink, Check, TrendingUp
+  Youtube, ExternalLink, Check, TrendingUp,
+  Cloud, Sun, CloudRain, Wind, Droplets, Compass, Thermometer,
+  Globe, Newspaper, Radio as RadioIcon, Eye, DollarSign, Coins,
+  TrendingDown, ArrowUpRight, ArrowDownRight, Percent, Calendar
 } from 'lucide-react';
 import { useJarvisStore, JarvisAiState, StockSpotData, TaskSpotData } from '../../hooks/useJarvisStore';
 import { useJarvisHotword } from '../../hooks/useJarvisHotword';
 import { useAppStore } from '../../hooks/useAppStore';
 import { useFrequencyStore } from '../../hooks/useFrequencyStore';
+import { useMarketsStore } from '../../hooks/useMarketsStore';
 import { jarvisAudio } from '../../lib/jarvisAudio';
 import { jarvisVoiceEngine, VoiceState } from '../../lib/jarvisVoiceEngine';
 import { SiriWave, SiriWaveVariant } from '@/components/ui/siri-wave';
 import type { YouTubeSearchResult } from '../../lib/youtubeSearch';
-
 import { handleGlobalJarvisCommand } from '../../lib/jarvisCommandDispatcher';
 import { getSelectedTextModel, getSelectedLiveModel } from '../../lib/aiModelConfig';
+import type { 
+  WeatherData, 
+  NewsData, 
+  EarthquakeData, 
+  IssData, 
+  NasaApodData, 
+  CryptoData, 
+  FxData, 
+  WatchlistData, 
+  PortfolioData 
+} from '../../lib/intelligence/types';
+import { fetchWeather } from '../../lib/intelligence/weatherAdapter';
+import { convertCurrency } from '../../lib/intelligence/fxAdapter';
+import { removeFromWatchlist } from '../../lib/intelligence/watchlistManager';
+import { deleteHolding, getPortfolioData } from '../../lib/intelligence/portfolioManager';
 
 // ==========================================
 // 1. SPOT UI: VIDEO CARDS (Apple TV Style)
@@ -118,6 +136,7 @@ function SpotStockWidget({ symbol, name }: StockSpotData) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [interval, setInterval] = useState('D');
   const { setView } = useAppStore();
+  const { setSymbol } = useMarketsStore();
   const { closeJarvis } = useJarvisStore();
 
   useEffect(() => {
@@ -185,6 +204,7 @@ function SpotStockWidget({ symbol, name }: StockSpotData) {
 
           <button
             onClick={() => {
+              setSymbol(symbol);
               setView('hub');
               window.dispatchEvent(new CustomEvent('changeView', { detail: { view: 'hub' } }));
               closeJarvis();
@@ -286,6 +306,775 @@ function SpotTaskWidget({ tasks }: TaskSpotData) {
 }
 
 // ==========================================
+// 4. SPOT UI: ATMOSPHERE & WEATHER (Apple Weather Style)
+// ==========================================
+function SpotWeatherWidget({ data }: { data: WeatherData }) {
+  const [cityInput, setCityInput] = useState('');
+  const [currentData, setCurrentData] = useState(data);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+
+  const handleSearchCity = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!cityInput.trim()) return;
+    setIsRefreshing(true);
+    try {
+      const res = await fetchWeather(cityInput.trim());
+      setCurrentData(res);
+      setCityInput('');
+    } catch (e) {} finally {
+      setIsRefreshing(false);
+    }
+  };
+
+  return (
+    <div className="flex flex-col h-full w-full space-y-4">
+      {/* Header */}
+      <div className="flex items-center justify-between border-b border-white/10 pb-3 px-1">
+        <div className="flex items-center gap-3">
+          <div className="w-8 h-8 rounded-xl bg-blue-500/15 border border-blue-500/30 flex items-center justify-center text-blue-400">
+            {currentData.isDay ? <Sun size={16} /> : <Cloud size={16} />}
+          </div>
+          <div>
+            <span className="text-sm font-heading font-extrabold text-white tracking-wide block">
+              {currentData.city}{currentData.country ? `, ${currentData.country}` : ''}
+            </span>
+            <span className="text-[9px] font-mono text-white/40 uppercase tracking-widest">
+              Live Atmosphere Telemetry • {currentData.source}
+            </span>
+          </div>
+        </div>
+
+        {/* Quick City Search Bar */}
+        <form onSubmit={handleSearchCity} className="flex items-center gap-2">
+          <input
+            type="text"
+            placeholder="Change city..."
+            value={cityInput}
+            onChange={(e) => setCityInput(e.target.value)}
+            className="px-3 py-1.5 rounded-xl bg-white/[0.05] border border-white/10 text-white text-xs placeholder:text-white/30 outline-none focus:border-blue-400/50 w-32 sm:w-44 font-mono transition-all"
+          />
+          <button
+            type="submit"
+            disabled={isRefreshing}
+            className="p-1.5 rounded-xl bg-white/10 hover:bg-white text-white hover:text-black transition-all cursor-pointer shrink-0"
+          >
+            <Search size={13} />
+          </button>
+        </form>
+      </div>
+
+      {/* Main Temperature & Metric Overview */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-3.5">
+        {/* Big Temp Box */}
+        <div className="p-5 rounded-2xl bg-white/[0.04] border border-white/10 flex flex-col justify-between relative overflow-hidden">
+          <div className="flex items-center justify-between">
+            <span className="text-[10px] font-mono uppercase text-blue-400 font-bold tracking-wider">
+              {currentData.conditionText}
+            </span>
+            <span className="text-[9px] font-mono text-white/40">
+              Feels like {currentData.apparentTemperature}°C
+            </span>
+          </div>
+          <div className="my-2">
+            <span className="text-5xl sm:text-6xl font-heading font-extrabold text-white tracking-tight">
+              {currentData.temperature}°
+            </span>
+          </div>
+          <div className="flex items-center gap-4 text-[10px] font-mono text-white/60">
+            <span>Wind: {currentData.windSpeed} km/h</span>
+            <span>Humidity: {currentData.humidity}%</span>
+          </div>
+        </div>
+
+        {/* Atmospheric Detail Cards */}
+        <div className="grid grid-cols-2 gap-2.5">
+          <div className="p-3 rounded-xl bg-white/[0.03] border border-white/10 flex flex-col justify-between">
+            <div className="flex items-center gap-1.5 text-white/50 text-[10px] font-mono">
+              <Droplets size={12} className="text-cyan-400" />
+              <span>Humidity</span>
+            </div>
+            <span className="text-xl font-heading font-bold text-white mt-1">{currentData.humidity}%</span>
+            <span className="text-[9px] text-white/40">Precip: {currentData.precipitation} mm</span>
+          </div>
+
+          <div className="p-3 rounded-xl bg-white/[0.03] border border-white/10 flex flex-col justify-between">
+            <div className="flex items-center gap-1.5 text-white/50 text-[10px] font-mono">
+              <Wind size={12} className="text-emerald-400" />
+              <span>Wind Velocity</span>
+            </div>
+            <span className="text-xl font-heading font-bold text-white mt-1">{currentData.windSpeed} <span className="text-xs text-white/50">km/h</span></span>
+            <span className="text-[9px] text-white/40">Direction: {currentData.windDirection}°</span>
+          </div>
+
+          <div className="p-3 rounded-xl bg-white/[0.03] border border-white/10 flex flex-col justify-between">
+            <div className="flex items-center gap-1.5 text-white/50 text-[10px] font-mono">
+              <Sun size={12} className="text-amber-400" />
+              <span>UV Index</span>
+            </div>
+            <span className="text-xl font-heading font-bold text-white mt-1">{currentData.uvIndex ?? 'Low'}</span>
+            <span className="text-[9px] text-white/40">Air Quality: {currentData.aqi ? `AQI ${currentData.aqi}` : 'Good'}</span>
+          </div>
+
+          <div className="p-3 rounded-xl bg-white/[0.03] border border-white/10 flex flex-col justify-between">
+            <div className="flex items-center gap-1.5 text-white/50 text-[10px] font-mono">
+              <Compass size={12} className="text-purple-400" />
+              <span>Solar Orbit</span>
+            </div>
+            <span className="text-xs font-mono font-bold text-white mt-1">↑ {currentData.sunrise || '06:00'}</span>
+            <span className="text-[9px] font-mono text-white/40">↓ {currentData.sunset || '18:30'}</span>
+          </div>
+        </div>
+
+        {/* 5-Day Forecast */}
+        <div className="p-3.5 rounded-2xl bg-white/[0.04] border border-white/10 flex flex-col justify-between space-y-2">
+          <span className="text-[10px] font-mono uppercase text-white/50 font-bold tracking-wider">5-Day Outlook</span>
+          <div className="space-y-1.5">
+            {currentData.daily.map((d, i) => (
+              <div key={i} className="flex items-center justify-between text-xs font-mono py-0.5 border-b border-white/5 last:border-none">
+                <span className="text-white/70 w-12">{d.date}</span>
+                <span className="text-white/40 text-[10px]">L: {d.minTemp}°</span>
+                <div className="w-16 h-1.5 rounded-full bg-white/10 overflow-hidden mx-2">
+                  <div className="h-full bg-gradient-to-r from-blue-400 to-amber-400 rounded-full" style={{ width: `${Math.min(100, Math.max(20, (d.maxTemp + 10) * 2))}%` }} />
+                </div>
+                <span className="text-white font-bold w-8 text-right">{d.maxTemp}°</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {/* Hourly Strip */}
+      <div className="flex items-center gap-2 overflow-x-auto no-scrollbar py-1">
+        {currentData.hourly.map((h, i) => (
+          <div key={i} className="flex flex-col items-center gap-1 px-3 py-2 rounded-xl bg-white/[0.03] border border-white/5 shrink-0 min-w-[64px]">
+            <span className="text-[9px] font-mono text-white/50">{h.time}</span>
+            <Cloud size={14} className="text-white/70 my-0.5" />
+            <span className="text-xs font-mono font-bold text-white">{h.temp}°</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ==========================================
+// 5. SPOT UI: WORLD PULSE & GLOBAL NEWS (GDELT)
+// ==========================================
+function SpotNewsWidget({ data }: { data: NewsData }) {
+  return (
+    <div className="flex flex-col h-full w-full space-y-4">
+      <div className="flex items-center justify-between border-b border-white/10 pb-3 px-1">
+        <div className="flex items-center gap-3">
+          <div className="w-8 h-8 rounded-xl bg-purple-500/15 border border-purple-500/30 flex items-center justify-center text-purple-400">
+            <Globe size={16} />
+          </div>
+          <div>
+            <span className="text-sm font-heading font-extrabold text-white tracking-wide block">
+              World Pulse: {data.category}
+            </span>
+            <span className="text-[9px] font-mono text-white/40 uppercase tracking-widest">
+              {data.articles.length} verified dispatches • {data.source}
+            </span>
+          </div>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-3 max-h-[44vh] overflow-y-auto no-scrollbar pr-1">
+        {data.articles.map((art) => (
+          <a
+            key={art.id}
+            href={art.url}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="group p-3.5 rounded-2xl bg-white/[0.04] hover:bg-white/[0.08] border border-white/10 hover:border-white/20 transition-all flex flex-col justify-between space-y-2 cursor-pointer shadow-sm hover:scale-[1.01]"
+          >
+            <div className="space-y-1.5">
+              <div className="flex items-center justify-between">
+                <span className="px-2 py-0.5 rounded-md bg-purple-500/20 text-purple-300 text-[9px] font-mono font-bold uppercase">
+                  {art.domain || art.source}
+                </span>
+                {art.publishedAt && (
+                  <span className="text-[9px] font-mono text-white/40">{art.publishedAt}</span>
+                )}
+              </div>
+              <h4 className="text-xs font-mono font-bold text-white group-hover:text-purple-300 transition-colors line-clamp-2">
+                {art.title}
+              </h4>
+            </div>
+
+            <div className="flex items-center justify-between pt-1 border-t border-white/5 text-[9px] font-mono text-white/50 group-hover:text-white">
+              <span>Read Full Report</span>
+              <ExternalLink size={10} />
+            </div>
+          </a>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ==========================================
+// 6. SPOT UI: EARTH MONITORS & SEISMIC (USGS)
+// ==========================================
+function SpotEarthquakeWidget({ data }: { data: EarthquakeData }) {
+  return (
+    <div className="flex flex-col h-full w-full space-y-4">
+      <div className="flex items-center justify-between border-b border-white/10 pb-3 px-1">
+        <div className="flex items-center gap-3">
+          <div className="w-8 h-8 rounded-xl bg-amber-500/15 border border-amber-500/30 flex items-center justify-center text-amber-400">
+            <Activity size={16} />
+          </div>
+          <div>
+            <span className="text-sm font-heading font-extrabold text-white tracking-wide block">
+              Earth Monitor: Seismic Telemetry
+            </span>
+            <span className="text-[9px] font-mono text-white/40 uppercase tracking-widest">
+              {data.earthquakes.length} Global Events (M{data.minMagnitude}+) • {data.source}
+            </span>
+          </div>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 max-h-[44vh] overflow-y-auto no-scrollbar pr-1">
+        {data.earthquakes.map((eq) => {
+          const isHigh = eq.mag >= 5.0;
+          const isMed = eq.mag >= 4.0;
+          return (
+            <a
+              key={eq.id}
+              href={eq.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="p-3.5 rounded-2xl bg-white/[0.04] hover:bg-white/[0.08] border border-white/10 hover:border-white/25 transition-all flex flex-col justify-between space-y-2 group cursor-pointer"
+            >
+              <div className="flex items-center justify-between">
+                <span className={`px-2 py-0.5 rounded-lg text-xs font-mono font-black ${
+                  isHigh ? 'bg-red-500/20 border border-red-500/40 text-red-400' :
+                  isMed ? 'bg-amber-500/20 border border-amber-500/40 text-amber-300' :
+                  'bg-cyan-500/20 border border-cyan-500/40 text-cyan-300'
+                }`}>
+                  M {eq.mag}
+                </span>
+                <span className="text-[9px] font-mono text-white/40">Depth: {eq.depth} km</span>
+              </div>
+
+              <h5 className="text-xs font-mono font-bold text-white line-clamp-2">
+                {eq.place}
+              </h5>
+
+              <div className="flex items-center justify-between pt-1 border-t border-white/5 text-[9px] font-mono text-white/40 group-hover:text-white">
+                <span>{new Date(eq.time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                <span className="flex items-center gap-1">USGS Page <ExternalLink size={9} /></span>
+              </div>
+            </a>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+// ==========================================
+// 7. SPOT UI: ORBITAL & ISS TRACKER
+// ==========================================
+function SpotIssWidget({ data }: { data: IssData }) {
+  const [telemetry, setTelemetry] = useState(data);
+
+  useEffect(() => {
+    const interval = setInterval(async () => {
+      try {
+        const res = await fetch('/api/intelligence/iss');
+        if (res.ok) {
+          const fresh = await res.json();
+          setTelemetry(fresh);
+        }
+      } catch (e) {}
+    }, 4000);
+    return () => clearInterval(interval);
+  }, []);
+
+  return (
+    <div className="flex flex-col h-full w-full space-y-4">
+      <div className="flex items-center justify-between border-b border-white/10 pb-3 px-1">
+        <div className="flex items-center gap-3">
+          <div className="w-8 h-8 rounded-xl bg-cyan-500/15 border border-cyan-500/30 flex items-center justify-center text-cyan-400 animate-pulse">
+            <RadioIcon size={16} />
+          </div>
+          <div>
+            <span className="text-sm font-heading font-extrabold text-white tracking-wide block">
+              Orbital Monitor: {telemetry.name}
+            </span>
+            <span className="text-[9px] font-mono text-white/40 uppercase tracking-widest">
+              Live NORAD Telemetry • {telemetry.source}
+            </span>
+          </div>
+        </div>
+
+        <span className="px-3 py-1 rounded-xl bg-cyan-500/10 border border-cyan-500/30 text-cyan-300 text-[10px] font-mono uppercase font-bold animate-pulse">
+          Live Orbit Track
+        </span>
+      </div>
+
+      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3.5">
+        <div className="p-4 rounded-2xl bg-white/[0.04] border border-white/10 flex flex-col justify-between">
+          <span className="text-[10px] font-mono uppercase text-white/40">Latitude</span>
+          <span className="text-2xl font-mono font-extrabold text-cyan-300 my-1">{telemetry.latitude}°</span>
+          <span className="text-[9px] font-mono text-white/40">Geodetic North/South</span>
+        </div>
+
+        <div className="p-4 rounded-2xl bg-white/[0.04] border border-white/10 flex flex-col justify-between">
+          <span className="text-[10px] font-mono uppercase text-white/40">Longitude</span>
+          <span className="text-2xl font-mono font-extrabold text-cyan-300 my-1">{telemetry.longitude}°</span>
+          <span className="text-[9px] font-mono text-white/40">Geodetic East/West</span>
+        </div>
+
+        <div className="p-4 rounded-2xl bg-white/[0.04] border border-white/10 flex flex-col justify-between">
+          <span className="text-[10px] font-mono uppercase text-white/40">Orbital Altitude</span>
+          <span className="text-2xl font-mono font-extrabold text-purple-300 my-1">{telemetry.altitude} <span className="text-xs text-white/40">km</span></span>
+          <span className="text-[9px] font-mono text-white/40">{Math.round(telemetry.altitude * 0.621371)} miles</span>
+        </div>
+
+        <div className="p-4 rounded-2xl bg-white/[0.04] border border-white/10 flex flex-col justify-between">
+          <span className="text-[10px] font-mono uppercase text-white/40">Orbital Velocity</span>
+          <span className="text-2xl font-mono font-extrabold text-emerald-300 my-1">{Math.round(telemetry.velocity).toLocaleString()} <span className="text-xs text-white/40">km/h</span></span>
+          <span className="text-[9px] font-mono text-white/40">{Math.round(telemetry.velocity * 0.621371).toLocaleString()} mph (~7.6 km/s)</span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ==========================================
+// 8. SPOT UI: NASA SPACE INTELLIGENCE (APOD)
+// ==========================================
+function SpotNasaWidget({ data }: { data: NasaApodData }) {
+  return (
+    <div className="flex flex-col h-full w-full space-y-4">
+      <div className="flex items-center justify-between border-b border-white/10 pb-3 px-1">
+        <div className="flex items-center gap-3">
+          <div className="w-8 h-8 rounded-xl bg-indigo-500/15 border border-indigo-500/30 flex items-center justify-center text-indigo-400">
+            <Sparkles size={16} />
+          </div>
+          <div>
+            <span className="text-sm font-heading font-extrabold text-white tracking-wide block">
+              NASA Astronomy Picture of the Day
+            </span>
+            <span className="text-[9px] font-mono text-white/40 uppercase tracking-widest">
+              {data.date} • {data.copyright || 'NASA Public Domain'}
+            </span>
+          </div>
+        </div>
+
+        {data.hdurl && (
+          <a
+            href={data.hdurl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-white/10 hover:bg-white text-white hover:text-black text-[9px] font-mono uppercase font-bold tracking-wider transition-all cursor-pointer"
+          >
+            <span>Full HD Image</span>
+            <ExternalLink size={10} />
+          </a>
+        )}
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-h-[44vh] overflow-y-auto no-scrollbar pr-1">
+        <div className="relative aspect-video rounded-2xl overflow-hidden bg-black/60 border border-white/10">
+          {data.media_type === 'video' ? (
+            <iframe src={data.url} className="w-full h-full border-none" title={data.title} allowFullScreen />
+          ) : (
+            <img src={data.url} alt={data.title} className="w-full h-full object-cover" />
+          )}
+        </div>
+
+        <div className="flex flex-col justify-between space-y-3 p-4 rounded-2xl bg-white/[0.04] border border-white/10 overflow-y-auto max-h-[300px] no-scrollbar">
+          <div className="space-y-2">
+            <h3 className="text-sm font-heading font-extrabold text-white leading-tight">{data.title}</h3>
+            <p className="text-xs font-mono text-white/70 leading-relaxed">{data.explanation}</p>
+          </div>
+          <span className="text-[9px] font-mono text-white/40 block pt-2 border-t border-white/5">
+            Credit & Copyright: {data.copyright || 'NASA / STScI'}
+          </span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ==========================================
+// 9. SPOT UI: CRYPTOCURRENCY PULSE (CoinGecko)
+// ==========================================
+function SpotCryptoWidget({ data }: { data: CryptoData }) {
+  const { setSymbol } = useMarketsStore();
+  const { setView } = useAppStore();
+  const { closeJarvis } = useJarvisStore();
+
+  const handleOpenChart = (coin: any) => {
+    const symbolMap: Record<string, string> = {
+      'BTC': 'BINANCE:BTCUSDT',
+      'ETH': 'BINANCE:ETHUSDT',
+      'SOL': 'BINANCE:SOLUSDT',
+      'XRP': 'BINANCE:XRPUSDT',
+      'DOGE': 'BINANCE:DOGEUSDT',
+      'ADA': 'BINANCE:ADAUSDT'
+    };
+    const tvSymbol = symbolMap[coin.symbol] || `BINANCE:${coin.symbol}USDT`;
+    setSymbol(tvSymbol);
+    setView('hub');
+    window.dispatchEvent(new CustomEvent('changeView', { detail: { view: 'hub' } }));
+    closeJarvis();
+  };
+
+  return (
+    <div className="flex flex-col h-full w-full space-y-4">
+      <div className="flex items-center justify-between border-b border-white/10 pb-3 px-1">
+        <div className="flex items-center gap-3">
+          <div className="w-8 h-8 rounded-xl bg-amber-500/15 border border-amber-500/30 flex items-center justify-center text-amber-400">
+            <Coins size={16} />
+          </div>
+          <div>
+            <span className="text-sm font-heading font-extrabold text-white tracking-wide block">
+              Market Pulse: Cryptocurrency
+            </span>
+            <span className="text-[9px] font-mono text-white/40 uppercase tracking-widest">
+              Live Global Valuations (Base: {data.baseCurrency}) • {data.source}
+            </span>
+          </div>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 max-h-[44vh] overflow-y-auto no-scrollbar pr-1">
+        {data.coins.map((coin) => {
+          const isUp = coin.price_change_percentage_24h >= 0;
+          return (
+            <div
+              key={coin.id}
+              onClick={() => handleOpenChart(coin)}
+              className="p-3.5 rounded-2xl bg-white/[0.04] hover:bg-white/[0.08] border border-white/10 hover:border-white/20 transition-all cursor-pointer flex flex-col justify-between space-y-2.5 group hover:scale-[1.01]"
+            >
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  {coin.image && <img src={coin.image} alt="" className="w-6 h-6 rounded-full" />}
+                  <div>
+                    <span className="text-xs font-mono font-bold text-white block leading-tight">{coin.name}</span>
+                    <span className="text-[9px] font-mono text-white/40 uppercase">{coin.symbol}</span>
+                  </div>
+                </div>
+
+                <span className={`px-2 py-0.5 rounded-md text-[10px] font-mono font-bold ${
+                  isUp ? 'bg-emerald-500/20 text-emerald-300' : 'bg-rose-500/20 text-rose-300'
+                }`}>
+                  {isUp ? '+' : ''}{coin.price_change_percentage_24h}%
+                </span>
+              </div>
+
+              <div className="flex items-baseline justify-between">
+                <span className="text-lg font-mono font-extrabold text-white">
+                  ${coin.current_price.toLocaleString()}
+                </span>
+                <span className="text-[9px] font-mono text-white/40">
+                  Vol: ${(coin.total_volume / 1e9).toFixed(1)}B
+                </span>
+              </div>
+
+              <button
+                onClick={(e) => { e.stopPropagation(); handleOpenChart(coin); }}
+                className="w-full py-1.5 rounded-xl bg-white/5 hover:bg-white text-white hover:text-black text-[9px] font-mono uppercase font-bold tracking-wider flex items-center justify-center gap-1.5 transition-all"
+              >
+                <span>TradingView Chart</span>
+                <ExternalLink size={9} />
+              </button>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+// ==========================================
+// 10. SPOT UI: FX & CURRENCY INTELLIGENCE (Frankfurter)
+// ==========================================
+function SpotFxWidget({ data }: { data: FxData }) {
+  const [amount, setAmount] = useState<number>(data.amount || 100);
+  const [base, setBase] = useState<string>(data.base || 'USD');
+  const [target, setTarget] = useState<string>(data.target || 'INR');
+  const [fxResult, setFxResult] = useState(data);
+  const [isConverting, setIsConverting] = useState(false);
+
+  const handleConvert = async () => {
+    setIsConverting(true);
+    try {
+      const res = await convertCurrency(amount, base, target);
+      setFxResult(res);
+    } catch (e) {} finally {
+      setIsConverting(false);
+    }
+  };
+
+  return (
+    <div className="flex flex-col h-full w-full space-y-4">
+      <div className="flex items-center justify-between border-b border-white/10 pb-3 px-1">
+        <div className="flex items-center gap-3">
+          <div className="w-8 h-8 rounded-xl bg-emerald-500/15 border border-emerald-500/30 flex items-center justify-center text-emerald-400">
+            <DollarSign size={16} />
+          </div>
+          <div>
+            <span className="text-sm font-heading font-extrabold text-white tracking-wide block">
+              FX Lens: Currency Intelligence
+            </span>
+            <span className="text-[9px] font-mono text-white/40 uppercase tracking-widest">
+              European Central Bank Reference Rates ({fxResult.date}) • {fxResult.source}
+            </span>
+          </div>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        {/* Converter Box */}
+        <div className="p-5 rounded-2xl bg-white/[0.04] border border-white/10 flex flex-col justify-between space-y-4">
+          <span className="text-[10px] font-mono uppercase text-emerald-400 font-bold tracking-wider">Currency Conversion</span>
+
+          <div className="grid grid-cols-3 gap-2">
+            <div>
+              <label className="text-[9px] font-mono text-white/40 block mb-1">Amount</label>
+              <input
+                type="number"
+                value={amount}
+                onChange={(e) => setAmount(parseFloat(e.target.value) || 0)}
+                className="w-full px-3 py-2 rounded-xl bg-white/[0.05] border border-white/10 text-white font-mono text-sm outline-none"
+              />
+            </div>
+            <div>
+              <label className="text-[9px] font-mono text-white/40 block mb-1">From</label>
+              <select
+                value={base}
+                onChange={(e) => setBase(e.target.value)}
+                className="w-full px-3 py-2 rounded-xl bg-zinc-900 border border-white/10 text-white font-mono text-sm outline-none"
+              >
+                {['USD', 'EUR', 'GBP', 'INR', 'JPY', 'CAD', 'AUD', 'CHF', 'CNY'].map((c) => (
+                  <option key={c} value={c}>{c}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="text-[9px] font-mono text-white/40 block mb-1">To</label>
+              <select
+                value={target}
+                onChange={(e) => setTarget(e.target.value)}
+                className="w-full px-3 py-2 rounded-xl bg-zinc-900 border border-white/10 text-white font-mono text-sm outline-none"
+              >
+                {['INR', 'USD', 'EUR', 'GBP', 'JPY', 'CAD', 'AUD', 'CHF', 'CNY'].map((c) => (
+                  <option key={c} value={c}>{c}</option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          <button
+            onClick={handleConvert}
+            disabled={isConverting}
+            className="w-full py-2.5 rounded-xl bg-white text-black font-mono font-bold text-xs uppercase tracking-wider hover:bg-white/90 transition-all cursor-pointer"
+          >
+            {isConverting ? 'Calculating...' : 'Calculate Conversion'}
+          </button>
+
+          {fxResult.convertedAmount !== undefined && (
+            <div className="p-4 rounded-xl bg-emerald-500/10 border border-emerald-500/20 flex flex-col items-center">
+              <span className="text-2xl sm:text-3xl font-mono font-extrabold text-white">
+                {fxResult.convertedAmount.toLocaleString()} {target}
+              </span>
+              <span className="text-[10px] font-mono text-emerald-400 mt-1">
+                1 {base} = {fxResult.rate} {target}
+              </span>
+            </div>
+          )}
+        </div>
+
+        {/* Popular Reference Rates Table */}
+        <div className="p-4 rounded-2xl bg-white/[0.04] border border-white/10 flex flex-col justify-between space-y-2">
+          <span className="text-[10px] font-mono uppercase text-white/50 font-bold tracking-wider">Key Reference Rates (Base: {fxResult.base})</span>
+          <div className="space-y-2 max-h-[220px] overflow-y-auto no-scrollbar">
+            {Object.entries(fxResult.rates).slice(0, 8).map(([cur, r]) => (
+              <div key={cur} className="flex items-center justify-between text-xs font-mono py-1.5 border-b border-white/5">
+                <span className="text-white font-bold">{cur}</span>
+                <span className="text-white/70">{r.toLocaleString()}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ==========================================
+// 11. SPOT UI: MARKET WATCHLIST
+// ==========================================
+function SpotWatchlistWidget({ data }: { data: WatchlistData }) {
+  const [items, setItems] = useState(data.items);
+  const { setSymbol } = useMarketsStore();
+  const { setView } = useAppStore();
+  const { closeJarvis } = useJarvisStore();
+
+  const handleRemove = (id: string) => {
+    const updated = removeFromWatchlist(id);
+    setItems(updated.items);
+  };
+
+  const handleOpen = (symbol: string) => {
+    setSymbol(symbol);
+    setView('hub');
+    window.dispatchEvent(new CustomEvent('changeView', { detail: { view: 'hub' } }));
+    closeJarvis();
+  };
+
+  return (
+    <div className="flex flex-col h-full w-full space-y-4">
+      <div className="flex items-center justify-between border-b border-white/10 pb-3 px-1">
+        <div className="flex items-center gap-3">
+          <div className="w-8 h-8 rounded-xl bg-blue-500/15 border border-blue-500/30 flex items-center justify-center text-blue-400">
+            <Eye size={16} />
+          </div>
+          <div>
+            <span className="text-sm font-heading font-extrabold text-white tracking-wide block">
+              Market Watchlist
+            </span>
+            <span className="text-[9px] font-mono text-white/40 uppercase tracking-widest">
+              {items.length} Monitored Assets • Persistent Storage
+            </span>
+          </div>
+        </div>
+
+        <button
+          onClick={() => {
+            setView('hub');
+            window.dispatchEvent(new CustomEvent('changeView', { detail: { view: 'hub' } }));
+            closeJarvis();
+          }}
+          className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-white/10 hover:bg-white text-white hover:text-black text-[9px] font-mono uppercase font-bold tracking-wider transition-all cursor-pointer"
+        >
+          <span>Markets Hub</span>
+          <ExternalLink size={10} />
+        </button>
+      </div>
+
+      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3 max-h-[44vh] overflow-y-auto no-scrollbar pr-1">
+        {items.map((item) => (
+          <div
+            key={item.id}
+            onClick={() => handleOpen(item.symbol)}
+            className="p-3.5 rounded-2xl bg-white/[0.04] hover:bg-white/[0.08] border border-white/10 hover:border-white/20 transition-all cursor-pointer flex flex-col justify-between space-y-2 group"
+          >
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-mono font-bold text-white">{item.ticker}</span>
+              <button
+                onClick={(e) => { e.stopPropagation(); handleRemove(item.id); }}
+                className="opacity-0 group-hover:opacity-100 p-1 text-white/40 hover:text-red-400 transition-opacity"
+              >
+                <Trash2 size={11} />
+              </button>
+            </div>
+            <span className="text-[10px] font-mono text-white/50 truncate">{item.name}</span>
+            <div className="flex items-baseline justify-between pt-1 border-t border-white/5">
+              <span className="text-sm font-mono font-bold text-white">${item.price?.toLocaleString()}</span>
+              {item.change !== undefined && (
+                <span className={`text-[9px] font-mono font-bold ${item.change >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+                  {item.change >= 0 ? '+' : ''}{item.change}%
+                </span>
+              )}
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ==========================================
+// 12. SPOT UI: LOCAL PORTFOLIO TRACKER
+// ==========================================
+function SpotPortfolioWidget({ data }: { data: PortfolioData }) {
+  const [port, setPort] = useState(data);
+
+  const handleDelete = (id: string) => {
+    deleteHolding(id);
+    getPortfolioData().then(setPort);
+  };
+
+  const isProfitable = port.totalPnl >= 0;
+
+  return (
+    <div className="flex flex-col h-full w-full space-y-4">
+      <div className="flex items-center justify-between border-b border-white/10 pb-3 px-1">
+        <div className="flex items-center gap-3">
+          <div className="w-8 h-8 rounded-xl bg-emerald-500/15 border border-emerald-500/30 flex items-center justify-center text-emerald-400">
+            <Percent size={16} />
+          </div>
+          <div>
+            <span className="text-sm font-heading font-extrabold text-white tracking-wide block">
+              Portfolio Valuation & P&L
+            </span>
+            <span className="text-[9px] font-mono text-white/40 uppercase tracking-widest">
+              Local Manual Portfolio Tracker • {port.holdings.length} Positions
+            </span>
+          </div>
+        </div>
+      </div>
+
+      {/* Summary Valuation Cards */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5">
+        <div className="p-4 rounded-2xl bg-white/[0.04] border border-white/10 flex flex-col justify-between">
+          <span className="text-[10px] font-mono uppercase text-white/40">Total Valuation</span>
+          <span className="text-2xl sm:text-3xl font-mono font-extrabold text-white my-1">
+            ${port.totalValue.toLocaleString()}
+          </span>
+          <span className="text-[9px] font-mono text-white/40">Cost Basis: ${port.totalCost.toLocaleString()}</span>
+        </div>
+
+        <div className="p-4 rounded-2xl bg-white/[0.04] border border-white/10 flex flex-col justify-between">
+          <span className="text-[10px] font-mono uppercase text-white/40">Unrealized P&L</span>
+          <span className={`text-2xl sm:text-3xl font-mono font-extrabold my-1 ${isProfitable ? 'text-emerald-400' : 'text-rose-400'}`}>
+            {isProfitable ? '+' : ''}${port.totalPnl.toLocaleString()}
+          </span>
+          <span className="text-[9px] font-mono text-white/40">Profit / Loss</span>
+        </div>
+
+        <div className="p-4 rounded-2xl bg-white/[0.04] border border-white/10 flex flex-col justify-between">
+          <span className="text-[10px] font-mono uppercase text-white/40">Total Return</span>
+          <span className={`text-2xl sm:text-3xl font-mono font-extrabold my-1 ${isProfitable ? 'text-emerald-400' : 'text-rose-400'}`}>
+            {isProfitable ? '+' : ''}{port.totalPnlPercent}%
+          </span>
+          <span className="text-[9px] font-mono text-white/40">Relative ROI</span>
+        </div>
+      </div>
+
+      {/* Positions Breakdown Table */}
+      <div className="p-4 rounded-2xl bg-white/[0.04] border border-white/10 space-y-2.5 max-h-[220px] overflow-y-auto no-scrollbar">
+        <span className="text-[10px] font-mono uppercase text-white/50 font-bold tracking-wider block">Holdings Allocation</span>
+        {port.holdings.map((h) => (
+          <div key={h.id} className="flex items-center justify-between p-2 rounded-xl bg-white/[0.02] border border-white/5 text-xs font-mono">
+            <div className="flex items-center gap-2">
+              <span className="font-bold text-white">{h.name}</span>
+              <span className="text-[10px] text-white/40">({h.quantity} units)</span>
+            </div>
+            <div className="flex items-center gap-4">
+              <span className="text-white">${h.currentValue.toLocaleString()}</span>
+              <span className={`font-bold ${h.pnl >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+                {h.pnl >= 0 ? '+' : ''}${h.pnl.toLocaleString()} ({h.pnl >= 0 ? '+' : ''}{h.pnlPercent}%)
+              </span>
+              <button onClick={() => handleDelete(h.id)} className="text-white/30 hover:text-red-400 p-1">
+                <Trash2 size={11} />
+              </button>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ==========================================
 // MAIN JARVIS VOICE HUD COMPONENT
 // ==========================================
 export default function JarvisVoiceHUD() {
@@ -368,6 +1157,15 @@ export default function JarvisVoiceHUD() {
     if (latestMessage.mediaResults && latestMessage.mediaResults.length > 0) return 'video';
     if (latestMessage.stockData) return 'stock';
     if (latestMessage.taskData && latestMessage.taskData.tasks) return 'task';
+    if (latestMessage.weatherData) return 'weather';
+    if (latestMessage.newsData) return 'news';
+    if (latestMessage.earthquakeData) return 'earthquake';
+    if (latestMessage.issData) return 'iss';
+    if (latestMessage.nasaData) return 'nasa';
+    if (latestMessage.cryptoData) return 'crypto';
+    if (latestMessage.fxData) return 'fx';
+    if (latestMessage.watchlistData) return 'watchlist';
+    if (latestMessage.portfolioData) return 'portfolio';
     return null;
   }, [latestMessage, showHistory]);
 
@@ -675,6 +1473,33 @@ export default function JarvisVoiceHUD() {
                 {spotType === 'task' && latestMessage?.taskData && (
                   <SpotTaskWidget {...latestMessage.taskData} />
                 )}
+                {spotType === 'weather' && latestMessage?.weatherData && (
+                  <SpotWeatherWidget data={latestMessage.weatherData} />
+                )}
+                {spotType === 'news' && latestMessage?.newsData && (
+                  <SpotNewsWidget data={latestMessage.newsData} />
+                )}
+                {spotType === 'earthquake' && latestMessage?.earthquakeData && (
+                  <SpotEarthquakeWidget data={latestMessage.earthquakeData} />
+                )}
+                {spotType === 'iss' && latestMessage?.issData && (
+                  <SpotIssWidget data={latestMessage.issData} />
+                )}
+                {spotType === 'nasa' && latestMessage?.nasaData && (
+                  <SpotNasaWidget data={latestMessage.nasaData} />
+                )}
+                {spotType === 'crypto' && latestMessage?.cryptoData && (
+                  <SpotCryptoWidget data={latestMessage.cryptoData} />
+                )}
+                {spotType === 'fx' && latestMessage?.fxData && (
+                  <SpotFxWidget data={latestMessage.fxData} />
+                )}
+                {spotType === 'watchlist' && latestMessage?.watchlistData && (
+                  <SpotWatchlistWidget data={latestMessage.watchlistData} />
+                )}
+                {spotType === 'portfolio' && latestMessage?.portfolioData && (
+                  <SpotPortfolioWidget data={latestMessage.portfolioData} />
+                )}
               </motion.div>
             </motion.div>
           )}
@@ -920,14 +1745,19 @@ export default function JarvisVoiceHUD() {
           {/* Quick Command Chips with Category Icons */}
           <div className="flex items-center gap-2 overflow-x-auto no-scrollbar max-w-full py-1">
             {[
+              { label: "weather in Tokyo", icon: <Cloud size={10} className="text-blue-400" /> },
+              { label: "crypto prices", icon: <Coins size={10} className="text-amber-400" /> },
+              { label: "convert 100 USD to INR", icon: <DollarSign size={10} className="text-emerald-400" /> },
+              { label: "world pulse", icon: <Globe size={10} className="text-purple-400" /> },
+              { label: "track iss", icon: <RadioIcon size={10} className="text-cyan-400" /> },
+              { label: "show recent earthquakes", icon: <Activity size={10} className="text-rose-400" /> },
+              { label: "astronomy picture of the day", icon: <Sparkles size={10} className="text-indigo-400" /> },
+              { label: "my portfolio", icon: <Percent size={10} className="text-emerald-400" /> },
+              { label: "open watchlist", icon: <Eye size={10} className="text-blue-400" /> },
               { label: "search video lofi beats", icon: <Youtube size={10} className="text-red-400" /> },
               { label: "search stock TSLA", icon: <TrendingUp size={10} className="text-emerald-400" /> },
-              { label: "search stock BTC", icon: <TrendingUp size={10} className="text-amber-400" /> },
               { label: "what are my tasks?", icon: <CheckSquare size={10} className="text-cyan-400" /> },
-              { label: "start 25m timer", icon: <Clock size={10} className="text-blue-400" /> },
-              { label: "play 432 hz", icon: <Music size={10} className="text-purple-400" /> },
-              { label: "open the place", icon: <Play size={10} className="text-rose-400" /> },
-              { label: "give me a pep talk", icon: <Zap size={10} className="text-yellow-400" /> }
+              { label: "start 25m timer", icon: <Clock size={10} className="text-blue-400" /> }
             ].map((chip, idx) => (
               <button
                 key={idx}

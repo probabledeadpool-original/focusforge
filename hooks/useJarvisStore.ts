@@ -11,6 +11,17 @@ export type JarvisAiState = 'idle' | 'listening' | 'thinking' | 'speaking' | 'ex
 export type JarvisDisplayMode = 'minimized' | 'expanded' | 'fullscreen';
 
 import type { YouTubeSearchResult } from '../lib/youtubeSearch';
+import type { 
+  WeatherData, 
+  NewsData, 
+  EarthquakeData, 
+  IssData, 
+  NasaApodData, 
+  CryptoData, 
+  FxData, 
+  WatchlistData, 
+  PortfolioData 
+} from '../lib/intelligence/types';
 
 export interface StockSpotData {
   symbol: string;
@@ -37,6 +48,15 @@ export interface JarvisMessage {
   stockData?: StockSpotData;
   taskData?: TaskSpotData;
   timerData?: TimerSpotData;
+  weatherData?: WeatherData;
+  newsData?: NewsData;
+  earthquakeData?: EarthquakeData;
+  issData?: IssData;
+  nasaData?: NasaApodData;
+  cryptoData?: CryptoData;
+  fxData?: FxData;
+  watchlistData?: WatchlistData;
+  portfolioData?: PortfolioData;
 }
 
 interface JarvisStore {
@@ -48,6 +68,8 @@ interface JarvisStore {
   isOpen: boolean;
   displayMode: JarvisDisplayMode;
   isMinimized: boolean;
+  keepHudOpen: boolean;
+  setKeepHudOpen: (keep: boolean) => void;
   setDisplayMode: (mode: JarvisDisplayMode) => void;
   setIsOpen: (open: boolean) => void;
   setIsMinimized: (minimized: boolean) => void;
@@ -125,6 +147,8 @@ export const useJarvisStore = create<JarvisStore>((set, get) => ({
   isOpen: false,
   displayMode: 'fullscreen',
   isMinimized: false,
+  keepHudOpen: false,
+  setKeepHudOpen: (keepHudOpen) => set({ keepHudOpen }),
   setDisplayMode: (displayMode) => {
     const isMinimized = displayMode === 'minimized';
     set({ displayMode, isMinimized, isOpen: true });
@@ -389,7 +413,31 @@ if (typeof window !== 'undefined') {
 
   window.addEventListener('jarvis-auto-minimize', () => {
     const s = useJarvisStore.getState();
-    if (s.isOpen && s.displayMode === 'fullscreen') {
+    const lastMsg = s.messages[s.messages.length - 1];
+    
+    // If the latest message has interactive Spot UI content, DO NOT auto-minimize so user can interact!
+    const hasSpotContent = lastMsg && (
+      lastMsg.mediaResults ||
+      lastMsg.stockData ||
+      lastMsg.taskData ||
+      lastMsg.weatherData ||
+      lastMsg.newsData ||
+      lastMsg.earthquakeData ||
+      lastMsg.issData ||
+      lastMsg.nasaData ||
+      lastMsg.cryptoData ||
+      lastMsg.fxData ||
+      lastMsg.watchlistData ||
+      lastMsg.portfolioData
+    );
+
+    if (hasSpotContent) {
+      // Keep HUD open for seamless interaction
+      return;
+    }
+
+    // Otherwise, maintain user view
+    if (s.isOpen && s.displayMode === 'fullscreen' && !s.keepHudOpen) {
       s.setDisplayMode('minimized');
     }
   });

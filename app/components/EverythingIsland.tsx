@@ -1554,10 +1554,10 @@ Answer directly, clearly, and concisely in normal natural language. Provide dire
             position: absolute;
             inset: 0;
             border-radius: inherit;
-            padding: 2px;
-            background: linear-gradient(90deg, #ef4444, #dc2626, #f87171, #ef4444, #b91c1c, #ef4444);
+            padding: 1.5px;
+            background: linear-gradient(90deg, rgba(220,38,38,0.4), rgba(185,28,28,0.6), rgba(244,63,94,0.35), rgba(220,38,38,0.4));
             background-size: 200% auto;
-            animation: rotate-gradient 2.5s linear infinite;
+            animation: rotate-gradient 3.5s linear infinite;
             -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
             -webkit-mask-composite: xor;
             mask-composite: exclude;
@@ -1565,24 +1565,25 @@ Answer directly, clearly, and concisely in normal natural language. Provide dire
           }
           .youtube-glow-back1 {
              position: absolute;
-             inset: -20px;
+             inset: -15px;
              border-radius: 60px;
-             background: linear-gradient(90deg, rgba(239,68,68,0.85), rgba(220,38,38,0.85), rgba(248,113,113,0.85), rgba(239,68,68,0.85));
+             background: linear-gradient(90deg, rgba(185,28,28,0.25), rgba(220,38,38,0.2), rgba(153,27,27,0.25), rgba(185,28,28,0.2));
              background-size: 200% auto;
-             animation: rotate-gradient 2.5s linear infinite;
-             filter: blur(30px);
+             animation: rotate-gradient 3.5s linear infinite;
+             filter: blur(28px);
              z-index: -1;
+             transition: all 0.6s cubic-bezier(0.16, 1, 0.3, 1);
           }
           .youtube-glow-back2 {
              position: absolute;
-             inset: -40px;
+             inset: -30px;
              border-radius: 80px;
-             background: linear-gradient(90deg, rgba(220,38,38,0.65), rgba(185,28,28,0.65), rgba(239,68,68,0.65), rgba(220,38,38,0.65));
+             background: linear-gradient(90deg, rgba(153,27,27,0.15), rgba(185,28,28,0.12), rgba(127,29,29,0.15));
              background-size: 200% auto;
-             animation: rotate-gradient 3.5s linear infinite reverse;
-             filter: blur(60px);
+             animation: rotate-gradient 5s linear infinite reverse;
+             filter: blur(45px);
              z-index: -2;
-             mix-blend-mode: screen;
+             transition: all 0.6s cubic-bezier(0.16, 1, 0.3, 1);
           }
           .prismatic-glow-border {
             position: absolute;
@@ -1696,7 +1697,7 @@ Answer directly, clearly, and concisely in normal natural language. Provide dire
                }}
                exit={{ opacity: 0, scale: 0.95 }}
                className="absolute top-0 left-1/2 pointer-events-none z-[-1]"
-               transition={{ ...getTransition(), opacity: { duration: 0.5, ease: "easeInOut" } }}
+               transition={{ ...getTransition(), opacity: { duration: 0.6, ease: [0.16, 1, 0.3, 1] } }}
              >
                <div className={islandState === 'ai' ? "prismatic-glow-back1" : isYouTubeMode ? "youtube-glow-back1" : "google-glow-back1"} />
                <div className={islandState === 'ai' ? "prismatic-glow-back2" : isYouTubeMode ? "youtube-glow-back2" : "google-glow-back2"} />

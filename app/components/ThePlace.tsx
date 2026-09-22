@@ -440,10 +440,10 @@ export default function ThePlace() {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="min-h-screen flex flex-col pb-32 pt-36"
+            className="min-h-screen flex flex-col pb-32 pt-24 sm:pt-28"
           >
             {/* Ultra-Luxury Navigation Header */}
-            <header className="fixed top-20 sm:top-24 w-[calc(100%-32px)] sm:w-[calc(100%-48px)] left-4 sm:left-6 right-4 sm:right-6 z-[100] px-4 sm:px-6 md:px-8 py-3 flex flex-wrap xl:flex-nowrap items-center justify-between gap-3 md:gap-4 bg-zinc-950/75 backdrop-blur-2xl border border-white/10 rounded-2xl md:rounded-3xl shadow-[0_20px_60px_rgba(0,0,0,0.85),inset_0_1px_1px_rgba(255,255,255,0.15)] relative overflow-hidden group">
+            <header className="fixed top-3 sm:top-4 w-[calc(100%-24px)] sm:w-[calc(100%-32px)] md:w-[calc(100%-48px)] left-3 sm:left-4 md:left-6 right-3 sm:right-4 md:right-6 z-[100] px-4 sm:px-6 md:px-7 py-2.5 sm:py-3 flex flex-wrap xl:flex-nowrap items-center justify-between gap-3 md:gap-4 bg-zinc-950/80 backdrop-blur-3xl border border-white/10 rounded-2xl md:rounded-3xl shadow-[0_20px_50px_rgba(0,0,0,0.9),inset_0_1px_1px_rgba(255,255,255,0.15)] relative overflow-hidden group">
               {/* Ambient Specular Highlight */}
               <div className="absolute inset-x-12 top-0 h-[1px] bg-gradient-to-r from-transparent via-cyan-400/40 via-purple-400/30 to-transparent pointer-events-none" />
 

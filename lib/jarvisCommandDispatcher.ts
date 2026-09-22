@@ -23,6 +23,15 @@ import {
 import { getSelectedTextModel, recordAiUsage } from './aiModelConfig';
 import { cleanJarvisOutput } from './jarvisOutputCleaner';
 import { searchYouTube } from './youtubeSearch';
+import { fetchWeather, getUserLocationWeather } from './intelligence/weatherAdapter';
+import { fetchNews } from './intelligence/worldPulseAdapter';
+import { fetchEarthquakes } from './intelligence/earthquakeAdapter';
+import { fetchIssTelemetry } from './intelligence/issAdapter';
+import { fetchNasaApod } from './intelligence/nasaAdapter';
+import { fetchCryptoMarkets, searchCryptoCoin } from './intelligence/cryptoAdapter';
+import { convertCurrency, fetchExchangeRates } from './intelligence/fxAdapter';
+import { getWatchlist } from './intelligence/watchlistManager';
+import { getPortfolioData } from './intelligence/portfolioManager';
 
 export type ToolCategory = 'READ_ONLY' | 'DRAFT' | 'SIDE_EFFECT';
 
@@ -717,6 +726,290 @@ export async function executeLocalCommand(rawText: string): Promise<boolean> {
     });
     jarvisVoiceEngine.speakResponse(`Pulling up chart for ${rawSymbol}, sir.`);
     return true;
+  }
+
+  // 6D. WEATHER SYSTEM DIRECTIVE ("weather in Tokyo", "what's the weather", "temperature in London", "forecast for Paris")
+  const weatherMatch = text.match(/^(?:jarvis\s*,?\s*)?(?:(?:what(?:'s|\s+is)\s+the\s+)?weather(?:\s+(?:in|for|at))?|forecast(?:\s+(?:in|for))?|temperature(?:\s+(?:in|for))?|how\s+is\s+the\s+weather(?:\s+in)?)\s*(.*)$/i);
+  if (weatherMatch && (text.includes('weather') || text.includes('temperature') || text.includes('forecast') || text.includes('rain') || text.includes('humidity'))) {
+    const rawCity = weatherMatch[1]?.trim().replace(/[?.,]/g, '');
+    jarvisVoiceEngine.setActiveTool('GET_WEATHER');
+    try {
+      const data = rawCity ? await fetchWeather(rawCity) : await getUserLocationWeather();
+      const spoken = `Currently in ${data.city} it is ${data.temperature} degrees Celsius and ${data.conditionText.toLowerCase()} with ${data.humidity}% humidity.`;
+      jarvisStore.addMessage({
+        role: 'assistant',
+        text: `Atmospheric telemetry retrieved for ${data.city}, ${data.country || ''}. Current: ${data.temperature}°C (${data.conditionText}), Humidity: ${data.humidity}%, Wind: ${data.windSpeed} km/h.`,
+        actionSummary: `Weather: ${data.city} (${data.temperature}°C)`,
+        weatherData: data
+      });
+      jarvisVoiceEngine.speakResponse(spoken);
+      return true;
+    } catch (err: any) {
+      const msg = `Unable to retrieve atmospheric telemetry: ${err?.message || 'Network error'}`;
+      jarvisStore.addMessage({ role: 'assistant', text: msg });
+      jarvisVoiceEngine.speakResponse(`I was unable to retrieve atmospheric data at this moment.`);
+      return true;
+    }
+  }
+
+  // 6E. WORLD PULSE & GLOBAL NEWS ("world pulse", "global news", "tech news", "financial news", "science news", "crypto news", "news about AI")
+  if (
+    text.includes('world pulse') ||
+    text.includes('global news') ||
+    text.includes('latest news') ||
+    text.includes('tech news') ||
+    text.includes('science news') ||
+    text.includes('space news') ||
+    text.includes('energy news') ||
+    text.includes('political news') ||
+    text.includes('financial news') ||
+    text.includes('market news') ||
+    text.includes('crypto news') ||
+    text.startsWith('news about') ||
+    text.startsWith('news on')
+  ) {
+    let category = 'world';
+    let query: string | undefined = undefined;
+
+    if (text.includes('tech')) category = 'technology';
+    else if (text.includes('science')) category = 'science';
+    else if (text.includes('space')) category = 'space';
+    else if (text.includes('energy')) category = 'energy';
+    else if (text.includes('politic')) category = 'politics';
+    else if (text.includes('financial') || text.includes('market')) category = 'financial';
+    else if (text.includes('crypto')) category = 'crypto';
+    else if (text.startsWith('news about ') || text.startsWith('news on ')) {
+      query = text.replace(/^news\s+(?:about|on)\s+/i, '').trim();
+    }
+
+    jarvisVoiceEngine.setActiveTool('GET_WORLD_PULSE');
+    try {
+      const newsData = await fetchNews(category, query);
+      const articleCount = newsData.articles.length;
+      const spoken = `Retrieved ${articleCount} recent global event dispatches from the GDELT network, sir.`;
+      jarvisStore.addMessage({
+        role: 'assistant',
+        text: `World Pulse stream synchronized for ${query ? `"${query}"` : category.toUpperCase()}. Displaying verified global event reports.`,
+        actionSummary: `World Pulse: ${category.toUpperCase()}`,
+        newsData
+      });
+      jarvisVoiceEngine.speakResponse(spoken);
+      return true;
+    } catch (err: any) {
+      jarvisStore.addMessage({ role: 'assistant', text: `Global news service error: ${err?.message || 'Unavailable'}` });
+      jarvisVoiceEngine.speakResponse("I could not reach the global news registry at this time.");
+      return true;
+    }
+  }
+
+  // 6F. EARTH MONITOR — EARTHQUAKES ("earthquakes", "show recent earthquakes", "seismic activity", "earthquake monitor")
+  if (
+    text.includes('earthquake') ||
+    text.includes('earthquakes') ||
+    text.includes('seismic activity') ||
+    text.includes('earth monitor')
+  ) {
+    jarvisVoiceEngine.setActiveTool('GET_EARTHQUAKES');
+    try {
+      const eqData = await fetchEarthquakes(2.5, 25, 'day');
+      const maxMag = eqData.earthquakes.length > 0 
+        ? Math.max(...eqData.earthquakes.map(e => e.mag)) 
+        : 0;
+      const spoken = `Monitoring ${eqData.earthquakes.length} recent seismic events from the USGS network. Max magnitude recorded is ${maxMag}.`;
+      jarvisStore.addMessage({
+        role: 'assistant',
+        text: `USGS Earth Monitor feed synced. Displaying ${eqData.earthquakes.length} real-time global seismic events (M2.5+).`,
+        actionSummary: `Earthquakes: ${eqData.earthquakes.length} events`,
+        earthquakeData: eqData
+      });
+      jarvisVoiceEngine.speakResponse(spoken);
+      return true;
+    } catch (err: any) {
+      jarvisStore.addMessage({ role: 'assistant', text: `USGS Earth Monitor error: ${err?.message || 'Service offline'}` });
+      jarvisVoiceEngine.speakResponse("I encountered an issue connecting to the USGS seismic monitoring network.");
+      return true;
+    }
+  }
+
+  // 6G. ORBITAL — ISS TRACKER ("track iss", "where is the iss", "space station location", "iss telemetry")
+  if (
+    text.includes('track iss') ||
+    text.includes('where is the iss') ||
+    text.includes('iss position') ||
+    text.includes('iss location') ||
+    text.includes('space station') ||
+    text.includes('orbital telemetry')
+  ) {
+    jarvisVoiceEngine.setActiveTool('GET_ISS_TELEMETRY');
+    try {
+      const iss = await fetchIssTelemetry();
+      const spoken = `The International Space Station is currently orbiting at altitude ${Math.round(iss.altitude)} kilometers with velocity of ${Math.round(iss.velocity).toLocaleString()} kilometers per hour.`;
+      jarvisStore.addMessage({
+        role: 'assistant',
+        text: `ISS telemetry verified. Position: [Lat: ${iss.latitude}°, Lon: ${iss.longitude}°], Altitude: ${iss.altitude} km, Velocity: ${iss.velocity} km/h.`,
+        actionSummary: `ISS: ${iss.latitude}°, ${iss.longitude}°`,
+        issData: iss
+      });
+      jarvisVoiceEngine.speakResponse(spoken);
+      return true;
+    } catch (err: any) {
+      jarvisStore.addMessage({ role: 'assistant', text: `Orbital tracking error: ${err?.message || 'Telemetry offline'}` });
+      jarvisVoiceEngine.speakResponse("Unable to obtain orbital tracking telemetry from the station.");
+      return true;
+    }
+  }
+
+  // 6H. NASA / SPACE INTELLIGENCE — APOD ("astronomy picture of the day", "nasa photo", "nasa picture", "space picture", "show apod")
+  if (
+    text.includes('astronomy picture') ||
+    text.includes('nasa picture') ||
+    text.includes('nasa photo') ||
+    text.includes('space picture') ||
+    text.includes('space photo') ||
+    text.includes('show apod') ||
+    text.includes('astronomy photo')
+  ) {
+    jarvisVoiceEngine.setActiveTool('GET_NASA_APOD');
+    try {
+      const apod = await fetchNasaApod();
+      const spoken = `Here is NASA's Astronomy Picture of the Day: "${apod.title}".`;
+      jarvisStore.addMessage({
+        role: 'assistant',
+        text: `NASA Astronomy Picture of the Day (${apod.date}): "${apod.title}"`,
+        actionSummary: `NASA APOD: ${apod.title}`,
+        nasaData: apod
+      });
+      jarvisVoiceEngine.speakResponse(spoken);
+      return true;
+    } catch (err: any) {
+      jarvisStore.addMessage({ role: 'assistant', text: `NASA APOD error: ${err?.message || 'Service limit reached'}` });
+      jarvisVoiceEngine.speakResponse("I was unable to load NASA's daily astronomy imagery.");
+      return true;
+    }
+  }
+
+  // 6I. CRYPTO INTELLIGENCE ("crypto prices", "top crypto", "crypto market", "crypto overview", "crypto pulse")
+  if (
+    text.includes('crypto prices') ||
+    text.includes('top crypto') ||
+    text.includes('crypto market') ||
+    text.includes('crypto pulse') ||
+    text.includes('cryptocurrency prices') ||
+    text.includes('market pulse crypto')
+  ) {
+    jarvisVoiceEngine.setActiveTool('GET_CRYPTO_MARKETS');
+    try {
+      const crypto = await fetchCryptoMarkets('usd');
+      const btc = crypto.coins.find(c => c.symbol === 'BTC');
+      const spoken = btc 
+        ? `Bitcoin is currently trading at $${btc.current_price.toLocaleString()}, with a 24-hour change of ${btc.price_change_percentage_24h} percent.`
+        : `Cryptocurrency market telemetry retrieved, sir.`;
+      jarvisStore.addMessage({
+        role: 'assistant',
+        text: `Cryptocurrency market telemetry synchronized via CoinGecko. Displaying top market assets.`,
+        actionSummary: `Crypto Pulse: Top 20 Assets`,
+        cryptoData: crypto
+      });
+      jarvisVoiceEngine.speakResponse(spoken);
+      return true;
+    } catch (err: any) {
+      jarvisStore.addMessage({ role: 'assistant', text: `Crypto data error: ${err?.message || 'Rate limit'}` });
+      jarvisVoiceEngine.speakResponse("I could not fetch cryptocurrency price telemetry right now.");
+      return true;
+    }
+  }
+
+  // 6J. FX & CURRENCY CONVERSION ("convert 100 USD to INR", "exchange rate EUR to USD", "how much is 50 dollars in euros")
+  const fxConvertMatch = text.match(/^(?:jarvis\s*,?\s*)?(?:convert|how\s+much\s+is|what\s+is)\s+(\d+(?:\.\d+)?)\s*([a-zA-Z]{3,4})\s*(?:to|in|into)\s*([a-zA-Z]{3,4})$/i);
+  if (fxConvertMatch) {
+    const amount = parseFloat(fxConvertMatch[1]);
+    const base = fxConvertMatch[2].toUpperCase();
+    const target = fxConvertMatch[3].toUpperCase();
+
+    jarvisVoiceEngine.setActiveTool('CONVERT_CURRENCY');
+    try {
+      const fx = await convertCurrency(amount, base, target);
+      const spoken = `${amount} ${base} is equal to ${fx.convertedAmount?.toLocaleString() ?? '...'} ${target} according to European Central Bank reference rates.`;
+      jarvisStore.addMessage({
+        role: 'assistant',
+        text: `Currency Conversion: ${amount} ${base} = ${fx.convertedAmount?.toLocaleString()} ${target} (Rate: 1 ${base} = ${fx.rate} ${target}, Date: ${fx.date}).`,
+        actionSummary: `FX: ${amount} ${base} -> ${target}`,
+        fxData: fx
+      });
+      jarvisVoiceEngine.speakResponse(spoken);
+      return true;
+    } catch (err: any) {
+      jarvisStore.addMessage({ role: 'assistant', text: `FX conversion error: ${err?.message || 'Unsupported currency'}` });
+      jarvisVoiceEngine.speakResponse("I was unable to perform the currency conversion.");
+      return true;
+    }
+  } else if (text.includes('forex rates') || text.includes('fx rates') || text.includes('currency rates') || text.includes('exchange rates')) {
+    jarvisVoiceEngine.setActiveTool('GET_FX_RATES');
+    try {
+      const fx = await fetchExchangeRates('USD');
+      const spoken = `Retrieved latest international reference exchange rates against the US Dollar.`;
+      jarvisStore.addMessage({
+        role: 'assistant',
+        text: `FX Reference Exchange Rates (Base: USD). Synced via Frankfurter (ECB).`,
+        actionSummary: `FX Rates: Base USD`,
+        fxData: fx
+      });
+      jarvisVoiceEngine.speakResponse(spoken);
+      return true;
+    } catch (err: any) {
+      jarvisStore.addMessage({ role: 'assistant', text: `FX rate error: ${err?.message || 'Offline'}` });
+      jarvisVoiceEngine.speakResponse("Could not obtain foreign exchange reference rates.");
+      return true;
+    }
+  }
+
+  // 6K. MARKET WATCHLIST ("open watchlist", "my watchlist", "show watchlist", "market watchlist")
+  if (
+    text.includes('open watchlist') ||
+    text.includes('my watchlist') ||
+    text.includes('show watchlist') ||
+    text.includes('market watchlist') ||
+    text.includes('view watchlist')
+  ) {
+    jarvisVoiceEngine.setActiveTool('GET_WATCHLIST');
+    const wl = getWatchlist();
+    const spoken = `Opening your market watchlist. You have ${wl.items.length} monitored assets.`;
+    jarvisStore.addMessage({
+      role: 'assistant',
+      text: `Market Watchlist loaded with ${wl.items.length} monitored financial assets.`,
+      actionSummary: `Watchlist: ${wl.items.length} assets`,
+      watchlistData: wl
+    });
+    jarvisVoiceEngine.speakResponse(spoken);
+    return true;
+  }
+
+  // 6L. PORTFOLIO TRACKER ("my portfolio", "show portfolio", "portfolio value", "portfolio holdings", "check portfolio")
+  if (
+    text.includes('my portfolio') ||
+    text.includes('show portfolio') ||
+    text.includes('portfolio value') ||
+    text.includes('portfolio holdings') ||
+    text.includes('check portfolio')
+  ) {
+    jarvisVoiceEngine.setActiveTool('GET_PORTFOLIO');
+    try {
+      const port = await getPortfolioData();
+      const pnlSign = port.totalPnl >= 0 ? '+' : '';
+      const spoken = `Your total portfolio value is $${port.totalValue.toLocaleString()} USD, with an overall unrealized profit of ${pnlSign}$${port.totalPnl.toLocaleString()} (${pnlSign}${port.totalPnlPercent}%).`;
+      jarvisStore.addMessage({
+        role: 'assistant',
+        text: `Local Portfolio Tracker: Total Value: $${port.totalValue.toLocaleString()}, P&L: ${pnlSign}$${port.totalPnl.toLocaleString()} (${pnlSign}${port.totalPnlPercent}%).`,
+        actionSummary: `Portfolio: $${port.totalValue.toLocaleString()}`,
+        portfolioData: port
+      });
+      jarvisVoiceEngine.speakResponse(spoken);
+      return true;
+    } catch (err: any) {
+      jarvisStore.addMessage({ role: 'assistant', text: `Portfolio data calculation error: ${err?.message || 'Local storage issue'}` });
+      jarvisVoiceEngine.speakResponse("Could not calculate portfolio valuation.");
+      return true;
+    }
   }
 
   // 7. PLAY ENTIRE / WHOLE PLAYLIST FROM BEGINNING ("play this entire playlist", "play the whole playlist from the beginning", "play playlist from the start")
