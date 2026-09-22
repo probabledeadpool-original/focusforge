@@ -22,6 +22,7 @@ import {
 } from './musicTools';
 import { getSelectedTextModel, recordAiUsage } from './aiModelConfig';
 import { cleanJarvisOutput } from './jarvisOutputCleaner';
+import { searchYouTube } from './youtubeSearch';
 
 export type ToolCategory = 'READ_ONLY' | 'DRAFT' | 'SIDE_EFFECT';
 
@@ -128,6 +129,12 @@ export const JARVIS_TOOLS: Record<string, ToolDefinition> = {
     category: 'READ_ONLY',
     description: 'Adjust music playback volume.',
     parameters: { volume: 'number', relativeChange: 'up | down' }
+  },
+  SEARCH_VIDEO: {
+    name: 'SEARCH_VIDEO',
+    category: 'READ_ONLY',
+    description: 'Search for YouTube videos by query and display playable video cards.',
+    parameters: { query: 'string' }
   },
   TOGGLE_SHUFFLE: {
     name: 'TOGGLE_SHUFFLE',
@@ -623,6 +630,50 @@ export async function executeLocalCommand(rawText: string): Promise<boolean> {
     jarvisStore.addMessage({ role: 'assistant', text: reply, actionSummary: `Search: ${query}` });
     jarvisVoiceEngine.speakResponse(reply);
     return true;
+  }
+
+  // 6B. VIDEO SEARCH DIRECTIVE ("search for video ___", "search video ___", "find video ___", "look for video ___", "search youtube for ___", "youtube search ___")
+  const videoSearchMatch = text.match(/^(?:jarvis\s*,?\s*)?(?:search\s+(?:for\s+)?video|find\s+video|look\s+for\s+video|search\s+youtube\s+for|youtube\s+search(?:\s+for)?)\s+["']?(.+?)["']?$/i);
+  if (videoSearchMatch && videoSearchMatch[1]) {
+    const rawTarget = videoSearchMatch[1].replace(/^["']|["']$/g, '').trim();
+    if (rawTarget) {
+      jarvisVoiceEngine.setActiveTool('SEARCH_VIDEO');
+      try {
+        const resp = await searchYouTube(rawTarget, 6);
+        
+        if (resp.error) {
+          const errorReply = resp.errorType === 'MISSING_KEY'
+            ? "Please configure your YouTube Data API key in Profile to search for videos."
+            : `YouTube search notice: ${resp.error}`;
+          jarvisStore.addMessage({ role: 'assistant', text: errorReply });
+          jarvisVoiceEngine.speakResponse(errorReply);
+          return true;
+        }
+
+        const count = resp.results.length;
+        if (count === 0) {
+          const reply = `I could not find any YouTube videos matching "${rawTarget}", sir.`;
+          jarvisStore.addMessage({ role: 'assistant', text: reply });
+          jarvisVoiceEngine.speakResponse(reply);
+          return true;
+        }
+
+        const reply = `I found ${count} video${count === 1 ? '' : 's'} for "${rawTarget}", sir. Click any video below to watch it in The Place.`;
+        jarvisStore.addMessage({
+          role: 'assistant',
+          text: reply,
+          actionSummary: `Found ${count} videos: ${rawTarget}`,
+          mediaResults: resp.results
+        });
+        jarvisVoiceEngine.speakResponse(`I found ${count} video${count === 1 ? '' : 's'} for "${rawTarget}", sir.`);
+        return true;
+      } catch (err: any) {
+        const errorReply = `Error searching YouTube: ${err?.message || 'Network error'}`;
+        jarvisStore.addMessage({ role: 'assistant', text: errorReply });
+        jarvisVoiceEngine.speakResponse("I encountered an issue connecting to the YouTube search service.");
+        return true;
+      }
+    }
   }
 
   // 7. PLAY ENTIRE / WHOLE PLAYLIST FROM BEGINNING ("play this entire playlist", "play the whole playlist from the beginning", "play playlist from the start")

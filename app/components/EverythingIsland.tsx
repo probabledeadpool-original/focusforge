@@ -2,11 +2,12 @@
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Search, ArrowUp, Globe, FileText, CheckSquare, LineChart, Play, Pause, Activity, Flame, Trash2, Cloud, Sun, SunDim, CloudRain, CloudLightning, CloudSnow, Wind, MapPin, Plus, Square, X, CloudFog, BookOpen, Target, Zap, Loader2, SkipForward, SkipBack, Shuffle, Repeat, Repeat1, Check, Maximize2, Minimize2, Radio, Bot, Sparkles, Mic, MicOff, Copy, CheckCheck, RefreshCw, Volume2, Volume1, VolumeX, ChevronDown, ChevronRight, SlidersHorizontal, RotateCcw, Monitor, AtSign, Send, Headphones } from 'lucide-react';
+import { Search, ArrowUp, Globe, FileText, CheckSquare, LineChart, Play, Pause, Activity, Flame, Trash2, Cloud, Sun, SunDim, CloudRain, CloudLightning, CloudSnow, Wind, MapPin, Plus, Square, X, CloudFog, BookOpen, Target, Zap, Loader2, SkipForward, SkipBack, Shuffle, Repeat, Repeat1, Check, Maximize2, Minimize2, Radio, Bot, Sparkles, Mic, MicOff, Copy, CheckCheck, RefreshCw, Volume2, Volume1, VolumeX, ChevronDown, ChevronRight, SlidersHorizontal, RotateCcw, Monitor, AtSign, Send, Headphones, Youtube } from 'lucide-react';
 import { BorderBeam } from '@/components/ui/border-beam';
 import { AIMessage } from '@/components/ui/ai-message';
 import { MaybachLogo } from './Branding';
 import { SiriWave } from '@/components/ui/siri-wave';
+import { searchYouTube } from '../../lib/youtubeSearch';
 
 
 import { useAppStore } from '../../hooks/useAppStore';
@@ -49,6 +50,7 @@ export default function EverythingIsland() {
   const [newTaskTitle, setNewTaskTitle] = useState('');
   const [weatherData, setWeatherData] = useState<any>(null);
   const [weatherLoading, setWeatherLoading] = useState(false);
+  const [ytDynamicResults, setYtDynamicResults] = useState<any[]>([]);
 
   // Quick Settings Hardware States
   const [screenBrightness, setScreenBrightness] = useState<number>(100);
@@ -490,6 +492,39 @@ export default function EverythingIsland() {
     console.log("Saved to Ghost Shelf!");
   };
 
+  // Dynamic YouTube search debounce when typing /yt
+  useEffect(() => {
+    if (islandState === 'search' && inputValue.trim().toLowerCase().startsWith('/yt')) {
+      const term = inputValue.trim().replace(/^\/yt\s*/i, '').trim();
+      if (term.length >= 2) {
+        const timer = setTimeout(async () => {
+          try {
+            const resp = await searchYouTube(term, 5);
+            if (resp.results && resp.results.length > 0) {
+              setYtDynamicResults(resp.results.map(r => ({
+                type: 'youtube-video',
+                title: r.title,
+                subtitle: `${r.channelTitle} • Watch in The Place`,
+                action: r.url,
+                videoId: r.id,
+                thumbnail: r.thumbnail
+              })));
+            } else {
+              setYtDynamicResults([]);
+            }
+          } catch (e) {
+            setYtDynamicResults([]);
+          }
+        }, 250);
+        return () => clearTimeout(timer);
+      } else {
+        setYtDynamicResults([]);
+      }
+    } else {
+      setYtDynamicResults([]);
+    }
+  }, [inputValue, islandState]);
+
   // Search Logic Router
   useEffect(() => {
     if (islandState === 'search') {
@@ -509,8 +544,17 @@ export default function EverythingIsland() {
 
       if (q.startsWith('/g ')) {
          results.push({ type: 'google', title: 'Search Google', subtitle: qRaw.substring(3), action: 'google' });
-      } else if (q.startsWith('/yt ')) {
-         results.push({ type: 'youtube', title: 'Play YouTube Embed', subtitle: qRaw.substring(4), action: qRaw.substring(4) });
+      } else if (q.startsWith('/yt ') || q === '/yt' || q.startsWith('/yt')) {
+         const term = qRaw.replace(/^\/yt\s*/i, '').trim();
+         results.push({ 
+           type: 'youtube-search', 
+           title: term ? `Search YouTube: "${term}"` : 'Search YouTube (/yt)', 
+           subtitle: 'Watch video in The Place', 
+           action: term 
+         });
+         if (ytDynamicResults.length > 0) {
+           results.push(...ytDynamicResults);
+         }
       } else if (q.startsWith('/settings') || q.startsWith('/quick') || q.startsWith('/config') || q.startsWith('/brightness') || q.startsWith('/volume') || q.startsWith('/fullscreen')) {
          results.push({ type: 'settings', title: 'Quick Settings // Hardware', subtitle: 'Display Luminance, Master Acoustics, Canvas Immersion', action: 'settings' });
       } else if (q.startsWith('/ai ') || q.startsWith('/ask ') || q.startsWith('/gemini ')) {
@@ -610,6 +654,34 @@ export default function EverythingIsland() {
            setIslandState('mini');
            setInputValue('');
         }, 1000);
+     } else if (result.type === 'youtube-video') {
+        window.dispatchEvent(new CustomEvent('changeView', { detail: { view: 'place' } }));
+        setTimeout(() => {
+           window.dispatchEvent(new CustomEvent('start-theatre', { 
+             detail: { 
+               url: result.action, 
+               videoId: result.videoId, 
+               title: result.title, 
+               thumbnail: result.thumbnail 
+             } 
+           }));
+        }, 50);
+        setIslandState('mini');
+        setInputValue('');
+     } else if (result.type === 'youtube-search') {
+        window.dispatchEvent(new CustomEvent('changeView', { detail: { view: 'place' } }));
+        if (result.action) {
+           setTimeout(() => {
+              window.dispatchEvent(new CustomEvent('start-theatre', { 
+                detail: { 
+                  url: `https://youtube.com/watch?v=jfKfPfyJRdk`, 
+                  query: result.action 
+                } 
+              }));
+           }, 50);
+        }
+        setIslandState('mini');
+        setInputValue('');
      } else if (result.type === 'youtube') {
          let videoId = result.action;
          const match = result.action.match(/(?:youtube\.com\/(?:[^\/]+\/.+\/|(?:v|e(?:mbed)?)\/|.*[?&]v=)|youtu\.be\/)([^"&?\/\s]{11})/i);
@@ -2009,12 +2081,20 @@ Answer directly, clearly, and concisely in normal natural language. Provide dire
                              : 'hover:bg-white/5 opacity-80 hover:opacity-100 z-0'
                          }`}
                        >
-                          <div className={`w-9 h-9 rounded-full flex items-center justify-center shrink-0 border transition-all duration-300 ${selectedIndex === i ? 'bg-white/10 border-white/20 shadow-inner' : 'bg-white/5 border-white/5'}`}>
+                          <div className={`w-9 h-9 rounded-full flex items-center justify-center shrink-0 border overflow-hidden transition-all duration-300 ${selectedIndex === i ? 'bg-white/10 border-white/20 shadow-inner' : 'bg-white/5 border-white/5'}`}>
                              {res.type === 'route' && <ArrowUp size={16} className={selectedIndex === i ? "text-blue-300" : "text-blue-400"} style={{ transform: 'rotate(45deg)' }} />}
                              {res.type === 'task' && <CheckSquare size={16} className={selectedIndex === i ? "text-emerald-300" : "text-emerald-400"} />}
                              {res.type === 'note' && <FileText size={16} className={selectedIndex === i ? "text-yellow-300" : "text-yellow-400"} />}
                              {res.type === 'google' && <Globe size={16} className={selectedIndex === i ? "text-rose-300" : "text-rose-400"} />}
                              {res.type === 'media' && <Play size={16} className={selectedIndex === i ? "text-purple-300" : "text-purple-400 fill-current"} />}
+                             {res.type === 'youtube-video' && (
+                                res.thumbnail ? (
+                                  <img src={res.thumbnail} alt="" className="w-full h-full object-cover" />
+                                ) : (
+                                  <Youtube size={16} className={selectedIndex === i ? "text-red-400" : "text-red-500"} />
+                                )
+                              )}
+                              {res.type === 'youtube-search' && <Youtube size={16} className={selectedIndex === i ? "text-red-400" : "text-red-500"} />}
                           </div>
                           <div className="flex flex-col justify-center min-w-0">
                             <span className={`text-[15px] font-medium leading-tight truncate transition-colors duration-300 ${selectedIndex === i ? 'text-white' : 'text-white/80'}`}>{res.title}</span>

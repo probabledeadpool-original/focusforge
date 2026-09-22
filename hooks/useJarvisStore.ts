@@ -10,12 +10,15 @@ export type JarvisMode = 'STANDBY' | 'WAKE_WORD' | 'NORMAL_COMMAND' | 'LIVE';
 export type JarvisAiState = 'idle' | 'listening' | 'thinking' | 'speaking' | 'executing';
 export type JarvisDisplayMode = 'minimized' | 'expanded' | 'fullscreen';
 
+import type { YouTubeSearchResult } from '../lib/youtubeSearch';
+
 export interface JarvisMessage {
   id: string;
   role: 'user' | 'assistant' | 'system' | 'action';
   text: string;
   actionSummary?: string;
   timestamp: number;
+  mediaResults?: YouTubeSearchResult[];
 }
 
 interface JarvisStore {

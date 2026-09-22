@@ -3,10 +3,12 @@ import { motion, AnimatePresence } from 'motion/react';
 import { 
   Play, X, Monitor, ChevronLeft, Zap, Target, Plus, Trash2, Clock, 
   List, Video, Search, ChevronRight, Info, Music, FolderPlus, 
-  Shuffle, Repeat, Sparkles, Edit3, Check, Disc, Volume2
+  Shuffle, Repeat, Sparkles, Edit3, Check, Disc, Volume2, Youtube,
+  RefreshCw, ExternalLink, AlertCircle
 } from 'lucide-react';
 import { CustomYouTubePlayer, YouTubePlayerRef } from './CustomYouTubePlayer';
 import TheFrequency from './TheFrequency/TheFrequency';
+import { searchYouTube, YouTubeSearchResult } from '../../lib/youtubeSearch';
 
 export interface LibraryItem {
   id: string;
@@ -95,9 +97,16 @@ export default function ThePlace() {
   const [isVoidShift, setIsVoidShift] = useState(false);
   const [isAmbientActive, setIsAmbientActive] = useState(true);
   const [isAdding, setIsAdding] = useState(false);
-  const [activeFilter, setActiveFilter] = useState<'All' | 'Playlists' | 'Streams' | 'Curated'>('All');
+  const [activeFilter, setActiveFilter] = useState<'All' | 'Playlists' | 'Streams' | 'Curated' | 'YouTube'>('All');
   const [showControls, setShowControls] = useState(true);
   const controlsTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Live YouTube Search State
+  const [ytSearchResults, setYtSearchResults] = useState<YouTubeSearchResult[]>([]);
+  const [isSearchingYt, setIsSearchingYt] = useState(false);
+  const [ytSearchError, setYtSearchError] = useState<string | null>(null);
+  const [hasSearchedYt, setHasSearchedYt] = useState(false);
+  const [addedIds, setAddedIds] = useState<Set<string>>(new Set());
 
   // Custom Playlist Modal State
   const [showNewPlaylistModal, setShowNewPlaylistModal] = useState(false);
@@ -168,15 +177,85 @@ export default function ThePlace() {
     }, 3500);
   };
 
+  // External event listener for start-theatre (Jarvis, Everything Island, Hub)
   useEffect(() => {
-    if (viewState === 'player') {
-      window.addEventListener('mousemove', handleMouseMove);
-      return () => {
-        window.removeEventListener('mousemove', handleMouseMove);
-        if (controlsTimeoutRef.current) clearTimeout(controlsTimeoutRef.current);
-      };
+    const handleStartTheatre = (e: any) => {
+      const detail = e?.detail;
+      if (!detail) return;
+      const url = detail.url || '';
+      const { videoId, playlistId } = parseYouTubeUrl(url);
+      const finalId = detail.videoId || videoId || playlistId;
+      if (finalId) {
+        const item: LibraryItem = {
+          id: finalId,
+          type: playlistId ? 'playlist' : 'video',
+          title: detail.title || detail.query || 'Atmosphere Stream',
+          thumbnail: detail.thumbnail || `https://img.youtube.com/vi/${finalId}/maxresdefault.jpg`,
+          addedAt: Date.now()
+        };
+        setActiveItem(item);
+        setActivePlaylist(null);
+        setViewState('player');
+      }
+    };
+
+    window.addEventListener('start-theatre' as any, handleStartTheatre);
+    return () => window.removeEventListener('start-theatre' as any, handleStartTheatre);
+  }, []);
+
+  const handleSearchOrAdd = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    const query = videoUrl.trim();
+    if (!query) return;
+
+    const { videoId, playlistId } = parseYouTubeUrl(query);
+    if (videoId || playlistId) {
+      await addToLibrary(e || { preventDefault: () => {} } as any);
+      return;
     }
-  }, [viewState, isVoidShift]);
+
+    setIsSearchingYt(true);
+    setYtSearchError(null);
+    setHasSearchedYt(true);
+    setActiveFilter('YouTube');
+
+    try {
+      const resp = await searchYouTube(query, 16);
+      if (resp.error) {
+        setYtSearchError(resp.error);
+        setYtSearchResults([]);
+      } else {
+        setYtSearchResults(resp.results || []);
+      }
+    } catch (err: any) {
+      setYtSearchError(err?.message || 'Failed to search YouTube');
+    } finally {
+      setIsSearchingYt(false);
+    }
+  };
+
+  const addYouTubeResultToLibrary = (result: YouTubeSearchResult) => {
+    const newItem: LibraryItem = {
+      id: result.id,
+      type: 'video',
+      title: result.title,
+      thumbnail: result.thumbnail,
+      addedAt: Date.now(),
+      channelTitle: result.channelTitle
+    };
+    if (!library.find(item => item.id === result.id)) {
+      saveLibrary([newItem, ...library]);
+    }
+    setAddedIds(prev => new Set(prev).add(result.id));
+  };
+
+  const clearYouTubeSearch = () => {
+    setVideoUrl('');
+    setHasSearchedYt(false);
+    setYtSearchResults([]);
+    setYtSearchError(null);
+    setActiveFilter('All');
+  };
 
   const addToLibrary = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -375,13 +454,23 @@ export default function ThePlace() {
 
                 {/* Subnav Filter */}
                 <nav className="flex items-center gap-1 bg-white/5 p-1 rounded-full border border-white/10 overflow-x-auto no-scrollbar">
-                  {(['All', 'Playlists', 'Streams', 'Curated'] as const).map(nav => (
+                  {(['All', 'Playlists', 'Streams', 'Curated', 'YouTube'] as const).map(nav => (
                     <button 
                       key={nav} 
                       onClick={() => setActiveFilter(nav)}
-                      className={`text-[9px] sm:text-[10px] font-mono uppercase tracking-[0.2em] sm:tracking-[0.3em] transition-all px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-full whitespace-nowrap min-h-[32px] cursor-pointer ${activeFilter === nav ? 'bg-white text-black font-bold shadow-lg' : 'text-white/40 hover:text-white hover:bg-white/5'}`}
+                      className={`text-[9px] sm:text-[10px] font-mono uppercase tracking-[0.2em] sm:tracking-[0.3em] transition-all px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-full whitespace-nowrap min-h-[32px] cursor-pointer flex items-center gap-1.5 ${
+                        activeFilter === nav 
+                          ? (nav === 'YouTube' ? 'bg-red-500 text-white font-bold shadow-[0_0_20px_rgba(239,68,68,0.5)]' : 'bg-white text-black font-bold shadow-lg') 
+                          : 'text-white/40 hover:text-white hover:bg-white/5'
+                      }`}
                     >
-                      {nav}
+                      {nav === 'YouTube' && <Youtube size={12} className={activeFilter === nav ? "text-white" : "text-red-400"} />}
+                      <span>{nav}</span>
+                      {nav === 'YouTube' && ytSearchResults.length > 0 && (
+                        <span className={`px-1.5 py-0.2 rounded-full text-[8px] font-bold ${activeFilter === 'YouTube' ? 'bg-black/40 text-white' : 'bg-red-500/20 text-red-300'}`}>
+                          {ytSearchResults.length}
+                        </span>
+                      )}
                     </button>
                   ))}
                 </nav>
@@ -404,15 +493,29 @@ export default function ThePlace() {
                   <span>Frequency</span>
                 </button>
 
-                <form onSubmit={addToLibrary} className="relative group flex-1 sm:flex-none">
-                  <Search size={14} className="absolute left-3.5 sm:left-4 top-1/2 -translate-y-1/2 text-white/30 group-focus-within:text-white/70 transition-colors" />
+                <form onSubmit={handleSearchOrAdd} className="relative group flex-1 sm:flex-none flex items-center">
+                  <Search size={14} className="absolute left-3.5 sm:left-4 top-1/2 -translate-y-1/2 text-white/30 group-focus-within:text-white/70 transition-colors pointer-events-none" />
                   <input 
                     type="text"
-                    placeholder="Paste YouTube Link..."
+                    placeholder="Search YouTube or paste link..."
                     value={videoUrl}
                     onChange={e => setVideoUrl(e.target.value)}
-                    className="bg-white/5 border border-white/10 rounded-full py-2 sm:py-2.5 pl-9 sm:pl-11 pr-4 sm:pr-5 text-xs w-full sm:w-[200px] md:w-[260px] focus:outline-none focus:sm:w-[320px] focus:bg-white/10 focus:border-white/30 transition-all placeholder:text-white/20 font-mono text-white min-h-[38px]"
+                    className="bg-white/5 border border-white/10 rounded-full py-2 sm:py-2.5 pl-9 sm:pl-11 pr-10 sm:pr-12 text-xs w-full sm:w-[220px] md:w-[280px] focus:outline-none focus:sm:w-[340px] focus:bg-white/10 focus:border-red-400/50 transition-all placeholder:text-white/20 font-mono text-white min-h-[38px]"
                   />
+                  {videoUrl && !isSearchingYt && (
+                    <button
+                      type="button"
+                      onClick={clearYouTubeSearch}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 p-1 text-white/40 hover:text-white cursor-pointer"
+                    >
+                      <X size={13} />
+                    </button>
+                  )}
+                  {isSearchingYt && (
+                    <div className="absolute right-3.5 top-1/2 -translate-y-1/2 text-red-400 animate-spin pointer-events-none">
+                      <RefreshCw size={13} />
+                    </div>
+                  )}
                 </form>
               </div>
             </header>
@@ -476,6 +579,186 @@ export default function ThePlace() {
             {/* Playlists & Vault Rows */}
             <div className="relative z-10 space-y-10 sm:space-y-16 px-4 sm:px-6 md:px-16 pt-6 sm:pt-8">
               
+              {/* YouTube Search Results Section */}
+              {(activeFilter === 'All' || activeFilter === 'YouTube' || ytSearchResults.length > 0 || isSearchingYt || ytSearchError) && (hasSearchedYt || ytSearchResults.length > 0 || isSearchingYt || ytSearchError) && (
+                <div className="space-y-6">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-red-500/20 pb-4 gap-2">
+                    <div className="flex items-center gap-3">
+                      <div className="p-1.5 rounded-xl bg-red-500/10 text-red-400 border border-red-500/20">
+                        <Youtube size={20} />
+                      </div>
+                      <div>
+                        <h2 className="text-2xl font-heading font-extrabold text-white lowercase">YouTube Live Results</h2>
+                        <p className="text-[10px] font-mono text-white/40 uppercase">
+                          {isSearchingYt ? 'Querying YouTube Data API...' : `Found ${ytSearchResults.length} results for "${videoUrl}"`}
+                        </p>
+                      </div>
+                      {ytSearchResults.length > 0 && (
+                        <span className="px-2.5 py-0.5 rounded-full bg-red-500/20 text-red-300 text-[10px] font-mono font-bold border border-red-500/30">
+                          {ytSearchResults.length}
+                        </span>
+                      )}
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                      <button 
+                        onClick={clearYouTubeSearch}
+                        className="text-xs font-mono uppercase tracking-widest text-white/50 hover:text-white flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white/5 hover:bg-white/10 transition-colors cursor-pointer"
+                      >
+                        <X size={13} /> Clear Results
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Error / Missing Key State */}
+                  {ytSearchError && (
+                    <div className="p-6 rounded-3xl bg-red-950/30 border border-red-500/30 text-red-200 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 backdrop-blur-xl">
+                      <div className="flex items-start gap-3">
+                        <AlertCircle className="text-red-400 shrink-0 mt-0.5" size={20} />
+                        <div>
+                          <h4 className="font-bold font-mono text-sm uppercase">YouTube Data Search Notice</h4>
+                          <p className="text-xs font-mono text-white/70 mt-1">{ytSearchError}</p>
+                        </div>
+                      </div>
+                      <button
+                        onClick={() => {
+                          window.dispatchEvent(new CustomEvent('changeView', { detail: { view: 'profile' } }));
+                        }}
+                        className="px-4 py-2 bg-red-500 text-white font-mono font-bold text-xs uppercase tracking-wider rounded-xl hover:bg-red-400 transition-all shrink-0 cursor-pointer shadow-[0_0_20px_rgba(239,68,68,0.4)]"
+                      >
+                        Configure API Key in Profile
+                      </button>
+                    </div>
+                  )}
+
+                  {/* Loading skeletons */}
+                  {isSearchingYt && (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+                      {Array.from({ length: 4 }).map((_, idx) => (
+                        <div key={idx} className="bg-zinc-950/60 border border-white/10 rounded-3xl p-4 space-y-3 animate-pulse">
+                          <div className="aspect-video rounded-2xl bg-white/5" />
+                          <div className="h-4 bg-white/10 rounded-md w-3/4" />
+                          <div className="h-3 bg-white/5 rounded-md w-1/2" />
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* Results Grid */}
+                  {!isSearchingYt && ytSearchResults.length > 0 && (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+                      {ytSearchResults.map((ytItem) => {
+                        const isAdded = addedIds.has(ytItem.id) || library.some(l => l.id === ytItem.id);
+                        return (
+                          <motion.div
+                            key={ytItem.id}
+                            whileHover={{ y: -4 }}
+                            className="group relative bg-zinc-950/70 border border-white/10 hover:border-red-500/40 rounded-3xl p-4 transition-all duration-500 shadow-2xl flex flex-col justify-between"
+                          >
+                            <div className="space-y-3">
+                              {/* Thumbnail preview */}
+                              <div 
+                                onClick={() => playItem({
+                                  id: ytItem.id,
+                                  type: 'video',
+                                  title: ytItem.title,
+                                  thumbnail: ytItem.thumbnail,
+                                  addedAt: Date.now(),
+                                  channelTitle: ytItem.channelTitle
+                                })}
+                                className="relative aspect-video rounded-2xl overflow-hidden bg-zinc-900 cursor-pointer group/thumb"
+                              >
+                                <img 
+                                  src={ytItem.thumbnail} 
+                                  className="w-full h-full object-cover brightness-[0.75] group-hover/thumb:brightness-100 group-hover/thumb:scale-105 transition-all duration-500" 
+                                  alt={ytItem.title} 
+                                />
+                                <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent opacity-0 group-hover/thumb:opacity-100 transition-opacity duration-300" />
+                                <div className="absolute inset-0 m-auto w-12 h-12 rounded-full bg-red-600 text-white flex items-center justify-center opacity-0 group-hover/thumb:opacity-100 transition-all duration-300 shadow-[0_0_25px_rgba(239,68,68,0.8)] hover:scale-110">
+                                  <Play size={18} fill="white" className="ml-0.5" />
+                                </div>
+                                <div className="absolute bottom-2 right-2 px-2 py-0.5 rounded-md bg-black/80 backdrop-blur-md text-[8px] font-mono uppercase text-white/90 border border-white/10">
+                                  YouTube Video
+                                </div>
+                              </div>
+
+                              {/* Info */}
+                              <div className="space-y-1">
+                                <span className="text-[9px] font-mono text-red-400 font-bold uppercase tracking-wider block truncate">
+                                  {ytItem.channelTitle}
+                                </span>
+                                <h4 
+                                  onClick={() => playItem({
+                                    id: ytItem.id,
+                                    type: 'video',
+                                    title: ytItem.title,
+                                    thumbnail: ytItem.thumbnail,
+                                    addedAt: Date.now(),
+                                    channelTitle: ytItem.channelTitle
+                                  })}
+                                  title={ytItem.title} 
+                                  className="font-heading text-sm font-bold text-white lowercase line-clamp-2 leading-snug cursor-pointer hover:text-red-300 transition-colors"
+                                >
+                                  {ytItem.title}
+                                </h4>
+                              </div>
+                            </div>
+
+                            {/* Actions bar */}
+                            <div className="pt-3 mt-3 border-t border-white/5 flex items-center justify-between gap-2">
+                              <button
+                                onClick={() => playItem({
+                                  id: ytItem.id,
+                                  type: 'video',
+                                  title: ytItem.title,
+                                  thumbnail: ytItem.thumbnail,
+                                  addedAt: Date.now(),
+                                  channelTitle: ytItem.channelTitle
+                                })}
+                                className="flex-1 py-2 px-3 rounded-xl bg-white/10 hover:bg-white text-white hover:text-black transition-all text-[9px] font-mono font-bold uppercase tracking-wider flex items-center justify-center gap-1.5 cursor-pointer shadow-md"
+                              >
+                                <Play size={10} fill="currentColor" /> Stream
+                              </button>
+
+                              <button
+                                onClick={() => addYouTubeResultToLibrary(ytItem)}
+                                title={isAdded ? "Already in Vault" : "Save to Atmosphere Vault"}
+                                className={`p-2 rounded-xl border transition-all text-[9px] font-mono uppercase tracking-wider flex items-center gap-1 cursor-pointer ${
+                                  isAdded 
+                                    ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30' 
+                                    : 'bg-white/5 hover:bg-white/10 text-white/60 hover:text-white border-white/10'
+                                }`}
+                              >
+                                {isAdded ? <Check size={13} className="text-emerald-400" /> : <Plus size={13} />}
+                              </button>
+
+                              <button
+                                onClick={() => {
+                                  setTargetPlaylistId(customPlaylists[0]?.id || null);
+                                  setItemToAddUrl(ytItem.url);
+                                  setItemToAddTitle(ytItem.title);
+                                  setShowAddItemModal(true);
+                                }}
+                                title="Add to Custom Playlist"
+                                className="p-2 rounded-xl bg-white/5 hover:bg-white/10 text-white/60 hover:text-cyan-300 border border-white/10 transition-all cursor-pointer"
+                              >
+                                <FolderPlus size={13} />
+                              </button>
+                            </div>
+                          </motion.div>
+                        );
+                      })}
+                    </div>
+                  )}
+
+                  {!isSearchingYt && ytSearchResults.length === 0 && !ytSearchError && hasSearchedYt && (
+                    <div className="p-8 rounded-3xl bg-white/[0.02] border border-white/10 text-center font-mono text-xs text-white/40">
+                      No YouTube videos found matching "{videoUrl}". Try a different keyword.
+                    </div>
+                  )}
+                </div>
+              )}
+
               {/* Custom Playlists Section */}
               {(activeFilter === 'All' || activeFilter === 'Playlists' || activeFilter === 'Curated') && (
                 <div className="space-y-6">

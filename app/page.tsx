@@ -24,6 +24,7 @@ import Ledger from './components/Ledger';
 import FrequencyAudioEngine from './components/TheFrequency/FrequencyAudioEngine';
 import WakeWordTraining from './components/WakeWordTraining';
 import AiModelSelector from './components/AiModelSelector';
+import YouTubeApiConfig from './components/YouTubeApiConfig';
 import { SiriWave } from '@/components/ui/siri-wave';
 
 
@@ -2144,6 +2145,21 @@ export default function FocusForge() {
         </div>
 
         <AiModelSelector />
+      </motion.section>
+
+      {/* YouTube Data API & Global Media Search Configuration */}
+      <motion.section variants={itemVariants} className="space-y-6">
+        <div className="flex items-center justify-between border-b border-white/10 pb-3">
+          <div className="flex items-center gap-3">
+            <Monitor size={22} className="text-red-400" />
+            <h2 className="font-heading text-xl md:text-2xl font-bold lowercase text-white">YouTube Data Engine</h2>
+          </div>
+          <span className="px-2.5 py-0.5 rounded-full text-[9px] font-mono uppercase tracking-widest bg-red-500/10 text-red-400 border border-red-500/30">
+            DATA API V3 SEARCH
+          </span>
+        </div>
+
+        <YouTubeApiConfig />
       </motion.section>
 
       {/* J.A.R.V.I.S. Voice AI & Wake Word Protocol */}

@@ -8,7 +8,8 @@ import {
   Activity, Play, Pause, Radio, CheckCircle2, 
   RotateCcw, Shield, Cpu, ChevronRight, Terminal,
   Clock, CheckSquare, Music, RefreshCw, SlidersHorizontal,
-  FileText, Hand, Search, Award, MessageSquare, Bug, AlertTriangle
+  FileText, Hand, Search, Award, MessageSquare, Bug, AlertTriangle,
+  Youtube, ExternalLink
 } from 'lucide-react';
 import { useJarvisStore, JarvisAiState } from '../../hooks/useJarvisStore';
 import { useJarvisHotword } from '../../hooks/useJarvisHotword';
@@ -105,6 +106,22 @@ export default function JarvisVoiceHUD() {
       setIsProcessing(false);
     }
   }, []);
+
+  const handleWatchVideoInThePlace = (video: { id: string; title: string; thumbnail: string; url: string }) => {
+    setView('place');
+    window.dispatchEvent(new CustomEvent('changeView', { detail: { view: 'place' } }));
+    setTimeout(() => {
+      window.dispatchEvent(new CustomEvent('start-theatre', { 
+        detail: { 
+          url: video.url, 
+          videoId: video.id, 
+          title: video.title, 
+          thumbnail: video.thumbnail 
+        } 
+      }));
+    }, 50);
+    closeJarvis();
+  };
 
   if (!isOpen) return null;
   if (displayMode !== 'fullscreen') return null;
@@ -373,6 +390,67 @@ export default function JarvisVoiceHUD() {
             </AnimatePresence>
           </div>
 
+          {/* Active Video Search Results Grid (if latest message has mediaResults and history is closed) */}
+          {!showHistory && messages.length > 0 && messages[messages.length - 1]?.mediaResults && (messages[messages.length - 1].mediaResults?.length || 0) > 0 && (
+            <motion.div
+              initial={{ opacity: 0, y: 15 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="w-full max-w-4xl mx-auto my-4 p-4 rounded-3xl bg-black/80 border border-red-500/30 backdrop-blur-2xl space-y-3 z-30 shadow-[0_0_50px_rgba(239,68,68,0.1)]"
+            >
+              <div className="flex items-center justify-between border-b border-white/10 pb-2 px-2">
+                <div className="flex items-center gap-2 text-xs font-mono font-bold text-red-400 uppercase tracking-wider">
+                  <Youtube size={16} />
+                  <span>Found Videos • Click to Stream in The Place</span>
+                </div>
+                <span className="text-[10px] font-mono text-white/40">
+                  {messages[messages.length - 1].mediaResults?.length} results
+                </span>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 max-h-[40vh] overflow-y-auto no-scrollbar pr-1">
+                {messages[messages.length - 1].mediaResults?.map((item) => (
+                  <div
+                    key={item.id}
+                    onClick={() => handleWatchVideoInThePlace(item)}
+                    className="group bg-zinc-900/90 hover:bg-zinc-800 border border-white/10 hover:border-red-500/50 rounded-2xl p-3 cursor-pointer transition-all duration-300 flex flex-col justify-between space-y-2 hover:scale-[1.02] shadow-lg"
+                  >
+                    <div className="relative aspect-video rounded-xl overflow-hidden bg-black">
+                      <img 
+                        src={item.thumbnail} 
+                        alt={item.title} 
+                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500 brightness-90 group-hover:brightness-100"
+                      />
+                      <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity">
+                        <div className="w-10 h-10 rounded-full bg-red-600 text-white flex items-center justify-center shadow-lg">
+                          <Play size={16} fill="white" className="ml-0.5" />
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="space-y-0.5">
+                      <span className="text-[8px] font-mono uppercase text-red-400 font-bold block truncate">
+                        {item.channelTitle}
+                      </span>
+                      <h5 className="font-mono text-xs font-bold text-white line-clamp-2 leading-tight">
+                        {item.title}
+                      </h5>
+                    </div>
+
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleWatchVideoInThePlace(item);
+                      }}
+                      className="w-full py-1.5 px-3 rounded-xl bg-red-500/20 hover:bg-red-500 text-red-300 hover:text-white border border-red-500/30 text-[9px] font-mono font-bold uppercase tracking-wider flex items-center justify-center gap-1.5 transition-all cursor-pointer"
+                    >
+                      <Play size={10} fill="currentColor" /> Watch in The Place
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </motion.div>
+          )}
+
           {/* Telemetry Stream Drawer */}
           <AnimatePresence>
             {showHistory && (
@@ -422,6 +500,30 @@ export default function JarvisVoiceHUD() {
                         <div className="mt-2 pt-1 border-t border-white/10 flex items-center gap-1.5 text-[9px] text-emerald-400 font-bold uppercase tracking-wider">
                           <CheckCircle2 size={10} />
                           <span>Executed: {m.actionSummary}</span>
+                        </div>
+                      )}
+                      {m.mediaResults && m.mediaResults.length > 0 && (
+                        <div className="mt-3 pt-3 border-t border-white/10 space-y-2">
+                          <div className="flex items-center gap-1.5 text-[9px] text-red-400 font-bold uppercase tracking-wider">
+                            <Youtube size={12} />
+                            <span>Playable Video Results:</span>
+                          </div>
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                            {m.mediaResults.map((item) => (
+                              <div
+                                key={item.id}
+                                onClick={() => handleWatchVideoInThePlace(item)}
+                                className="flex gap-2.5 p-2 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 hover:border-red-500/40 cursor-pointer transition-all items-center group/card"
+                              >
+                                <img src={item.thumbnail} className="w-16 h-10 object-cover rounded-lg shrink-0 brightness-90 group-hover/card:brightness-100" alt="" />
+                                <div className="flex-1 min-w-0">
+                                  <span className="text-[8px] text-red-400 uppercase font-mono block truncate">{item.channelTitle}</span>
+                                  <h6 className="text-[10px] font-mono text-white font-bold truncate">{item.title}</h6>
+                                </div>
+                                <Play size={14} className="text-white/40 group-hover/card:text-red-400 shrink-0" />
+                              </div>
+                            ))}
+                          </div>
                         </div>
                       )}
                     </div>
