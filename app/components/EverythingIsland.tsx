@@ -29,6 +29,39 @@ const formatTime = (seconds: number) => {
   return `${mm}:${ss}`;
 };
 
+export const KANYE_QUOTES = [
+  "We're going to change the world. It’s not a game. It’s what we were made to do.",
+  "Believe in your flyness... conquer your shyness.",
+  "People always tell you, 'Be humble.' When was the last time someone told you to be amazing? Be great! Be legendary!",
+  "I refuse to accept other people's ideas of happiness for me. There is no one-size-fits-all.",
+  "I am not comfortable with being comfortable. I'm only comfortable when I'm constantly learning and growing.",
+  "Would you believe in what you believe in, if you were the only one who believed it?",
+  "Everything I'm not made me everything I am.",
+  "Keep your nose out the sky, keep your heart to God, and keep your face to the rising sun.",
+  "I was never good at anything except for the ability to learn.",
+  "For me, money is not my definition of success. Inspiring people is my definition of success.",
+  "Shoot for the stars, so if you fall you land on a cloud.",
+  "If you have the opportunity to play this game of life you need to appreciate every moment.",
+  "If you're not in the middle of writing your own script, someone else is going to write it for you.",
+  "I’m on the pursuit of awesomeness, excellence is the bare minimum.",
+  "Never abandon your ambition for someone else's comfort.",
+  "You have to believe in yourself when no one else does. That's what makes you a winner.",
+  "Recognize and embrace your flaws so you can learn from them. Greatness takes relentless iteration.",
+  "Nothing in life is promised except death. Make every second of this reality count.",
+  "The concept of perfection is a limitation. Creation is an ongoing continuum.",
+  "We came here to leave a dent in the universe. Everything else is a distraction.",
+  "I am Warhol. I am Shakespeare in the flesh. Live your life like art.",
+  "No matter what happens, you gotta keep your energy high and your focus locked.",
+  "You can't look at a glass half full or half empty if it's overflowing.",
+  "My greatest pain in life is that I will never be able to see myself perform live."
+];
+
+export function getRandomKanyeQuote(excludeQuote?: string): string {
+  const filtered = excludeQuote ? KANYE_QUOTES.filter(q => q !== excludeQuote) : KANYE_QUOTES;
+  const pool = filtered.length > 0 ? filtered : KANYE_QUOTES;
+  return pool[Math.floor(Math.random() * pool.length)];
+}
+
 export default function EverythingIsland() {
   const { view, currentSegmentIndex, totalSegments } = useAppStore();
   const { setSymbol } = useMarketsStore();
@@ -783,7 +816,7 @@ export default function EverythingIsland() {
     if (islandState === 'fog' && prevIslandState.current !== 'fog') {
       // Entered fog
       setTimeout(() => {
-        setKanyeQuote("Focus on the process.");
+        setKanyeQuote(getRandomKanyeQuote(kanyeQuote));
         setFogTimer(25 * 60);
         setFogTimerRunning(true);
       }, 0);
@@ -1399,16 +1432,25 @@ Answer directly, clearly, and concisely in normal natural language. Provide dire
             <div className="absolute w-[50vw] h-[50vw] rounded-full bg-purple-900/20 blur-[120px] animate-blob2" />
             <div className="absolute w-[70vw] h-[70vw] rounded-full bg-emerald-900/10 blur-[150px] animate-blob3" />
             
-            {/* Quote */}
+            {/* Quote & Attributions with smooth transition */}
             <motion.div 
-               initial={{ opacity: 0, y: 30 }}
-               animate={{ opacity: 1, y: 0 }}
-               transition={{ delay: 0.5, duration: 1.5, ease: [0.32, 2, 0.55, 0.27] }}
-               className="relative z-10 max-w-5xl text-center px-12"
+               key={kanyeQuote}
+               initial={{ opacity: 0, y: 30, scale: 0.98 }}
+               animate={{ opacity: 1, y: 0, scale: 1 }}
+               exit={{ opacity: 0, y: -20, scale: 0.98 }}
+               transition={{ duration: 1.2, ease: [0.32, 2, 0.55, 0.27] }}
+               onClick={() => setKanyeQuote(getRandomKanyeQuote(kanyeQuote))}
+               className="relative z-10 max-w-5xl text-center px-8 md:px-12 cursor-pointer group select-none"
+               title="Click to cycle quote"
             >
-               <h1 className="font-serif text-4xl md:text-5xl lg:text-6xl italic text-white/90 drop-shadow-2xl leading-tight opacity-80 mix-blend-overlay">
+               <h1 className="font-serif text-3xl sm:text-4xl md:text-5xl lg:text-6xl italic text-white/95 drop-shadow-2xl leading-tight opacity-90 mix-blend-overlay selection:bg-white/20">
                  &ldquo;{kanyeQuote}&rdquo;
                </h1>
+               <div className="mt-6 flex items-center justify-center gap-3 text-white/30 group-hover:text-white/60 transition-colors">
+                 <span className="h-[1px] w-8 bg-white/20" />
+                 <span className="text-[10px] font-mono tracking-[0.4em] uppercase font-bold text-white/40 group-hover:text-white/80 transition-colors">YE • ATMOSPHERE</span>
+                 <span className="h-[1px] w-8 bg-white/20" />
+               </div>
             </motion.div>
           </motion.div>
         )}
