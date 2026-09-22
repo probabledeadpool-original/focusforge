@@ -676,6 +676,49 @@ export async function executeLocalCommand(rawText: string): Promise<boolean> {
     }
   }
 
+  // 6C. STOCK & MARKET ANALYSIS DIRECTIVE ("search stock AAPL", "check stock TSLA", "show chart for NVDA", "stock price for BTC", "chart for SPY", "market for ETH")
+  const stockMatch = text.match(/^(?:jarvis\s*,?\s*)?(?:search\s+stock|check\s+stock|show\s+stock|show\s+chart\s+(?:for)?|pull\s+up\s+chart\s+(?:for)?|stock\s+price\s+(?:of|for)?|chart\s+for|market\s+for)\s+([a-zA-Z0-9:\.\-]+)$/i);
+  if (stockMatch && stockMatch[1]) {
+    const rawSymbol = stockMatch[1].trim().toUpperCase();
+    const symbolMap: Record<string, string> = {
+      'APPLE': 'NASDAQ:AAPL',
+      'AAPL': 'NASDAQ:AAPL',
+      'TESLA': 'NASDAQ:TSLA',
+      'TSLA': 'NASDAQ:TSLA',
+      'NVIDIA': 'NASDAQ:NVDA',
+      'NVDA': 'NASDAQ:NVDA',
+      'BITCOIN': 'BINANCE:BTCUSDT',
+      'BTC': 'BINANCE:BTCUSDT',
+      'ETHEREUM': 'BINANCE:ETHUSDT',
+      'ETH': 'BINANCE:ETHUSDT',
+      'SOLANA': 'BINANCE:SOLUSDT',
+      'SOL': 'BINANCE:SOLUSDT',
+      'SPX': 'SP:SPX',
+      'SPY': 'AMEX:SPY',
+      'AMAZON': 'NASDAQ:AMZN',
+      'AMZN': 'NASDAQ:AMZN',
+      'GOOGLE': 'NASDAQ:GOOGL',
+      'GOOGL': 'NASDAQ:GOOGL',
+      'MICROSOFT': 'NASDAQ:MSFT',
+      'MSFT': 'NASDAQ:MSFT',
+      'META': 'NASDAQ:META',
+      'COINBASE': 'NASDAQ:COIN',
+      'COIN': 'NASDAQ:COIN',
+      'GOLD': 'TVC:GOLD'
+    };
+    const normSymbol = symbolMap[rawSymbol] || (rawSymbol.includes(':') ? rawSymbol : `NASDAQ:${rawSymbol}`);
+    jarvisVoiceEngine.setActiveTool('SHOW_STOCK');
+    const reply = `Pulling up live chart and technicals for ${rawSymbol}, sir.`;
+    jarvisStore.addMessage({
+      role: 'assistant',
+      text: reply,
+      actionSummary: `Chart: ${normSymbol}`,
+      stockData: { symbol: normSymbol, name: rawSymbol }
+    });
+    jarvisVoiceEngine.speakResponse(`Pulling up chart for ${rawSymbol}, sir.`);
+    return true;
+  }
+
   // 7. PLAY ENTIRE / WHOLE PLAYLIST FROM BEGINNING ("play this entire playlist", "play the whole playlist from the beginning", "play playlist from the start")
   if (
     text.includes('entire playlist') ||
@@ -1006,7 +1049,12 @@ export async function executeLocalCommand(rawText: string): Promise<boolean> {
         const topTasks = active.slice(0, 3).map((t: any, i: number) => `${i + 1}: ${t.title}`).join('. ');
         reply = `You have ${active.length} active objectives. Priority items: ${topTasks}.`;
       }
-      jarvisStore.addMessage({ role: 'assistant', text: reply, actionSummary: `Listed ${active.length} tasks` });
+      jarvisStore.addMessage({ 
+        role: 'assistant', 
+        text: reply, 
+        actionSummary: `Listed ${active.length} tasks`,
+        taskData: { tasks: active }
+      });
       jarvisVoiceEngine.speakResponse(reply);
       return true;
     } catch (e) {}

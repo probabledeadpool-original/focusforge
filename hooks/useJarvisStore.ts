@@ -12,6 +12,21 @@ export type JarvisDisplayMode = 'minimized' | 'expanded' | 'fullscreen';
 
 import type { YouTubeSearchResult } from '../lib/youtubeSearch';
 
+export interface StockSpotData {
+  symbol: string;
+  name?: string;
+  exchange?: string;
+}
+
+export interface TaskSpotData {
+  tasks: { id: string; title: string; done?: boolean }[];
+}
+
+export interface TimerSpotData {
+  minutes: number;
+  label?: string;
+}
+
 export interface JarvisMessage {
   id: string;
   role: 'user' | 'assistant' | 'system' | 'action';
@@ -19,6 +34,9 @@ export interface JarvisMessage {
   actionSummary?: string;
   timestamp: number;
   mediaResults?: YouTubeSearchResult[];
+  stockData?: StockSpotData;
+  taskData?: TaskSpotData;
+  timerData?: TimerSpotData;
 }
 
 interface JarvisStore {
