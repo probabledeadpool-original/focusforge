@@ -22,6 +22,8 @@ import { useMarketsStore } from '../../hooks/useMarketsStore';
 import { jarvisAudio } from '../../lib/jarvisAudio';
 import { jarvisVoiceEngine, VoiceState } from '../../lib/jarvisVoiceEngine';
 import { SiriWave, SiriWaveVariant } from '@/components/ui/siri-wave';
+import { ThinkingOrb } from 'thinking-orbs';
+import JarvisOrbVisualizer, { resolveOrbState } from './JarvisOrbVisualizer';
 import type { YouTubeSearchResult } from '../../lib/youtubeSearch';
 import { handleGlobalJarvisCommand } from '../../lib/jarvisCommandDispatcher';
 import { getSelectedTextModel, getSelectedLiveModel } from '../../lib/aiModelConfig';
@@ -1258,8 +1260,10 @@ export default function JarvisVoiceHUD() {
                 jarvis<span className="text-cyan-400">.</span>
               </h1>
             </div>
-            <div className={`flex items-center gap-2 px-3 py-1 rounded-full border text-[9px] md:text-[10px] font-mono uppercase tracking-[0.2em] font-bold ${badge.color}`}>
-              <span className={`w-1.5 h-1.5 rounded-full ${badge.dot}`} />
+            <div className={`flex items-center gap-2.5 px-3 py-1 rounded-full border text-[9px] md:text-[10px] font-mono uppercase tracking-[0.2em] font-bold ${badge.color}`}>
+              <div className="w-3.5 h-3.5 flex items-center justify-center shrink-0">
+                <ThinkingOrb state={resolveOrbState(voiceState, aiState, telemetry?.activeTool, telemetry?.geminiStatus)} size={20} theme="dark" />
+              </div>
               <span>{badge.label}</span>
             </div>
           </div>
@@ -1421,11 +1425,11 @@ export default function JarvisVoiceHUD() {
         </AnimatePresence>
 
         {/* ========================================================
-            CENTER STAGE: Pure SiriWave Canvas OR Dynamic SPOT UI
+            CENTER STAGE: Hybrid Visualizer Stage OR Dynamic SPOT UI
             ======================================================== */}
         <div className="flex-1 flex flex-col items-center justify-center max-w-5xl mx-auto w-full my-4 relative">
           
-          {/* CASE 1: SPOT UI ACTIVE (The wave moves aside / docks into top pill) */}
+          {/* CASE 1: SPOT UI ACTIVE (The visualizer docks into top pill) */}
           {spotType && (
             <motion.div 
               initial={{ opacity: 0, y: -10 }}
@@ -1433,17 +1437,19 @@ export default function JarvisVoiceHUD() {
               transition={{ duration: 0.3 }}
               className="w-full flex flex-col items-center justify-center relative z-20 flex-1"
             >
-              {/* Top Docked Wave Pill */}
+              {/* Top Docked Visualizer Pill */}
               <motion.div 
                 layout
                 className="flex items-center gap-3 px-4 py-1.5 rounded-full bg-white/[0.06] border border-white/10 backdrop-blur-2xl shadow-lg mb-3 shrink-0"
               >
-                <div className="w-10 h-10 flex items-center justify-center shrink-0">
-                  <SiriWave 
-                    variant={currentShaderVariant}
-                    size={50}
-                    renderScale={0.7}
-                    className="pointer-events-none"
+                <div className="w-8 h-8 flex items-center justify-center shrink-0">
+                  <JarvisOrbVisualizer
+                    voiceState={voiceState}
+                    aiState={aiState}
+                    isProcessing={isProcessing}
+                    activeTool={telemetry?.activeTool}
+                    geminiStatus={telemetry?.geminiStatus}
+                    size="sm"
                   />
                 </div>
                 <div className="flex flex-col min-w-0 max-w-md">
@@ -1508,20 +1514,22 @@ export default function JarvisVoiceHUD() {
             </motion.div>
           )}
 
-          {/* CASE 2: DEFAULT AMBIENT STAGE (No spot content -> Wave in center) */}
+          {/* CASE 2: DEFAULT AMBIENT STAGE (No spot content -> Balanced SiriWave + Fluid Dots + Thinking Orb in center) */}
           {!spotType && (
             <motion.div 
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               className="flex flex-col items-center justify-center w-full"
             >
-              {/* Apple-style Fluid SiriWave */}
+              {/* Dynamic Visualizer Stage: Wave on speech, Fluid-dots on listening, ThinkingOrbs on processing/solving/idle */}
               <div className="relative flex items-center justify-center mb-6">
-                <SiriWave 
-                  variant={currentShaderVariant}
-                  size={typeof window !== 'undefined' && window.innerWidth < 640 ? 280 : 360}
-                  renderScale={0.85}
-                  className="pointer-events-none z-10"
+                <JarvisOrbVisualizer
+                  voiceState={voiceState}
+                  aiState={aiState}
+                  isProcessing={isProcessing}
+                  activeTool={telemetry?.activeTool}
+                  geminiStatus={telemetry?.geminiStatus}
+                  size={typeof window !== 'undefined' && window.innerWidth < 640 ? 'md' : 'hero'}
                 />
               </div>
 

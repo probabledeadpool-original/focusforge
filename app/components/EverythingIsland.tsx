@@ -7,6 +7,8 @@ import { BorderBeam } from '@/components/ui/border-beam';
 import { AIMessage } from '@/components/ui/ai-message';
 import { MaybachLogo } from './Branding';
 import { SiriWave } from '@/components/ui/siri-wave';
+import { ThinkingOrb } from 'thinking-orbs';
+import JarvisOrbVisualizer, { resolveOrbState } from './JarvisOrbVisualizer';
 import { searchYouTube } from '../../lib/youtubeSearch';
 
 
@@ -1918,13 +1920,14 @@ Answer directly, clearly, and concisely in normal natural language. Provide dire
                   className="relative w-full h-full rounded-full flex items-center justify-center cursor-pointer group select-none overflow-hidden"
                   title="J.A.R.V.I.S. Neural Core (Click to Speak • Double-click for Fullscreen)"
                 >
-                  {/* Pure SiriWave & Fluid-Dots Core */}
+                  {/* Pure SiriWave, Fluid-Dots & Thinking-Orbs Core */}
                   <div className="relative w-full h-full rounded-full overflow-hidden flex items-center justify-center pointer-events-none">
-                    <SiriWave
-                      variant={jarvisStore.aiState === 'thinking' || jarvisStore.voiceState === 'PROCESSING_COMMAND' ? 'fluid-dots' : 'wave'}
-                      size={58}
-                      renderScale={1.0}
-                      className="w-full h-full object-contain pointer-events-none"
+                    <JarvisOrbVisualizer
+                      voiceState={jarvisStore.voiceState}
+                      aiState={jarvisStore.aiState}
+                      activeTool={jarvisStore.telemetry?.activeTool}
+                      geminiStatus={jarvisStore.telemetry?.geminiStatus}
+                      size="sm"
                     />
                   </div>
                 </div>
@@ -2582,11 +2585,12 @@ Answer directly, clearly, and concisely in normal natural language. Provide dire
               <div className="flex items-center justify-between mb-3 pb-3 border-b border-white/10 shrink-0 relative z-20">
                 <div className="flex items-center gap-2.5">
                   <div className="relative w-8 h-8 rounded-full overflow-hidden border border-cyan-400/40 bg-black/80 flex items-center justify-center shadow-[0_0_12px_rgba(6,182,212,0.35)]">
-                    <SiriWave
-                      variant={jarvisStore.aiState === 'thinking' || aiStatus === 'thinking' ? 'fluid-dots' : 'wave'}
-                      size={44}
-                      renderScale={0.7}
-                      className="w-full h-full object-cover scale-125 pointer-events-none"
+                    <JarvisOrbVisualizer
+                      voiceState={jarvisStore.voiceState}
+                      aiState={jarvisStore.aiState}
+                      activeTool={jarvisStore.telemetry?.activeTool}
+                      geminiStatus={jarvisStore.telemetry?.geminiStatus}
+                      size="sm"
                     />
                   </div>
                   <div className="h-4 w-[1px] bg-white/20" />
