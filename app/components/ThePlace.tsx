@@ -179,8 +179,7 @@ export default function ThePlace() {
 
   // External event listener for start-theatre (Jarvis, Everything Island, Hub)
   useEffect(() => {
-    const handleStartTheatre = (e: any) => {
-      const detail = e?.detail;
+    const playTarget = (detail: any) => {
       if (!detail) return;
       const url = detail.url || '';
       const { videoId, playlistId } = parseYouTubeUrl(url);
@@ -199,9 +198,48 @@ export default function ThePlace() {
       }
     };
 
+    // 1. Check for pending stream queued prior to mount (e.g. from Jarvis voice HUD)
+    try {
+      const pendingRaw = sessionStorage.getItem('focusforge-pending-theatre');
+      if (pendingRaw) {
+        sessionStorage.removeItem('focusforge-pending-theatre');
+        const pending = JSON.parse(pendingRaw);
+        playTarget(pending);
+      }
+    } catch (e) {}
+
+    // 2. Live listener while component is active
+    const handleStartTheatre = (e: any) => {
+      playTarget(e?.detail);
+    };
+
     window.addEventListener('start-theatre' as any, handleStartTheatre);
     return () => window.removeEventListener('start-theatre' as any, handleStartTheatre);
   }, []);
+
+  const openBrowserPopup = (target?: LibraryItem | YouTubeSearchResult | null) => {
+    const item = target || activeItem;
+    if (!item) return;
+    const id = item.id;
+    const isPlaylist = (item as any).type === 'playlist';
+    const popupUrl = isPlaylist
+      ? `https://www.youtube-nocookie.com/embed/videoseries?list=${id}&autoplay=1`
+      : `https://www.youtube-nocookie.com/embed/${id}?autoplay=1&enablejsapi=1`;
+
+    const width = 580;
+    const height = 340;
+    const left = typeof window !== 'undefined' ? Math.max(0, window.screen.width - width - 40) : 100;
+    const top = typeof window !== 'undefined' ? Math.max(0, window.screen.height - height - 80) : 100;
+
+    const popup = window.open(
+      popupUrl,
+      'FocusForgeMiniPlayer',
+      `width=${width},height=${height},left=${left},top=${top},menubar=no,toolbar=no,location=no,status=no,resizable=yes,scrollbars=no`
+    );
+    if (popup) {
+      popup.focus();
+    }
+  };
 
   const handleSearchOrAdd = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
@@ -746,6 +784,14 @@ export default function ThePlace() {
                               </button>
 
                               <button
+                                onClick={() => openBrowserPopup(ytItem)}
+                                title="Open in Floating Browser Pop-up Window"
+                                className="p-2 rounded-xl bg-white/5 hover:bg-white/10 text-white/60 hover:text-cyan-300 border border-white/10 transition-all cursor-pointer"
+                              >
+                                <ExternalLink size={13} />
+                              </button>
+
+                              <button
                                 onClick={() => {
                                   setTargetPlaylistId(customPlaylists[0]?.id || null);
                                   setItemToAddUrl(ytItem.url);
@@ -881,12 +927,20 @@ export default function ThePlace() {
                         <div className="relative aspect-video rounded-2xl overflow-hidden bg-zinc-900 mb-4">
                           <img src={item.thumbnail} className="w-full h-full object-cover brightness-[0.7] group-hover:brightness-100 transition-all duration-500" alt="" />
                           <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
-                          <div className="absolute top-3 right-3">
+                          <div className="absolute top-3 right-3 flex items-center gap-1.5">
+                            <button 
+                              onClick={(e) => { e.stopPropagation(); openBrowserPopup(item); }}
+                              title="Open in Floating Browser Pop-up Window"
+                              className="p-2 rounded-full bg-black/60 backdrop-blur-md text-white/60 hover:text-cyan-300 hover:bg-black/90 transition-all opacity-0 group-hover:opacity-100 cursor-pointer"
+                            >
+                              <ExternalLink size={13} />
+                            </button>
                             <button 
                               onClick={(e) => { e.stopPropagation(); deleteFromLibrary(item.id); }}
-                              className="p-2 rounded-full bg-black/60 backdrop-blur-md text-red-400/60 hover:text-red-400 hover:bg-black/90 transition-all opacity-0 group-hover:opacity-100"
+                              className="p-2 rounded-full bg-black/60 backdrop-blur-md text-red-400/60 hover:text-red-400 hover:bg-black/90 transition-all opacity-0 group-hover:opacity-100 cursor-pointer"
+                              title="Remove from Vault"
                             >
-                              <Trash2 size={14} />
+                              <Trash2 size={13} />
                             </button>
                           </div>
                         </div>
@@ -1108,13 +1162,22 @@ export default function ThePlace() {
                      initial={{ y: -50, opacity: 0 }}
                      animate={{ y: 0, opacity: 1 }}
                      exit={{ y: -50, opacity: 0 }}
-                     className="absolute top-8 left-8 md:left-14 z-[210] flex items-center gap-4"
+                     className="absolute top-8 left-8 md:left-14 z-[210] flex items-center gap-3"
                    >
                      <button 
                        onClick={exitPlayer}
-                       className="group flex items-center gap-3 text-white/70 hover:text-white transition-all bg-black/60 backdrop-blur-2xl border border-white/15 px-6 py-3 rounded-full uppercase text-[10px] font-mono font-bold tracking-widest shadow-2xl hover:scale-105"
+                       className="group flex items-center gap-2.5 text-white/70 hover:text-white transition-all bg-black/60 backdrop-blur-2xl border border-white/15 px-5 py-2.5 rounded-full uppercase text-[10px] font-mono font-bold tracking-widest shadow-2xl hover:scale-105 cursor-pointer"
                      >
                        <ChevronLeft size={16} className="group-hover:-translate-x-1 transition-transform" /> Back to Vault
+                     </button>
+
+                     <button 
+                       onClick={() => openBrowserPopup()}
+                       className="group flex items-center gap-2 text-cyan-300 hover:text-white transition-all bg-black/60 hover:bg-cyan-500/20 backdrop-blur-2xl border border-cyan-500/30 px-4 py-2.5 rounded-full uppercase text-[10px] font-mono font-bold tracking-widest shadow-2xl hover:scale-105 cursor-pointer"
+                       title="Open as Floating Browser Miniplayer Popup"
+                     >
+                       <ExternalLink size={13} className="text-cyan-400 group-hover:scale-110 transition-transform" />
+                       <span>Browser Pop-up</span>
                      </button>
                    </motion.div>
 

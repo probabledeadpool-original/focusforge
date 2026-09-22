@@ -685,9 +685,8 @@ export async function executeLocalCommand(rawText: string): Promise<boolean> {
     }
   }
 
-  // 6B-2. VOICE VIDEO SELECTION FROM SEARCH RESULTS ("play 1", "play the first one", "watch video 2", "play #3", "stream the second one", "play last")
-  const videoSelectMatch = text.match(/^(?:jarvis\s*,?\s*)?(?:play|watch|stream|open|select)(?:\s+the)?\s+(?:video\s+|option\s+|track\s+)?(?:number\s+|#)?(first|1st|1|one|second|2nd|2|two|third|3rd|3|three|fourth|4th|4|four|fifth|5th|5|five|sixth|6th|6|six|last)(?:\s+(?:one|video))?$/i);
-  
+  // 6B-2. VOICE VIDEO SELECTION FROM SEARCH RESULTS
+  // e.g. "play the first video", "play 1", "watch video 2", "play #3", "stream the second one", "play last", "play the first one in the place"
   // Find latest message with video search results
   const messages = jarvisStore.messages;
   let latestMediaMessage = null;
@@ -698,37 +697,73 @@ export async function executeLocalCommand(rawText: string): Promise<boolean> {
     }
   }
 
-  if (videoSelectMatch && latestMediaMessage && latestMediaMessage.mediaResults) {
-    const rawOrdinal = videoSelectMatch[1].toLowerCase();
-    const ordinalMap: Record<string, number> = {
-      'first': 0, '1st': 0, '1': 0, 'one': 0,
-      'second': 1, '2nd': 1, '2': 1, 'two': 1,
-      'third': 2, '3rd': 2, '3': 2, 'three': 2,
-      'fourth': 3, '4th': 3, '4': 3, 'four': 3,
-      'fifth': 4, '5th': 4, '5': 4, 'five': 4,
-      'sixth': 5, '6th': 5, '6': 5, 'six': 5,
-      'last': latestMediaMessage.mediaResults.length - 1
-    };
+  if (latestMediaMessage && latestMediaMessage.mediaResults && latestMediaMessage.mediaResults.length > 0) {
+    const mediaList = latestMediaMessage.mediaResults;
+    let selectedVideo = null;
+    let targetIndex = -1;
 
-    const targetIndex = ordinalMap[rawOrdinal] !== undefined ? ordinalMap[rawOrdinal] : 0;
-    const selectedVideo = latestMediaMessage.mediaResults[targetIndex];
+    // Pattern A: Ordinal / Number Selection (e.g. "play the first video", "play 1", "watch video 2", "play #1", "stream 3rd video")
+    const ordinalMatch = text.match(/(?:play|watch|stream|open|select|start|put\s+on)(?:.*?\s+)?(?:video\s+|option\s+|track\s+|number\s+|#)?(first|1st|1|one|second|2nd|2|two|third|3rd|3|three|fourth|4th|4|four|fifth|5th|5|five|sixth|6th|6|six|last)(?:\s+(?:one|video|track))?/i);
+    
+    if (ordinalMatch) {
+      const rawOrdinal = ordinalMatch[1].toLowerCase();
+      const ordinalMap: Record<string, number> = {
+        'first': 0, '1st': 0, '1': 0, 'one': 0,
+        'second': 1, '2nd': 1, '2': 1, 'two': 1,
+        'third': 2, '3rd': 2, '3': 2, 'three': 2,
+        'fourth': 3, '4th': 3, '4': 3, 'four': 3,
+        'fifth': 4, '5th': 4, '5': 4, 'five': 4,
+        'sixth': 5, '6th': 5, '6': 5, 'six': 5,
+        'last': mediaList.length - 1
+      };
+      targetIndex = ordinalMap[rawOrdinal] !== undefined ? ordinalMap[rawOrdinal] : 0;
+      if (targetIndex >= 0 && targetIndex < mediaList.length) {
+        selectedVideo = mediaList[targetIndex];
+      }
+    }
+
+    // Pattern B: Video Title Substring Match
+    if (!selectedVideo && (text.startsWith('play ') || text.startsWith('watch ') || text.startsWith('stream '))) {
+      const query = text.replace(/^(?:play|watch|stream)\s+(?:the\s+)?/i, '').toLowerCase().trim();
+      if (query.length > 2) {
+        const found = mediaList.find(v => v.title.toLowerCase().includes(query) || (v.channelTitle && v.channelTitle.toLowerCase().includes(query)));
+        if (found) {
+          selectedVideo = found;
+          targetIndex = mediaList.indexOf(found);
+        }
+      }
+    }
 
     if (selectedVideo) {
       jarvisVoiceEngine.setActiveTool('PLAY_AUDIO');
       useAppStore.getState().setView('place');
+      
       if (typeof window !== 'undefined') {
-        window.dispatchEvent(new CustomEvent('changeView', { detail: { view: 'place' } }));
-        setTimeout(() => {
-          window.dispatchEvent(new CustomEvent('start-theatre', {
-            detail: {
-              url: selectedVideo.url,
-              videoId: selectedVideo.id,
-              title: selectedVideo.title,
-              thumbnail: selectedVideo.thumbnail
-            }
+        try {
+          sessionStorage.setItem('focusforge-pending-theatre', JSON.stringify({
+            url: selectedVideo.url,
+            videoId: selectedVideo.id,
+            title: selectedVideo.title,
+            thumbnail: selectedVideo.thumbnail
           }));
-        }, 50);
+        } catch (e) {}
+
+        window.dispatchEvent(new CustomEvent('changeView', { detail: { view: 'place' } }));
+        
+        // Dispatch start-theatre multiple times to guarantee capture across mount lifecycles
+        const payload = {
+          url: selectedVideo.url,
+          videoId: selectedVideo.id,
+          title: selectedVideo.title,
+          thumbnail: selectedVideo.thumbnail
+        };
+        setTimeout(() => window.dispatchEvent(new CustomEvent('start-theatre', { detail: payload })), 50);
+        setTimeout(() => window.dispatchEvent(new CustomEvent('start-theatre', { detail: payload })), 200);
+        setTimeout(() => window.dispatchEvent(new CustomEvent('start-theatre', { detail: payload })), 400);
       }
+
+      jarvisStore.closeJarvis();
+
       const reply = `Streaming "${selectedVideo.title}" in The Place, sir.`;
       jarvisStore.addMessage({
         role: 'assistant',
