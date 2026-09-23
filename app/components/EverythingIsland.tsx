@@ -1345,7 +1345,10 @@ Answer directly, clearly, and concisely in normal natural language. Provide dire
     else if (islandState === 'youtube') target = 800;
     else if (islandState === 'ai') target = 680;
     else if (islandState === 'settings') target = typeof window !== 'undefined' ? Math.min(540, window.innerWidth - 24) : 540;
-    else if (jarvisStore.isOpen && (jarvisStore.isMinimized || jarvisStore.displayMode === 'minimized') && islandState === 'mini') target = 58;
+    else if (jarvisStore.isOpen && (jarvisStore.isMinimized || jarvisStore.displayMode === 'minimized') && islandState === 'mini') {
+      const isVoiceActive = jarvisStore.voiceState === 'SPEAKING_RESPONSE' || jarvisStore.voiceState === 'LISTENING_FOR_COMMAND' || jarvisStore.aiState === 'listening' || jarvisStore.aiState === 'speaking';
+      target = isVoiceActive ? 210 : 64;
+    }
     else if (islandState === 'mini') target = 210;
     else if (islandState === 'search') target = 600;
     else if (islandState === 'shelf') target = 400;
@@ -1366,7 +1369,7 @@ Answer directly, clearly, and concisely in normal natural language. Provide dire
     else if (islandState === 'youtube') target = 450;
     else if (islandState === 'ai') target = chatHistory.length > 0 ? 560 : 440;
     else if (islandState === 'settings') target = typeof window !== 'undefined' ? Math.min(680, window.innerHeight - 50) : 680;
-    else if (jarvisStore.isOpen && (jarvisStore.isMinimized || jarvisStore.displayMode === 'minimized') && islandState === 'mini') target = 58;
+    else if (jarvisStore.isOpen && (jarvisStore.isMinimized || jarvisStore.displayMode === 'minimized') && islandState === 'mini') target = 44;
     else if (islandState === 'mini') target = 40;
     else if (islandState === 'search') {
       target = 60 + (searchResults.length > 0 ? (Math.min(searchResults.length, 5) * 60 + 12) : 0);
@@ -1917,19 +1920,34 @@ Answer directly, clearly, and concisely in normal natural language. Provide dire
                     e.stopPropagation();
                     jarvisStore.setDisplayMode('fullscreen');
                   }}
-                  className="relative w-full h-full rounded-full flex items-center justify-center cursor-pointer group select-none overflow-hidden"
+                  className="relative w-full h-full flex items-center justify-center cursor-pointer group select-none px-2"
                   title="J.A.R.V.I.S. Neural Core (Click to Speak • Double-click for Fullscreen)"
                 >
-                  {/* Pure SiriWave, Fluid-Dots & Thinking-Orbs Core */}
-                  <div className="relative w-full h-full rounded-full overflow-hidden flex items-center justify-center pointer-events-none">
+                  <div className="relative flex items-center justify-center pointer-events-none shrink-0">
                     <JarvisOrbVisualizer
                       voiceState={jarvisStore.voiceState}
                       aiState={jarvisStore.aiState}
                       activeTool={jarvisStore.telemetry?.activeTool}
                       geminiStatus={jarvisStore.telemetry?.geminiStatus}
-                      size="sm"
+                      size="capsule"
                     />
                   </div>
+
+                  {(jarvisStore.voiceState === 'SPEAKING_RESPONSE' || jarvisStore.voiceState === 'LISTENING_FOR_COMMAND' || jarvisStore.aiState === 'listening' || jarvisStore.aiState === 'speaking') && (
+                    <motion.div 
+                      initial={{ opacity: 0, x: -6 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      exit={{ opacity: 0, x: -6 }}
+                      className="ml-2.5 flex flex-col justify-center min-w-0 pr-1 pointer-events-none"
+                    >
+                      <span className="text-[8px] font-mono uppercase tracking-widest text-cyan-300 font-bold leading-none">
+                        {jarvisStore.voiceState === 'SPEAKING_RESPONSE' || jarvisStore.aiState === 'speaking' ? 'Speaking' : 'Listening...'}
+                      </span>
+                      <span className="text-[10px] text-white/90 truncate max-w-[125px] font-medium leading-tight mt-0.5">
+                        {jarvisStore.telemetry?.interimTranscript || jarvisStore.telemetry?.transcript || "Awaiting command..."}
+                      </span>
+                    </motion.div>
+                  )}
                 </div>
               ) : (
                 <>

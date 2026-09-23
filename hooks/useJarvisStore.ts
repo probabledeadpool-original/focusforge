@@ -330,16 +330,42 @@ export const useJarvisStore = create<JarvisStore>((set, get) => ({
       timestamp: Date.now(),
     }
   ],
-  addMessage: (msg) => set((state) => ({
-    messages: [
-      ...state.messages,
-      {
-        ...msg,
-        id: `msg-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`,
-        timestamp: Date.now(),
-      }
-    ]
-  })),
+  addMessage: (msg) => set((state) => {
+    // Detect if this incoming message includes rich interactive Spot UI data
+    const hasSpotData = Boolean(
+      (msg.mediaResults && msg.mediaResults.length > 0) ||
+      msg.stockData ||
+      msg.taskData ||
+      msg.weatherData ||
+      msg.newsData ||
+      msg.earthquakeData ||
+      msg.issData ||
+      msg.nasaData ||
+      msg.cryptoData ||
+      msg.fxData ||
+      msg.watchlistData ||
+      msg.portfolioData
+    );
+
+    // If in minimized mode or closed, automatically open & expand to fullscreen HUD
+    const shouldAutoExpand = hasSpotData && (state.isMinimized || state.displayMode === 'minimized' || !state.isOpen);
+
+    if (shouldAutoExpand && typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('jarvis-display-mode', { detail: { mode: 'fullscreen' } }));
+    }
+
+    return {
+      messages: [
+        ...state.messages,
+        {
+          ...msg,
+          id: `msg-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`,
+          timestamp: Date.now(),
+        }
+      ],
+      ...(shouldAutoExpand ? { isOpen: true, isMinimized: false, displayMode: 'fullscreen' } : {})
+    };
+  }),
   clearMessages: () => set({
     messages: [
       {

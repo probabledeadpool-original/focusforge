@@ -351,7 +351,7 @@ class JarvisLiveEngine {
       return false;
     }
 
-    // Step 2: Establish Gemini Live WebSocket Connection
+    // Step 2: Establish Gemini Live WebSocket Connection or Fallback Assistant Pipeline
     this.transitionTo('CONNECTING_LIVE', 'Connecting to Gemini Live WebSocket');
 
     let apiKey = (typeof window !== 'undefined' ? localStorage.getItem('gemini-api-key') || '' : '').trim();
@@ -368,81 +368,95 @@ class JarvisLiveEngine {
       } catch (e) {}
     }
 
-    if (!apiKey) {
-      this.lastError = 'Gemini API Key is required. Please click "Set Key" on the Live pill.';
-      this.transitionTo('LIVE_ERROR', 'Missing API key');
-      // Initialize speech fallback so the user can interact even while configuring key
-      this.initContinuousSpeechRecognition(sessionId);
-      return false;
-    }
-
     const liveModelName = this.resolveLiveModelName(this.selectedModelId);
-    const wsUrl = `wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1beta.GenerativeService.BidiGenerateContent?key=${encodeURIComponent(apiKey)}`;
 
-    try {
-      const ws = new WebSocket(wsUrl);
-      this.ws = ws;
+    // Also set up playback state callback on audio pipeline to track model speaking phase
+    jarvisLiveAudioPipeline.setPlaybackStateCallback((isPlaying) => {
+      if (this.currentSessionId !== sessionId) return;
+      if (isPlaying) {
+        this.currentTurn = 'model';
+        this.transitionTo('LIVE_SPEAKING', 'Model audio streaming');
+      } else {
+        if (this.phase === 'LIVE_SPEAKING') {
+          this.currentTurn = 'user';
+          this.transitionTo('LIVE_LISTENING', 'Model finished speaking');
+        }
+      }
+    });
 
-      // Also set up playback state callback on audio pipeline to track model speaking phase
-      jarvisLiveAudioPipeline.setPlaybackStateCallback((isPlaying) => {
-        if (this.currentSessionId !== sessionId) return;
-        if (isPlaying) {
-          this.currentTurn = 'model';
-          this.transitionTo('LIVE_SPEAKING', 'Model audio streaming');
-        } else {
-          if (this.phase === 'LIVE_SPEAKING') {
-            this.currentTurn = 'user';
-            this.transitionTo('LIVE_LISTENING', 'Model finished speaking');
+    // If an API key is present, attempt live bidirectional WebSocket
+    if (apiKey) {
+      const wsUrl = `wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1beta.GenerativeService.BidiGenerateContent?key=${encodeURIComponent(apiKey)}`;
+
+      try {
+        const ws = new WebSocket(wsUrl);
+        this.ws = ws;
+
+        let setupTimeout = setTimeout(() => {
+          if (this.currentSessionId === sessionId && this.phase === 'CONNECTING_LIVE') {
+            if (process.env.NODE_ENV !== 'production') {
+              console.info('[JarvisLiveEngine] WebSocket handshake timeout, engaging continuous assistant pipeline.');
+            }
+            this.engageContinuousPipeline(sessionId);
           }
-        }
-      });
+        }, 3000);
 
-      let setupTimeout = setTimeout(() => {
-        if (this.currentSessionId === sessionId && this.phase === 'CONNECTING_LIVE') {
-          console.warn('[JarvisLiveEngine] WebSocket handshake timeout, engaging continuous assistant pipeline.');
-          this.initContinuousSpeechRecognition(sessionId);
-        }
-      }, 3500);
+        ws.onopen = () => {
+          if (this.currentSessionId !== sessionId) return;
+          if (setupTimeout) clearTimeout(setupTimeout);
+          if (process.env.NODE_ENV !== 'production') {
+            console.info('[JarvisLiveEngine] WebSocket connection established. Sending BidiGenerateContentSetup message...');
+          }
+          this.sendWebSocketSetup(sessionId, liveModelName);
+        };
 
-      ws.onopen = () => {
-        if (this.currentSessionId !== sessionId) return;
-        if (setupTimeout) clearTimeout(setupTimeout);
-        if (process.env.NODE_ENV !== 'production') {
-          console.info('[JarvisLiveEngine] WebSocket connection established. Sending BidiGenerateContentSetup message...');
-        }
-        this.sendWebSocketSetup(sessionId, liveModelName);
-      };
+        ws.onmessage = async (event) => {
+          if (this.currentSessionId !== sessionId) return;
+          if (setupTimeout) clearTimeout(setupTimeout);
+          await this.handleWebSocketMessage(event.data, sessionId);
+        };
 
-      ws.onmessage = async (event) => {
-        if (this.currentSessionId !== sessionId) return;
-        if (setupTimeout) clearTimeout(setupTimeout);
-        await this.handleWebSocketMessage(event.data, sessionId);
-      };
+        ws.onerror = (e) => {
+          if (this.currentSessionId !== sessionId) return;
+          if (setupTimeout) clearTimeout(setupTimeout);
+          console.warn('[JarvisLiveEngine] WebSocket notice. Engaging continuous speech pipeline:', e);
+          this.engageContinuousPipeline(sessionId);
+        };
 
-      ws.onerror = (e) => {
-        if (this.currentSessionId !== sessionId) return;
-        if (setupTimeout) clearTimeout(setupTimeout);
-        console.warn('[JarvisLiveEngine] WebSocket error event. Enabling continuous assistant pipeline:', e);
+        ws.onclose = (e) => {
+          if (this.currentSessionId !== sessionId) return;
+          if (setupTimeout) clearTimeout(setupTimeout);
+          this.isWebSocketActive = false;
+          if (this.phase !== 'EXITING_LIVE' && this.phase !== 'IDLE') {
+            this.engageContinuousPipeline(sessionId);
+          }
+        };
+
         this.initContinuousSpeechRecognition(sessionId);
-      };
-
-      ws.onclose = (e) => {
-        if (this.currentSessionId !== sessionId) return;
-        if (setupTimeout) clearTimeout(setupTimeout);
-        this.isWebSocketActive = false;
-        if (this.phase !== 'EXITING_LIVE' && this.phase !== 'IDLE') {
-          this.initContinuousSpeechRecognition(sessionId);
-        }
-      };
-
-      // Also start speech recognition in parallel to capture user speech with zero latency
-      this.initContinuousSpeechRecognition(sessionId);
-      return true;
-    } catch (connErr: any) {
-      console.warn('[JarvisLiveEngine] WebSocket initiation exception:', connErr);
-      this.initContinuousSpeechRecognition(sessionId);
+        return true;
+      } catch (connErr: any) {
+        console.warn('[JarvisLiveEngine] WebSocket initiation notice:', connErr);
+        this.engageContinuousPipeline(sessionId);
+        return true;
+      }
+    } else {
+      // Server-backed intelligent conversational live pipeline
+      this.engageContinuousPipeline(sessionId);
       return true;
     }
+  }
+
+  // Engage continuous assistant pipeline with state transition
+  private engageContinuousPipeline(sessionId: string): void {
+    if (this.currentSessionId !== sessionId) return;
+    this.transitionTo('LIVE_READY', 'Continuous assistant pipeline active');
+    setTimeout(() => {
+      if (this.currentSessionId === sessionId) {
+        this.currentTurn = 'user';
+        this.transitionTo('LIVE_LISTENING', 'Live listening active');
+      }
+    }, 150);
+    this.initContinuousSpeechRecognition(sessionId);
   }
 
   // --- 2. SEND BidiGenerateContentSetup MESSAGE ---
