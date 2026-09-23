@@ -9,52 +9,35 @@ interface QuickDualPillHeaderProps {
   onToggleJarvis: () => void;
   isOnline: boolean;
   onOpenVoiceHUD: () => void;
-  onStartLive?: () => void;
 }
 
 export const QuickDualPillHeader: React.FC<QuickDualPillHeaderProps> = ({
   isJarvisActive,
   onToggleJarvis,
   isOnline,
-  onOpenVoiceHUD,
-  onStartLive
+  onOpenVoiceHUD
 }) => {
-  const { isLiveActive, startLiveMode, liveTelemetry } = useJarvisStore();
-
   return (
     <div className="grid grid-cols-2 gap-2.5 w-full select-none">
-      {/* Pill 1: J.A.R.V.I.S. Live Mode Button */}
+      {/* Pill 1: J.A.R.V.I.S. Voice HUD Launcher */}
       <button
         type="button"
         onClick={(e) => {
           e.stopPropagation();
-          if (onStartLive) {
-            onStartLive();
-          } else {
-            startLiveMode();
-          }
+          onOpenVoiceHUD();
         }}
-        className={`h-14 p-2.5 rounded-2xl border transition-all flex items-center justify-between gap-2 shadow-md cursor-pointer text-left group ${
-          isLiveActive
-            ? 'bg-cyan-500/20 border-cyan-400 shadow-[0_0_18px_rgba(6,182,212,0.35)]'
-            : 'bg-white/[0.06] border-white/10 hover:border-cyan-400/50 hover:bg-cyan-500/10'
-        }`}
+        className="h-14 p-2.5 rounded-2xl border transition-all flex items-center justify-between gap-2 shadow-md cursor-pointer text-left group bg-white/[0.06] border-white/10 hover:border-cyan-400/50 hover:bg-cyan-500/10"
       >
         <div className="flex items-center gap-2.5 min-w-0">
-          <div className={`w-9 h-9 rounded-full flex items-center justify-center transition-all shrink-0 ${
-            isLiveActive 
-              ? 'bg-cyan-400 text-black shadow-[0_0_14px_rgba(6,182,212,0.7)] animate-pulse' 
-              : 'bg-cyan-500/20 text-cyan-300 border border-cyan-400/40 group-hover:bg-cyan-400 group-hover:text-black'
-          }`}>
+          <div className="w-9 h-9 rounded-full flex items-center justify-center transition-all shrink-0 bg-cyan-500/20 text-cyan-300 border border-cyan-400/40 group-hover:bg-cyan-400 group-hover:text-black">
             <Radio size={16} strokeWidth={2.4} />
           </div>
           <div className="flex flex-col min-w-0">
             <span className="text-xs font-bold text-white tracking-tight truncate flex items-center gap-1.5">
-              Live Voice
-              {isLiveActive && <span className="w-1.5 h-1.5 rounded-full bg-cyan-400 animate-ping" />}
+              Voice HUD
             </span>
             <span className="text-[10px] text-cyan-300/90 font-mono tracking-wider truncate">
-              {isLiveActive ? 'Live Active' : 'Start Live'}
+              Launch Copilot
             </span>
           </div>
         </div>

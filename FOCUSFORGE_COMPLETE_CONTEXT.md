@@ -48,15 +48,15 @@ The centerpiece of the application is a morphic floating island anchored at the 
 
 ---
 
-### 3.2 J.A.R.V.I.S. Copilot & Multimodal Voice HUD (`JarvisVoiceHUD.tsx`, `jarvisVoiceEngine.ts`, `jarvisLiveEngine.ts`)
+### 3.2 J.A.R.V.I.S. Copilot & Voice HUD (`JarvisVoiceHUD.tsx`, `jarvisVoiceEngine.ts`)
 An executive AI voice companion inspired by Apple Intelligence and Tony Stark's J.A.R.V.I.S.:
 - **Continuous Wake-Word Detection:** Listens continuously for `"JARVIS"` or `"Hey JARVIS"` using Web Speech API and custom phonetic matching.
 - **Spot UI (On-The-Spot Generative Interface):**
   - **Video Search & Voice Playback:** Search YouTube via voice; wave animations glide aside to present video cards; selecting a video by voice (`"play the first video"`) loads it directly into the custom theatre player.
-  - **Live Financial Charts:** Asking for stock prices (e.g. `"What is Reliance trading at?"` or `"Check Apple stock"`) dynamically renders interactive sparklines and intraday charts.
+  - **Live Financial Charts:** Asking for stock prices (e.g. `"What is Reliance trading at?"` or `"Check Apple stock"`) dynamically renders interactive sparklines and intraday charts for Indian (NSE/BSE) and US equities.
   - **Live World Pulse:** Real-time breaking headlines, geopolitical briefings, and economic calendar cards.
 - **Thinking Orbs & Siri Wave Visualizer:** 9 hand-tuned animated cognitive states (`listening`, `thinking`, `speaking`, `searching`, `solving`, `connecting`, `weaving`, `breathing`, `standby`).
-- **Live Multimodal Mode (`jarvisLiveEngine.ts`):** Low-latency duplex communication supporting camera vision and audio streaming.
+- **Autonomous Tool Dispatching:** Executes workspace tasks, audio adjustments, and navigation commands automatically via voice.
 
 ---
 

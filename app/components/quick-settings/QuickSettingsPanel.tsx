@@ -386,7 +386,7 @@ export const QuickSettingsPanel: React.FC<QuickSettingsPanelProps> = ({
       {/* Main Grouped Scrollable Area */}
       <div className="flex-1 space-y-3.5 overflow-y-auto no-scrollbar pr-0.5 min-h-0 pt-1">
         
-        {/* 1. DUAL TOP CONNECTIVITY PILLS (Live Voice & Jarvis Hotword) */}
+        {/* 1. DUAL TOP CONNECTIVITY PILLS (Voice HUD & Jarvis Hotword) */}
         <QuickDualPillHeader
           isJarvisActive={jarvisStore.isHotwordEnabled}
           onToggleJarvis={toggleJarvisWakeWord}
@@ -394,10 +394,6 @@ export const QuickSettingsPanel: React.FC<QuickSettingsPanelProps> = ({
           onOpenVoiceHUD={() => {
             jarvisStore.setDisplayMode('fullscreen');
             jarvisStore.openJarvis();
-            onClose();
-          }}
-          onStartLive={() => {
-            jarvisStore.startLiveMode();
             onClose();
           }}
         />
