@@ -9,6 +9,7 @@ import {
 import { CustomYouTubePlayer, YouTubePlayerRef } from './CustomYouTubePlayer';
 import TheFrequency from './TheFrequency/TheFrequency';
 import { searchYouTube, YouTubeSearchResult } from '../../lib/youtubeSearch';
+import { openDocumentPiP, isDocumentPiPSupported } from '../../lib/documentPiP';
 
 export interface LibraryItem {
   id: string;
@@ -219,7 +220,7 @@ export default function ThePlace() {
 
   const [isPopoutPiPActive, setIsPopoutPiPActive] = useState(false);
 
-  const enterPopoutPiP = (target?: LibraryItem | YouTubeSearchResult | null) => {
+  const enterPopoutPiP = async (target?: LibraryItem | YouTubeSearchResult | null) => {
     const item = target ? {
       id: target.id,
       type: (target as any).type || 'video',
@@ -231,8 +232,25 @@ export default function ThePlace() {
 
     if (!item) return;
     setActiveItem(item);
-    setIsPopoutPiPActive(true);
-    setViewState('browse');
+
+    const res = await openDocumentPiP({
+      title: item.title,
+      videoId: item.type === 'video' ? item.id : null,
+      playlistId: item.type === 'playlist' ? item.id : null,
+      currentTime: item.progress || 0,
+      onClose: () => {
+        setIsPopoutPiPActive(false);
+      }
+    });
+
+    if (res.success && res.mode === 'document') {
+      setIsPopoutPiPActive(false);
+      setViewState('browse');
+    } else {
+      // In-app floating PiP fallback
+      setIsPopoutPiPActive(true);
+      setViewState('browse');
+    }
   };
 
   const expandFromPiPToTheatre = () => {
@@ -1153,6 +1171,7 @@ export default function ThePlace() {
                     isAmbientActive={isAmbientActive}
                     onToggleAmbient={() => setIsAmbientActive(!isAmbientActive)}
                     dimmed={false}
+                    onOpenMiniplayer={() => enterPopoutPiP()}
                  />
                </motion.div>
              )}

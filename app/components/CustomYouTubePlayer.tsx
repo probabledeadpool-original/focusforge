@@ -1,10 +1,11 @@
 "use client";
 
 import React, { useEffect, useRef, useState, useCallback, forwardRef, useImperativeHandle } from 'react';
-import { Play, Pause, Volume2, VolumeX, SkipForward, SkipBack, Maximize, Minimize, RotateCcw, Target, X, Sparkles, List, Activity, Radio, SlidersHorizontal } from 'lucide-react';
+import { Play, Pause, Volume2, VolumeX, SkipForward, SkipBack, Maximize, Minimize, RotateCcw, Target, X, Sparkles, List, Activity, Radio, SlidersHorizontal, PictureInPicture2 } from 'lucide-react';
 import { motion, AnimatePresence, useScroll, useTransform, useSpring, useMotionValue } from 'motion/react';
 import { useAppStore } from '../../hooks/useAppStore';
 import { useFrequencyStore, AudioEnhancementPreset } from '../../hooks/useFrequencyStore';
+import { openDocumentPiP } from '../../lib/documentPiP';
 
 declare global {
   interface Window {
@@ -44,10 +45,11 @@ type Props = {
   initialTime?: number;
   onProgress?: (currentTime: number, duration: number) => void;
   noCrop?: boolean;
+  onOpenMiniplayer?: () => void;
 };
 
 
-export const CustomYouTubePlayer = forwardRef<YouTubePlayerRef, Props>(({ videoId, playlistId, autoplay = false, muted = false, onEnd, onPlay, onPause, onVideoDurationChange, title, dimmed = false, className = "", roundedClass = "rounded-2xl", isVoidShift = false, onEnterVoid, isAmbientActive: propAmbientActive, onToggleAmbient, initialTime = 0, onProgress, noCrop }, ref) => {
+export const CustomYouTubePlayer = forwardRef<YouTubePlayerRef, Props>(({ videoId, playlistId, autoplay = false, muted = false, onEnd, onPlay, onPause, onVideoDurationChange, title, dimmed = false, className = "", roundedClass = "rounded-2xl", isVoidShift = false, onEnterVoid, isAmbientActive: propAmbientActive, onToggleAmbient, initialTime = 0, onProgress, noCrop, onOpenMiniplayer }, ref) => {
   const { setCurrentSegmentIndex, setTotalSegments, setIsVideoPlaying } = useAppStore();
   const frequencyStore = useFrequencyStore();
   const containerRef = useRef<HTMLDivElement>(null);
@@ -224,6 +226,28 @@ export const CustomYouTubePlayer = forwardRef<YouTubePlayerRef, Props>(({ videoI
       document.exitFullscreen();
     }
   }, []);
+
+  const handleOpenMiniplayer = useCallback(async (e?: React.MouseEvent) => {
+    if (e) e.stopPropagation();
+    if (onOpenMiniplayer) {
+      onOpenMiniplayer();
+      return;
+    }
+
+    const cTime = playerRef.current?.getCurrentTime ? playerRef.current.getCurrentTime() : currentTime;
+    await openDocumentPiP({
+      title: title || 'FocusForge Miniplayer',
+      videoId,
+      playlistId,
+      currentTime: cTime || 0,
+      isPlaying,
+      isMuted,
+      onPlay: () => playerRef.current?.playVideo?.(),
+      onPause: () => playerRef.current?.pauseVideo?.(),
+      onSeek: (sec) => playerRef.current?.seekTo?.(sec, true),
+      onToggleMute: () => toggleMute()
+    });
+  }, [onOpenMiniplayer, title, videoId, playlistId, currentTime, isPlaying, isMuted, toggleMute]);
 
   const syncAmbientPlayer = useCallback(() => {
     if (!playerRef.current || ambientPlayers.current.length === 0) return;
@@ -943,6 +967,13 @@ export const CustomYouTubePlayer = forwardRef<YouTubePlayerRef, Props>(({ videoI
                         <List size={28} />
                       </button>
                     )}
+                    <button 
+                      onClick={handleOpenMiniplayer} 
+                      className="text-white/70 hover:text-cyan-300 transition-all drop-shadow-lg flex items-center justify-center group"
+                      title="Open Miniplayer (Picture-in-Picture)"
+                    >
+                      <PictureInPicture2 size={28} className="group-hover:scale-110 transition-transform" />
+                    </button>
                     <button onClick={toggleFullscreen} className="text-white/70 hover:text-white transition-all drop-shadow-lg">
                       {isFullscreen ? <Minimize size={28} /> : <Maximize size={28} />}
                     </button>

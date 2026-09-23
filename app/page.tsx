@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { Home, CheckSquare, BarChart2, ShoppingBag, Play, Pause, RotateCcw, SkipForward, Plus, X, Timer, Waves, Zap, Rocket, BookOpen, Palette, Flame, ShieldCheck, ArrowRight, ChevronRight, Sliders, SlidersHorizontal, User, Settings, Bell, Volume2, Maximize, Minimize, Bot, Monitor, Smartphone, History, Award, Cpu, Activity, Camera, Target, FileText, Eye, EyeOff, Check, RefreshCw, CheckCircle2, Hand, Mic, Radio, Sparkles } from 'lucide-react';
+import { Home, CheckSquare, BarChart2, ShoppingBag, Play, Pause, RotateCcw, SkipForward, Plus, X, Timer, Waves, Zap, Rocket, BookOpen, Palette, Flame, ShieldCheck, ArrowRight, ChevronRight, Sliders, SlidersHorizontal, User, Settings, Bell, Volume2, Maximize, Minimize, Bot, Monitor, Smartphone, History, Award, Cpu, Activity, Camera, Target, FileText, Eye, EyeOff, Check, RefreshCw, CheckCircle2, Hand, Mic, Radio, Sparkles, PictureInPicture2, Headphones, Layers, Globe, Coins } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { CustomYouTubePlayer } from './components/CustomYouTubePlayer';
 import { useAppStore } from '../hooks/useAppStore';
@@ -1233,17 +1233,32 @@ export default function FocusForge() {
   // --- Views ---
 
   const renderHome = () => (
-    <motion.div key="home" variants={containerVariants} initial="hidden" animate="show" exit="hidden" className="p-4 sm:p-6 md:p-12 max-w-6xl mx-auto space-y-10 sm:space-y-16 pb-32 md:pb-12">
+    <motion.div key="home" variants={containerVariants} initial="hidden" animate="show" exit="hidden" className="p-4 sm:p-6 md:p-12 max-w-6xl mx-auto space-y-12 sm:space-y-20 pb-32 md:pb-12">
       
-      <motion.header variants={itemVariants} className="pt-4 sm:pt-8 md:pt-0">
+      {/* Header */}
+      <motion.header variants={itemVariants} className="pt-4 sm:pt-8 md:pt-0 space-y-4">
+        <div className="flex items-center gap-2 flex-wrap">
+          <span className="px-2.5 py-0.5 rounded-full text-[9px] font-mono uppercase tracking-widest bg-white/5 border border-white/10 text-white/60">
+            SYSTEM.0XF8A2 // SOVEREIGN OS
+          </span>
+          <span className="px-2.5 py-0.5 rounded-full text-[9px] font-mono uppercase tracking-widest bg-cyan-500/10 border border-cyan-500/30 text-cyan-400 flex items-center gap-1.5">
+            <span className="w-1.5 h-1.5 rounded-full bg-cyan-400 animate-pulse" />
+            MCP SERVER: /api/mcp
+          </span>
+          <span className="px-2.5 py-0.5 rounded-full text-[9px] font-mono uppercase tracking-widest bg-emerald-500/10 border border-emerald-500/30 text-emerald-400">
+            DOCUMENT PIP: ACTIVE
+          </span>
+        </div>
+
         <h1 className="font-heading text-4xl sm:text-6xl md:text-8xl lg:text-9xl font-extrabold tracking-tight leading-[0.9] mb-4 sm:mb-6 lowercase">
           crafted for<br/>the focused.
         </h1>
-        <p className="text-white/50 text-base sm:text-lg md:text-xl max-w-xl font-sans leading-relaxed">
-          Focus Forge is a members-only club that enables the trustworthy to make productivity progress.
+        <p className="text-white/50 text-base sm:text-lg md:text-xl max-w-2xl font-sans leading-relaxed">
+          Focus Forge is a members-only sovereign operating system that fuses deep work architectures, multimodal neural intelligence, spatial acoustic physics, and capital yield matrices.
         </p>
       </motion.header>
 
+      {/* 1. Focus Summary */}
       <motion.section variants={itemVariants}>
         <div className="flex items-center justify-between mb-6 sm:mb-8 border-b border-white/10 pb-4">
           <h2 className="font-serif text-xl sm:text-2xl md:text-3xl lowercase">your focus summary</h2>
@@ -1276,18 +1291,177 @@ export default function FocusForge() {
             <div className="absolute top-0 left-0 w-full h-1 bg-white/5">
               <div className="h-full bg-white shadow-[0_0_15px_rgba(255,255,255,0.8)] transition-all duration-1000" style={{ width: `${(user.xp / 100) * 100}%` }} />
             </div>
-            <div className="text-white/40 text-[10px] uppercase tracking-[0.2em] font-medium">Level {user.level}</div>
+            <div className="flex justify-between items-center">
+              <span className="text-white/40 text-[10px] uppercase tracking-[0.2em] font-medium">Level {user.level}</span>
+              <span className="text-[10px] font-mono text-emerald-400 font-bold">{user.coins} Coins</span>
+            </div>
             <div className="mt-4 md:mt-0">
-              <div className="font-serif text-2xl sm:text-3xl md:text-4xl text-white mb-2 lowercase">Novice</div>
+              <div className="font-serif text-2xl sm:text-3xl md:text-4xl text-white mb-2 lowercase">{user.moniker || 'Sovereign Architect'}</div>
               <div className="font-mono text-xs sm:text-sm text-white/50">{user.xp} / 100 XP to next level</div>
             </div>
           </motion.div>
         </div>
       </motion.section>
 
+      {/* 2. The Sovereign Engines (Expanded Modules Showcase) */}
+      <motion.section variants={itemVariants}>
+        <div className="flex items-center justify-between mb-6 sm:mb-8 border-b border-white/10 pb-4">
+          <h2 className="font-serif text-xl sm:text-2xl md:text-3xl lowercase">the sovereign engines</h2>
+          <span className="text-[10px] font-mono uppercase tracking-widest text-white/40">6 CORE PROTOCOLS</span>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
+          {/* The Place */}
+          <button 
+            onClick={() => setView('place')} 
+            className="text-left p-6 sm:p-8 bg-zinc-950 border border-white/10 hover:border-white/30 transition-all duration-500 hover:-translate-y-1 rounded-2xl md:rounded-none min-h-[220px] flex flex-col justify-between group relative overflow-hidden cursor-pointer"
+          >
+            <div className="absolute inset-0 bg-gradient-to-br from-cyan-500/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
+            <div>
+              <div className="flex justify-between items-start mb-4 sm:mb-6">
+                <Monitor className="text-white/50 group-hover:text-cyan-400 transition-colors duration-500" size={28} />
+                <span className="text-[9px] font-mono uppercase tracking-widest px-2 py-0.5 rounded bg-white/5 text-cyan-300 border border-cyan-500/20">
+                  Document PiP
+                </span>
+              </div>
+              <div className="font-heading text-2xl sm:text-3xl font-extrabold mb-1 lowercase">the place.</div>
+            </div>
+            <div>
+              <div className="font-mono text-xs text-white/40 mb-1">4K Atmospheric soundscapes, Tokyo rain, and floating Picture-in-Picture miniplayer.</div>
+              <div className="text-[10px] uppercase tracking-[0.2em] text-cyan-400 font-medium group-hover:translate-x-1 transition-transform flex items-center gap-1">
+                Enter Theatre <ChevronRight size={12} />
+              </div>
+            </div>
+          </button>
+
+          {/* The Frequency */}
+          <button 
+            onClick={() => {
+              setView('place');
+              frequencyStore.setStudioOpen(true);
+            }} 
+            className="text-left p-6 sm:p-8 bg-zinc-950 border border-white/10 hover:border-white/30 transition-all duration-500 hover:-translate-y-1 rounded-2xl md:rounded-none min-h-[220px] flex flex-col justify-between group relative overflow-hidden cursor-pointer"
+          >
+            <div className="absolute inset-0 bg-gradient-to-br from-purple-500/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
+            <div>
+              <div className="flex justify-between items-start mb-4 sm:mb-6">
+                <Waves className="text-white/50 group-hover:text-purple-400 transition-colors duration-500" size={28} />
+                <span className="text-[9px] font-mono uppercase tracking-widest px-2 py-0.5 rounded bg-white/5 text-purple-300 border border-purple-500/20">
+                  432Hz DSP
+                </span>
+              </div>
+              <div className="font-heading text-2xl sm:text-3xl font-extrabold mb-1 lowercase">the frequency.</div>
+            </div>
+            <div>
+              <div className="font-mono text-xs text-white/40 mb-1">Acoustic harmonic engine, binaural wave generators, Vocal Air and Bass Titan modes.</div>
+              <div className="text-[10px] uppercase tracking-[0.2em] text-purple-400 font-medium group-hover:translate-x-1 transition-transform flex items-center gap-1">
+                Open DSP Studio <ChevronRight size={12} />
+              </div>
+            </div>
+          </button>
+
+          {/* J.A.R.V.I.S. Copilot */}
+          <button 
+            onClick={() => useJarvisStore.getState().openJarvis()} 
+            className="text-left p-6 sm:p-8 bg-zinc-950 border border-white/10 hover:border-white/30 transition-all duration-500 hover:-translate-y-1 rounded-2xl md:rounded-none min-h-[220px] flex flex-col justify-between group relative overflow-hidden cursor-pointer"
+          >
+            <div className="absolute inset-0 bg-gradient-to-br from-emerald-500/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
+            <div>
+              <div className="flex justify-between items-start mb-4 sm:mb-6">
+                <Sparkles className="text-white/50 group-hover:text-emerald-400 transition-colors duration-500" size={28} />
+                <span className="text-[9px] font-mono uppercase tracking-widest px-2 py-0.5 rounded bg-white/5 text-emerald-300 border border-emerald-500/20">
+                  Voice HUD
+                </span>
+              </div>
+              <div className="font-heading text-2xl sm:text-3xl font-extrabold mb-1 lowercase">j.a.r.v.i.s. voice.</div>
+            </div>
+            <div>
+              <div className="font-mono text-xs text-white/40 mb-1">Continuous hotword detection, Spot UI widgets, voice-driven media and financial queries.</div>
+              <div className="text-[10px] uppercase tracking-[0.2em] text-emerald-400 font-medium group-hover:translate-x-1 transition-transform flex items-center gap-1">
+                Launch HUD (Ctrl+J) <ChevronRight size={12} />
+              </div>
+            </div>
+          </button>
+
+          {/* Markets & Global Intelligence */}
+          <button 
+            onClick={() => {
+              setView('hub');
+              setHubTab('markets');
+            }} 
+            className="text-left p-6 sm:p-8 bg-zinc-950 border border-white/10 hover:border-white/30 transition-all duration-500 hover:-translate-y-1 rounded-2xl md:rounded-none min-h-[220px] flex flex-col justify-between group relative overflow-hidden cursor-pointer"
+          >
+            <div className="absolute inset-0 bg-gradient-to-br from-amber-500/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
+            <div>
+              <div className="flex justify-between items-start mb-4 sm:mb-6">
+                <Activity className="text-white/50 group-hover:text-amber-400 transition-colors duration-500" size={28} />
+                <span className="text-[9px] font-mono uppercase tracking-widest px-2 py-0.5 rounded bg-white/5 text-amber-300 border border-amber-500/20">
+                  NSE/BSE & US
+                </span>
+              </div>
+              <div className="font-heading text-2xl sm:text-3xl font-extrabold mb-1 lowercase">markets & alpha.</div>
+            </div>
+            <div>
+              <div className="font-mono text-xs text-white/40 mb-1">Real-time equities telemetry, momentum scans, macroeconomic news pulse, and crypto yields.</div>
+              <div className="text-[10px] uppercase tracking-[0.2em] text-amber-400 font-medium group-hover:translate-x-1 transition-transform flex items-center gap-1">
+                View Markets <ChevronRight size={12} />
+              </div>
+            </div>
+          </button>
+
+          {/* The Ledger */}
+          <button 
+            onClick={() => setView('ledger')} 
+            className="text-left p-6 sm:p-8 bg-zinc-950 border border-white/10 hover:border-white/30 transition-all duration-500 hover:-translate-y-1 rounded-2xl md:rounded-none min-h-[220px] flex flex-col justify-between group relative overflow-hidden cursor-pointer"
+          >
+            <div className="absolute inset-0 bg-gradient-to-br from-rose-500/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
+            <div>
+              <div className="flex justify-between items-start mb-4 sm:mb-6">
+                <FileText className="text-white/50 group-hover:text-rose-400 transition-colors duration-500" size={28} />
+                <span className="text-[9px] font-mono uppercase tracking-widest px-2 py-0.5 rounded bg-white/5 text-rose-300 border border-rose-500/20">
+                  Sovereign Capital
+                </span>
+              </div>
+              <div className="font-heading text-2xl sm:text-3xl font-extrabold mb-1 lowercase">the ledger.</div>
+            </div>
+            <div>
+              <div className="font-mono text-xs text-white/40 mb-1">Deep work yield multipliers, asset staking treasury, structured modular notes & block workspace.</div>
+              <div className="text-[10px] uppercase tracking-[0.2em] text-rose-400 font-medium group-hover:translate-x-1 transition-transform flex items-center gap-1">
+                Open Ledger <ChevronRight size={12} />
+              </div>
+            </div>
+          </button>
+
+          {/* Everything Island & Aura Analytics */}
+          <button 
+            onClick={() => setView('stats')} 
+            className="text-left p-6 sm:p-8 bg-zinc-950 border border-white/10 hover:border-white/30 transition-all duration-500 hover:-translate-y-1 rounded-2xl md:rounded-none min-h-[220px] flex flex-col justify-between group relative overflow-hidden cursor-pointer"
+          >
+            <div className="absolute inset-0 bg-gradient-to-br from-blue-500/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
+            <div>
+              <div className="flex justify-between items-start mb-4 sm:mb-6">
+                <BarChart2 className="text-white/50 group-hover:text-blue-400 transition-colors duration-500" size={28} />
+                <span className="text-[9px] font-mono uppercase tracking-widest px-2 py-0.5 rounded bg-white/5 text-blue-300 border border-blue-500/20">
+                  Biometric Flow
+                </span>
+              </div>
+              <div className="font-heading text-2xl sm:text-3xl font-extrabold mb-1 lowercase">aura intelligence.</div>
+            </div>
+            <div>
+              <div className="font-mono text-xs text-white/40 mb-1">AI behavioral insights, momentum surge engine, deep work routine stability & identity evolution.</div>
+              <div className="text-[10px] uppercase tracking-[0.2em] text-blue-400 font-medium group-hover:translate-x-1 transition-transform flex items-center gap-1">
+                View Analytics <ChevronRight size={12} />
+              </div>
+            </div>
+          </button>
+        </div>
+      </motion.section>
+
+      {/* 3. Quick Start Protocols */}
       <motion.section variants={itemVariants}>
         <div className="flex items-center justify-between mb-6 sm:mb-8 border-b border-white/10 pb-4">
           <h2 className="font-serif text-xl sm:text-2xl md:text-3xl lowercase">quick start</h2>
+          <span className="text-[10px] font-mono uppercase tracking-widest text-white/40">FOCUS PROTOCOLS</span>
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
           {PRESETS.slice(0, 4).map(p => (
@@ -1303,7 +1477,47 @@ export default function FocusForge() {
         </div>
       </motion.section>
 
-      {/* End of Page Engagement (CRED Style) */}
+      {/* 4. Remote MCP Architecture Showcase */}
+      <motion.section variants={itemVariants}>
+        <div className="flex items-center justify-between mb-6 sm:mb-8 border-b border-white/10 pb-4">
+          <h2 className="font-serif text-xl sm:text-2xl md:text-3xl lowercase">neural mcp matrix</h2>
+          <span className="text-[10px] font-mono uppercase tracking-widest bg-cyan-500/10 text-cyan-400 border border-cyan-500/30 px-2.5 py-0.5 rounded-full">
+            JSON-RPC 2.0 PROTOCOL
+          </span>
+        </div>
+
+        <div className="bg-zinc-950 border border-white/10 p-6 sm:p-8 rounded-2xl md:rounded-none flex flex-col md:flex-row justify-between items-start md:items-center gap-6 group hover:border-white/30 transition-colors duration-500">
+          <div className="space-y-2 max-w-2xl">
+            <div className="flex items-center gap-2">
+              <Cpu size={20} className="text-cyan-400" />
+              <h3 className="font-heading text-xl sm:text-2xl font-bold lowercase text-white">Remote Model Context Protocol (MCP)</h3>
+            </div>
+            <p className="text-white/50 text-xs sm:text-sm font-sans leading-relaxed">
+              Expose Focus Forge's 12 read-only tools directly to Claude, Grok, and Manus over streamable HTTP. Enforces strict Zod validation, user isolation, and Bearer authentication.
+            </p>
+            <div className="flex items-center gap-3 pt-2 text-[10px] font-mono text-white/40 flex-wrap">
+              <span className="text-cyan-300">Endpoint: /api/mcp</span>
+              <span>•</span>
+              <span className="text-emerald-300">Health: /api/health</span>
+              <span>•</span>
+              <span>12 Tools Active</span>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-3 w-full md:w-auto">
+            <button 
+              onClick={() => {
+                window.open('/api/health', '_blank');
+              }}
+              className="w-full md:w-auto px-5 py-3 rounded-full bg-white/5 hover:bg-white/10 border border-white/15 text-white font-mono text-xs uppercase tracking-wider transition-all"
+            >
+              Verify Endpoint
+            </button>
+          </div>
+        </div>
+      </motion.section>
+
+      {/* 5. End of Page Engagement (CRED Style) */}
       <motion.section variants={itemVariants} className="py-16 sm:py-24 border-t border-white/10 flex flex-col items-center text-center relative px-4">
         <div className="absolute inset-0 bg-gradient-to-t from-white/5 to-transparent pointer-events-none" />
         <Zap size={40} className="mb-6 text-white/20" />
