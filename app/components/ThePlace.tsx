@@ -4,7 +4,7 @@ import {
   Play, X, Monitor, ChevronLeft, Zap, Target, Plus, Trash2, Clock, 
   List, Video, Search, ChevronRight, Info, Music, FolderPlus, 
   Shuffle, Repeat, Sparkles, Edit3, Check, Disc, Volume2, Youtube,
-  RefreshCw, ExternalLink, AlertCircle
+  RefreshCw, ExternalLink, AlertCircle, PictureInPicture2, Maximize2
 } from 'lucide-react';
 import { CustomYouTubePlayer, YouTubePlayerRef } from './CustomYouTubePlayer';
 import TheFrequency from './TheFrequency/TheFrequency';
@@ -217,28 +217,31 @@ export default function ThePlace() {
     return () => window.removeEventListener('start-theatre' as any, handleStartTheatre);
   }, []);
 
-  const openBrowserPopup = (target?: LibraryItem | YouTubeSearchResult | null) => {
-    const item = target || activeItem;
+  const [isPopoutPiPActive, setIsPopoutPiPActive] = useState(false);
+
+  const enterPopoutPiP = (target?: LibraryItem | YouTubeSearchResult | null) => {
+    const item = target ? {
+      id: target.id,
+      type: (target as any).type || 'video',
+      title: target.title,
+      thumbnail: target.thumbnail,
+      addedAt: (target as any).addedAt || Date.now(),
+      channelTitle: (target as any).channelTitle
+    } as LibraryItem : activeItem;
+
     if (!item) return;
-    const id = item.id;
-    const isPlaylist = (item as any).type === 'playlist';
-    const popupUrl = isPlaylist
-      ? `https://www.youtube-nocookie.com/embed/videoseries?list=${id}&autoplay=1`
-      : `https://www.youtube-nocookie.com/embed/${id}?autoplay=1&enablejsapi=1`;
+    setActiveItem(item);
+    setIsPopoutPiPActive(true);
+    setViewState('browse');
+  };
 
-    const width = 580;
-    const height = 340;
-    const left = typeof window !== 'undefined' ? Math.max(0, window.screen.width - width - 40) : 100;
-    const top = typeof window !== 'undefined' ? Math.max(0, window.screen.height - height - 80) : 100;
+  const expandFromPiPToTheatre = () => {
+    setIsPopoutPiPActive(false);
+    setViewState('player');
+  };
 
-    const popup = window.open(
-      popupUrl,
-      'FocusForgeMiniPlayer',
-      `width=${width},height=${height},left=${left},top=${top},menubar=no,toolbar=no,location=no,status=no,resizable=yes,scrollbars=no`
-    );
-    if (popup) {
-      popup.focus();
-    }
+  const closePiP = () => {
+    setIsPopoutPiPActive(false);
   };
 
   const handleSearchOrAdd = async (e?: React.FormEvent) => {
@@ -784,11 +787,11 @@ export default function ThePlace() {
                               </button>
 
                               <button
-                                onClick={() => openBrowserPopup(ytItem)}
-                                title="Open in Floating Browser Pop-up Window"
+                                onClick={() => enterPopoutPiP(ytItem)}
+                                title="Watch in Picture-in-Picture Popout"
                                 className="p-2 rounded-xl bg-white/5 hover:bg-white/10 text-white/60 hover:text-cyan-300 border border-white/10 transition-all cursor-pointer"
                               >
-                                <ExternalLink size={13} />
+                                <PictureInPicture2 size={13} />
                               </button>
 
                               <button
@@ -929,11 +932,11 @@ export default function ThePlace() {
                           <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
                           <div className="absolute top-3 right-3 flex items-center gap-1.5">
                             <button 
-                              onClick={(e) => { e.stopPropagation(); openBrowserPopup(item); }}
-                              title="Open in Floating Browser Pop-up Window"
+                              onClick={(e) => { e.stopPropagation(); enterPopoutPiP(item); }}
+                              title="Watch in Picture-in-Picture Popout"
                               className="p-2 rounded-full bg-black/60 backdrop-blur-md text-white/60 hover:text-cyan-300 hover:bg-black/90 transition-all opacity-0 group-hover:opacity-100 cursor-pointer"
                             >
-                              <ExternalLink size={13} />
+                              <PictureInPicture2 size={13} />
                             </button>
                             <button 
                               onClick={(e) => { e.stopPropagation(); deleteFromLibrary(item.id); }}
@@ -1172,12 +1175,12 @@ export default function ThePlace() {
                      </button>
 
                      <button 
-                       onClick={() => openBrowserPopup()}
+                       onClick={() => enterPopoutPiP()}
                        className="group flex items-center gap-2 text-cyan-300 hover:text-white transition-all bg-black/60 hover:bg-cyan-500/20 backdrop-blur-2xl border border-cyan-500/30 px-4 py-2.5 rounded-full uppercase text-[10px] font-mono font-bold tracking-widest shadow-2xl hover:scale-105 cursor-pointer"
-                       title="Open as Floating Browser Miniplayer Popup"
+                       title="Minimize to Floating Picture-in-Picture Player"
                      >
-                       <ExternalLink size={13} className="text-cyan-400 group-hover:scale-110 transition-transform" />
-                       <span>Browser Pop-up</span>
+                       <PictureInPicture2 size={13} className="text-cyan-400 group-hover:scale-110 transition-transform" />
+                       <span>Popout (PiP)</span>
                      </button>
                    </motion.div>
 
@@ -1217,6 +1220,69 @@ export default function ThePlace() {
                  </>
                )}
              </AnimatePresence>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* FLOATING PICTURE-IN-PICTURE (POPOUT) MINI PLAYER */}
+      <AnimatePresence>
+        {isPopoutPiPActive && activeItem && viewState !== 'player' && (
+          <motion.div
+            drag
+            dragConstraints={{ left: -800, right: 0, top: -500, bottom: 0 }}
+            dragElastic={0.08}
+            initial={{ opacity: 0, scale: 0.85, y: 30 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.85, y: 30 }}
+            transition={{ duration: 0.25, ease: "easeOut" }}
+            className="fixed bottom-6 right-6 z-[350] w-[320px] sm:w-[380px] h-[190px] sm:h-[225px] rounded-2xl overflow-hidden shadow-[0_20px_60px_rgba(0,0,0,0.9),0_0_30px_rgba(6,182,212,0.2)] border border-cyan-500/40 bg-black/95 backdrop-blur-2xl ring-1 ring-white/15 group cursor-grab active:cursor-grabbing"
+          >
+            <div className="w-full h-full relative">
+              <CustomYouTubePlayer
+                videoId={activeItem.type === 'video' ? activeItem.id : null}
+                playlistId={activeItem.type === 'playlist' ? activeItem.id : null}
+                autoplay={true}
+                initialTime={activeItem.progress || 0}
+                onProgress={updateProgress}
+                title={activeItem.title}
+                className="w-full h-full"
+                roundedClass="rounded-2xl"
+                isAmbientActive={false}
+                dimmed={false}
+              />
+
+              {/* Floating PiP Header Controls (revealed on hover) */}
+              <div className="absolute top-0 inset-x-0 p-2.5 bg-gradient-to-b from-black/90 via-black/50 to-transparent flex items-center justify-between opacity-0 group-hover:opacity-100 transition-opacity z-20 pointer-events-auto">
+                <div className="flex items-center gap-1.5 min-w-0 pr-2">
+                  <span className="w-1.5 h-1.5 rounded-full bg-cyan-400 animate-pulse shrink-0" />
+                  <span className="text-[10px] font-mono font-bold text-white truncate max-w-[190px]">
+                    {activeItem.title}
+                  </span>
+                </div>
+                <div className="flex items-center gap-1 shrink-0">
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      expandFromPiPToTheatre();
+                    }}
+                    className="p-1 rounded-lg bg-white/10 hover:bg-white/20 text-white transition-colors cursor-pointer"
+                    title="Expand to Fullscreen Theatre"
+                  >
+                    <Maximize2 size={12} />
+                  </button>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      closePiP();
+                    }}
+                    className="p-1 rounded-lg bg-white/10 hover:bg-rose-500/40 text-white/70 hover:text-white transition-colors cursor-pointer"
+                    title="Close Picture in Picture"
+                  >
+                    <X size={12} />
+                  </button>
+                </div>
+              </div>
+            </div>
           </motion.div>
         )}
       </AnimatePresence>
