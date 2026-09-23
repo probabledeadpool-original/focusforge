@@ -1347,7 +1347,7 @@ Answer directly, clearly, and concisely in normal natural language. Provide dire
     else if (islandState === 'settings') target = typeof window !== 'undefined' ? Math.min(540, window.innerWidth - 24) : 540;
     else if (jarvisStore.isOpen && (jarvisStore.isMinimized || jarvisStore.displayMode === 'minimized') && islandState === 'mini') {
       const isVoiceActive = jarvisStore.voiceState === 'SPEAKING_RESPONSE' || jarvisStore.voiceState === 'LISTENING_FOR_COMMAND' || jarvisStore.aiState === 'listening' || jarvisStore.aiState === 'speaking';
-      target = isVoiceActive ? 210 : 64;
+      target = isVoiceActive ? 320 : 255;
     }
     else if (islandState === 'mini') target = 210;
     else if (islandState === 'search') target = 600;
@@ -1369,7 +1369,7 @@ Answer directly, clearly, and concisely in normal natural language. Provide dire
     else if (islandState === 'youtube') target = 450;
     else if (islandState === 'ai') target = chatHistory.length > 0 ? 560 : 440;
     else if (islandState === 'settings') target = typeof window !== 'undefined' ? Math.min(680, window.innerHeight - 50) : 680;
-    else if (jarvisStore.isOpen && (jarvisStore.isMinimized || jarvisStore.displayMode === 'minimized') && islandState === 'mini') target = 44;
+    else if (jarvisStore.isOpen && (jarvisStore.isMinimized || jarvisStore.displayMode === 'minimized') && islandState === 'mini') target = 42;
     else if (islandState === 'mini') target = 40;
     else if (islandState === 'search') {
       target = 60 + (searchResults.length > 0 ? (Math.min(searchResults.length, 5) * 60 + 12) : 0);
@@ -1400,7 +1400,10 @@ Answer directly, clearly, and concisely in normal natural language. Provide dire
     if (isShooting) return "0 0 80px rgba(66, 133, 244, 1), 0 0 30px rgba(255, 255, 255, 1)";
     if (isPreparingShoot) return "0 10px 30px rgba(66, 133, 244, 0.8), 0 0 20px rgba(139, 92, 246, 0.8)";
     if (jarvisStore.isOpen && (jarvisStore.isMinimized || jarvisStore.displayMode === 'minimized') && islandState === 'mini') {
-      return "0 8px 25px rgba(0, 0, 0, 0.7)";
+      const isVoiceActive = jarvisStore.voiceState === 'SPEAKING_RESPONSE' || jarvisStore.voiceState === 'LISTENING_FOR_COMMAND' || jarvisStore.aiState === 'listening' || jarvisStore.aiState === 'speaking';
+      return isVoiceActive 
+        ? "0 20px 45px rgba(0, 0, 0, 0.85), 0 0 35px rgba(6, 182, 212, 0.28)" 
+        : "0 15px 35px rgba(0, 0, 0, 0.75), 0 0 22px rgba(6, 182, 212, 0.15)";
     }
     if (islandState === 'ai') return "0 35px 80px rgba(0,0,0,0.85), 0 0 50px rgba(0, 240, 255, 0.15)";
     if (islandState === 'settings') return "0 30px 70px rgba(0,0,0,0.85), 0 0 40px rgba(255, 255, 255, 0.06)";
@@ -1715,7 +1718,7 @@ Answer directly, clearly, and concisely in normal natural language. Provide dire
           className={`pointer-events-auto overflow-hidden relative cursor-pointer group max-w-[calc(100vw-24px)] ${isStressed ? 'animate-island-shake' : ''} ${isFlickering ? 'animate-border-flicker' : ''}`}
           style={{
             background: isShooting ? '#fff' : (jarvisStore.isOpen && (jarvisStore.isMinimized || jarvisStore.displayMode === 'minimized') && islandState === 'mini')
-              ? "#000000"
+              ? "linear-gradient(135deg, rgba(8, 10, 16, 0.94) 0%, rgba(14, 18, 28, 0.9) 100%)"
               : islandState === 'ai' 
               ? "linear-gradient(135deg, rgba(12, 12, 16, 0.75) 0%, rgba(18, 18, 26, 0.65) 100%)"
               : islandState === 'settings'
@@ -1727,7 +1730,14 @@ Answer directly, clearly, and concisely in normal natural language. Provide dire
             WebkitBackdropFilter: islandState === 'search' || islandState === 'ai' || islandState === 'settings' || (jarvisStore.isOpen && (jarvisStore.isMinimized || jarvisStore.displayMode === 'minimized') && islandState === 'mini') ? "blur(40px) saturate(180%)" : "blur(20px) saturate(160%)",
             borderRadius: isShooting ? 20 : (jarvisStore.isOpen && (jarvisStore.isMinimized || jarvisStore.displayMode === 'minimized') && islandState === 'mini') ? 9999 : (islandState === 'ai' || islandState === 'settings') ? 32 : (islandState === 'shelf' || islandState === 'fog') ? 32 : 40,
             border: isStressed ? "1px solid rgba(239, 68, 68, 0.8)" : 
-                    (jarvisStore.isOpen && (jarvisStore.isMinimized || jarvisStore.displayMode === 'minimized') && islandState === 'mini') ? "1px solid rgba(255, 255, 255, 0.12)" :
+                    (jarvisStore.isOpen && (jarvisStore.isMinimized || jarvisStore.displayMode === 'minimized') && islandState === 'mini') ? 
+                      (jarvisStore.voiceState === 'LISTENING_FOR_COMMAND' || jarvisStore.aiState === 'listening'
+                        ? "1px solid rgba(244, 63, 94, 0.45)"
+                        : jarvisStore.voiceState === 'SPEAKING_RESPONSE' || jarvisStore.aiState === 'speaking'
+                        ? "1px solid rgba(6, 182, 212, 0.45)"
+                        : jarvisStore.voiceState === 'PROCESSING_COMMAND' || jarvisStore.aiState === 'thinking'
+                        ? "1px solid rgba(168, 85, 247, 0.45)"
+                        : "1px solid rgba(255, 255, 255, 0.16)") :
                     islandState === 'ai' ? "1px solid rgba(255, 255, 255, 0.15)" :
                     islandState === 'settings' ? "1px solid rgba(255, 255, 255, 0.18)" :
                     ((islandState === 'search' && (isGoogleMode || isYouTubeMode)) || isShooting || isSiphoning || islandState === 'youtube') ? "1px solid transparent" : 
@@ -1905,49 +1915,118 @@ Answer directly, clearly, and concisely in normal natural language. Provide dire
               transition={{ duration: 0.2 }}
               className={`w-full h-full flex items-center ${
                 jarvisStore.isOpen && (jarvisStore.isMinimized || jarvisStore.displayMode === 'minimized') 
-                  ? 'justify-center p-0 overflow-hidden' 
+                  ? 'justify-between px-3' 
                   : 'justify-between px-3'
               }`}
             >
               {jarvisStore.isOpen && (jarvisStore.isMinimized || jarvisStore.displayMode === 'minimized') ? (
                 <div 
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    jarvisVoiceEngine.startCommandListening();
-                    jarvisAudio.playActivate();
-                  }}
-                  onDoubleClick={(e) => {
-                    e.stopPropagation();
-                    jarvisStore.setDisplayMode('fullscreen');
-                  }}
-                  className="relative w-full h-full flex items-center justify-center cursor-pointer group select-none px-2"
-                  title="J.A.R.V.I.S. Neural Core (Click to Speak • Double-click for Fullscreen)"
+                  className="w-full h-full flex items-center justify-between relative select-none"
+                  onClick={(e) => e.stopPropagation()}
                 >
-                  <div className="relative flex items-center justify-center pointer-events-none shrink-0">
-                    <JarvisOrbVisualizer
-                      voiceState={jarvisStore.voiceState}
-                      aiState={jarvisStore.aiState}
-                      activeTool={jarvisStore.telemetry?.activeTool}
-                      geminiStatus={jarvisStore.telemetry?.geminiStatus}
-                      size="capsule"
-                    />
+                  {/* Left: Glowing Neural Core Visualizer */}
+                  <div 
+                    onClick={() => {
+                      jarvisVoiceEngine.startCommandListening();
+                      jarvisAudio.playActivate();
+                    }}
+                    className="flex items-center gap-2 cursor-pointer group/core shrink-0"
+                    title="J.A.R.V.I.S. Core (Click to Speak)"
+                  >
+                    <div className="relative w-7 h-7 rounded-full flex items-center justify-center bg-black/60 border border-white/10 group-hover/core:border-cyan-400/50 transition-all shadow-[0_0_12px_rgba(6,182,212,0.25)] overflow-hidden">
+                      <JarvisOrbVisualizer
+                        voiceState={jarvisStore.voiceState}
+                        aiState={jarvisStore.aiState}
+                        activeTool={jarvisStore.telemetry?.activeTool}
+                        geminiStatus={jarvisStore.telemetry?.geminiStatus}
+                        size="sm"
+                      />
+                    </div>
                   </div>
 
-                  {(jarvisStore.voiceState === 'SPEAKING_RESPONSE' || jarvisStore.voiceState === 'LISTENING_FOR_COMMAND' || jarvisStore.aiState === 'listening' || jarvisStore.aiState === 'speaking') && (
-                    <motion.div 
-                      initial={{ opacity: 0, x: -6 }}
-                      animate={{ opacity: 1, x: 0 }}
-                      exit={{ opacity: 0, x: -6 }}
-                      className="ml-2.5 flex flex-col justify-center min-w-0 pr-1 pointer-events-none"
+                  {/* Center: Dynamic Typography & Status Badge */}
+                  <div 
+                    onClick={() => jarvisStore.setDisplayMode('fullscreen')}
+                    className="flex flex-col justify-center min-w-0 flex-1 px-2.5 cursor-pointer group/label"
+                    title="Click or Tap to Expand HUD"
+                  >
+                    <div className="flex items-center gap-1.5 leading-none">
+                      <span className="text-[9px] font-heading font-extrabold text-white tracking-tight lowercase flex items-center gap-0.5">
+                        jarvis<span className="text-cyan-400">.</span>core
+                      </span>
+                      <span className={`text-[7px] font-mono font-bold px-1.5 py-0.2 rounded-full uppercase tracking-wider ${
+                        jarvisStore.voiceState === 'SPEAKING_RESPONSE' || jarvisStore.aiState === 'speaking'
+                          ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/30'
+                          : jarvisStore.voiceState === 'LISTENING_FOR_COMMAND' || jarvisStore.aiState === 'listening'
+                          ? 'bg-rose-500/20 text-rose-300 border border-rose-500/30 animate-pulse'
+                          : jarvisStore.voiceState === 'PROCESSING_COMMAND' || jarvisStore.aiState === 'thinking'
+                          ? 'bg-purple-500/20 text-purple-300 border border-purple-500/30 animate-pulse'
+                          : 'bg-emerald-500/15 text-emerald-300 border border-emerald-500/25'
+                      }`}>
+                        {jarvisStore.voiceState === 'SPEAKING_RESPONSE' || jarvisStore.aiState === 'speaking'
+                          ? 'Speaking'
+                          : jarvisStore.voiceState === 'LISTENING_FOR_COMMAND' || jarvisStore.aiState === 'listening'
+                          ? 'Listening'
+                          : jarvisStore.voiceState === 'PROCESSING_COMMAND' || jarvisStore.aiState === 'thinking'
+                          ? 'Thinking'
+                          : 'Standby'}
+                      </span>
+                    </div>
+
+                    <div className="text-[10px] text-white/50 group-hover/label:text-white/90 transition-colors truncate font-sans font-medium mt-0.5 leading-tight">
+                      {jarvisStore.telemetry?.interimTranscript || 
+                       jarvisStore.telemetry?.transcript || 
+                       (jarvisStore.voiceState === 'SPEAKING_RESPONSE' ? "Voice narration streaming..." : "Say 'Jarvis' or tap mic")}
+                    </div>
+                  </div>
+
+                  {/* Right: Quick Action Controls */}
+                  <div className="flex items-center gap-1 shrink-0">
+                    {/* Instant Push to Talk / Mic */}
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        if (jarvisStore.voiceState === 'LISTENING_FOR_COMMAND' || jarvisStore.aiState === 'listening') {
+                          jarvisVoiceEngine.stopCommandListening();
+                        } else {
+                          jarvisVoiceEngine.startCommandListening();
+                          jarvisAudio.playActivate();
+                        }
+                      }}
+                      className={`w-6 h-6 rounded-full flex items-center justify-center transition-all cursor-pointer ${
+                        jarvisStore.voiceState === 'LISTENING_FOR_COMMAND' || jarvisStore.aiState === 'listening'
+                          ? 'bg-rose-500 text-white shadow-[0_0_10px_rgba(244,63,94,0.6)] animate-pulse'
+                          : 'bg-white/5 hover:bg-white/15 text-white/60 hover:text-white border border-white/10'
+                      }`}
+                      title={jarvisStore.voiceState === 'LISTENING_FOR_COMMAND' || jarvisStore.aiState === 'listening' ? "Stop Listening" : "Push to Talk"}
                     >
-                      <span className="text-[8px] font-mono uppercase tracking-widest text-cyan-300 font-bold leading-none">
-                        {jarvisStore.voiceState === 'SPEAKING_RESPONSE' || jarvisStore.aiState === 'speaking' ? 'Speaking' : 'Listening...'}
-                      </span>
-                      <span className="text-[10px] text-white/90 truncate max-w-[125px] font-medium leading-tight mt-0.5">
-                        {jarvisStore.telemetry?.interimTranscript || jarvisStore.telemetry?.transcript || "Awaiting command..."}
-                      </span>
-                    </motion.div>
-                  )}
+                      <Mic size={11} />
+                    </button>
+
+                    {/* Expand to Fullscreen HUD */}
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        jarvisStore.setDisplayMode('fullscreen');
+                      }}
+                      className="w-6 h-6 rounded-full flex items-center justify-center transition-all bg-white/5 hover:bg-cyan-500/20 text-white/60 hover:text-cyan-300 border border-white/10 hover:border-cyan-500/30 cursor-pointer"
+                      title="Expand to Fullscreen HUD"
+                    >
+                      <Maximize2 size={11} />
+                    </button>
+
+                    {/* Sleep / Close */}
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        jarvisStore.closeJarvis();
+                      }}
+                      className="w-6 h-6 rounded-full flex items-center justify-center transition-all bg-white/5 hover:bg-rose-500/20 text-white/40 hover:text-rose-300 border border-white/10 hover:border-rose-500/30 cursor-pointer"
+                      title="Sleep JARVIS"
+                    >
+                      <X size={11} />
+                    </button>
+                  </div>
                 </div>
               ) : (
                 <>
