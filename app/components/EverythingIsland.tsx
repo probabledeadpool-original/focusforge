@@ -1933,44 +1933,32 @@ Answer directly, clearly, and concisely in normal natural language. Provide dire
                   className="w-full h-full relative rounded-full flex items-center justify-center select-none group/bubble overflow-hidden cursor-pointer"
                   onClick={(e) => {
                     e.stopPropagation();
+                    if (jarvisStore.voiceState === 'LISTENING_FOR_COMMAND' || jarvisStore.aiState === 'listening') {
+                      // Commit command if already talking
+                      jarvisVoiceEngine.commitCommand();
+                    } else if (jarvisStore.voiceState === 'SPEAKING_RESPONSE' || jarvisStore.aiState === 'speaking') {
+                      // Interrupt and listen
+                      jarvisVoiceEngine.cancelCurrentAction();
+                      jarvisVoiceEngine.startCommandListening();
+                    } else {
+                      // Activate microphone and start voice command listening directly in bubble mode
+                      jarvisAudio.playActivate();
+                      jarvisVoiceEngine.startCommandListening();
+                    }
+                  }}
+                  onDoubleClick={(e) => {
+                    e.stopPropagation();
                     jarvisStore.setDisplayMode('fullscreen');
                   }}
-                  title="J.A.R.V.I.S. Neural Bubble • Click to Expand HUD"
+                  title="J.A.R.V.I.S. Neural Bubble • Click to Speak • Double-Click to Expand HUD"
                 >
-                  {/* 1. Deep Spherical Glass Lens Base */}
-                  <div className="absolute inset-0 rounded-full bg-[radial-gradient(circle_at_50%_25%,rgba(28,34,50,0.98)_0%,rgba(10,12,18,0.98)_65%,rgba(2,3,6,1)_100%)] pointer-events-none" />
-
-                  {/* 2. Chromatic Iridescent Refraction Arc (Apple Intelligence Rainbow Lens Horizon) */}
-                  <div className="absolute inset-x-0 top-1/2 -translate-y-1/2 h-[9px] bg-gradient-to-r from-cyan-400 via-sky-300 via-amber-300 via-rose-400 to-purple-500 blur-[2.5px] opacity-85 mix-blend-screen pointer-events-none animate-pulse" />
-                  <div className="absolute inset-x-1.5 top-1/2 -translate-y-1/2 h-[2.5px] bg-gradient-to-r from-cyan-300 via-white via-amber-200 to-rose-300 opacity-95 mix-blend-overlay pointer-events-none" />
-
-                  {/* 3. Specular Top Glass Reflection Dome */}
-                  <div className="absolute inset-x-0 top-0 h-[48%] rounded-t-full bg-[radial-gradient(ellipse_at_50%_0%,rgba(255,255,255,0.75)_0%,rgba(255,255,255,0.18)_40%,transparent_80%)] pointer-events-none" />
-
-                  {/* 4. Central Neural Visualizer */}
-                  <div className="relative z-10 w-9 h-9 rounded-full flex items-center justify-center pointer-events-none">
-                    <JarvisOrbVisualizer
-                      voiceState={jarvisStore.voiceState}
-                      aiState={jarvisStore.aiState}
-                      activeTool={jarvisStore.telemetry?.activeTool}
-                      geminiStatus={jarvisStore.telemetry?.geminiStatus}
-                      size="sm"
-                    />
-                  </div>
-
-                  {/* 5. Micro State Ring Beacon */}
-                  <div className={`absolute inset-0 rounded-full border transition-all duration-300 pointer-events-none ${
-                    jarvisStore.voiceState === 'LISTENING_FOR_COMMAND' || jarvisStore.aiState === 'listening'
-                      ? 'border-rose-400/70 shadow-[0_0_15px_rgba(244,63,94,0.6)]'
-                      : jarvisStore.voiceState === 'SPEAKING_RESPONSE' || jarvisStore.aiState === 'speaking'
-                      ? 'border-cyan-400/70 shadow-[0_0_15px_rgba(6,182,212,0.6)]'
-                      : jarvisStore.voiceState === 'PROCESSING_COMMAND' || jarvisStore.aiState === 'thinking'
-                      ? 'border-purple-400/70 shadow-[0_0_15px_rgba(168,85,247,0.6)]'
-                      : 'border-white/20 group-hover/bubble:border-cyan-400/40'
-                  }`} />
-
-                  {/* 6. Subtle Bottom Counter-Reflection */}
-                  <div className="absolute inset-x-2 bottom-1 h-2 rounded-b-full bg-[radial-gradient(ellipse_at_50%_100%,rgba(255,255,255,0.25)_0%,transparent_70%)] pointer-events-none opacity-60" />
+                  <JarvisOrbVisualizer
+                    voiceState={jarvisStore.voiceState}
+                    aiState={jarvisStore.aiState}
+                    activeTool={jarvisStore.telemetry?.activeTool}
+                    geminiStatus={jarvisStore.telemetry?.geminiStatus}
+                    size="bubble"
+                  />
                 </div>
               ) : (
                 <>

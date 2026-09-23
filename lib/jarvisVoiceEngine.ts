@@ -503,10 +503,22 @@ class JarvisVoiceEngine {
       };
 
       recognition.onend = () => {
-        if (this.isWakeWordEnabled && this.phase === 'WAKE_WORD_LISTENING') {
+        if (
+          this.isWakeWordEnabled && 
+          this.phase !== 'LISTENING_FOR_COMMAND' && 
+          this.phase !== 'PROCESSING_COMMAND' && 
+          this.phase !== 'EXECUTING_TOOL' && 
+          this.phase !== 'SPEAKING_RESPONSE'
+        ) {
           if (this.restartTimer) clearTimeout(this.restartTimer);
           this.restartTimer = setTimeout(() => {
-            if (this.isWakeWordEnabled && (this.phase === 'WAKE_WORD_LISTENING' || this.phase === 'IDLE')) {
+            if (
+              this.isWakeWordEnabled && 
+              this.phase !== 'LISTENING_FOR_COMMAND' && 
+              this.phase !== 'PROCESSING_COMMAND' && 
+              this.phase !== 'EXECUTING_TOOL' && 
+              this.phase !== 'SPEAKING_RESPONSE'
+            ) {
               this.startWakeWordDetection();
             }
           }, VOICE_CONFIG.reconnectDelayMs);

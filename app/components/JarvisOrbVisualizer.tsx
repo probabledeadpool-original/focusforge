@@ -13,7 +13,7 @@ export interface JarvisVisualizerProps {
   isProcessing?: boolean;
   activeTool?: string | null;
   geminiStatus?: 'idle' | 'connecting' | 'processing' | 'connected' | 'error';
-  size?: 'sm' | 'capsule' | 'md' | 'lg' | 'hero';
+  size?: 'sm' | 'capsule' | 'bubble' | 'md' | 'lg' | 'hero';
   className?: string;
   speed?: number;
   paused?: boolean;
@@ -146,24 +146,59 @@ export default function JarvisOrbVisualizer({
 
   // Scale mappings:
   // sm: 24px (header/small badge)
-  // capsule: 36px (dynamic island minimized capsule)
+  // capsule: 36px
+  // bubble: 52px (Apple Intelligence dynamic island sphere)
   // md: 48px
   // lg: 80px
   // hero: 128px (HUD centerpiece)
   const wavePixelSize = 
     size === 'sm' ? 44 : 
     size === 'capsule' ? 56 : 
+    size === 'bubble' ? 54 :
     size === 'md' ? 100 : 
     size === 'lg' ? 180 : 320;
 
   const orbPixelScale: OrbSize = 
-    (size === 'sm' || size === 'capsule') ? 20 : 64;
+    size === 'sm' ? 20 : 64;
 
   const containerDimensionClass = 
     size === 'sm' ? 'w-7 h-7' :
     size === 'capsule' ? 'w-9 h-9' :
+    size === 'bubble' ? 'w-full h-full aspect-square' :
     size === 'md' ? 'w-14 h-14' :
     size === 'lg' ? 'w-24 h-24' : 'w-40 h-40';
+
+  // Bubble Rendering for Apple Intelligence Floating Sphere
+  if (size === 'bubble') {
+    return (
+      <div className={`relative w-full h-full aspect-square flex items-center justify-center ${className}`}>
+        {/* Soft internal gradient diffusion */}
+        <div className={`absolute inset-0 rounded-full bg-gradient-to-tr ${auraGradient} blur-md opacity-60 pointer-events-none scale-110`} />
+        
+        {mode === 'wave' && (
+          <div className="w-full h-full flex items-center justify-center relative z-10">
+            <SiriWave variant="wave" size={54} renderScale={0.95} className="pointer-events-none" />
+          </div>
+        )}
+        {mode === 'dots' && (
+          <div className="w-full h-full flex items-center justify-center relative z-10">
+            <SiriWave variant="fluid-dots" size={54} renderScale={0.95} className="pointer-events-none" />
+          </div>
+        )}
+        {mode === 'orb' && (
+          <div className="w-full h-full flex items-center justify-center relative z-10 scale-[0.58]">
+            <ThinkingOrb 
+              state={orbState} 
+              size={64} 
+              speed={speed} 
+              theme="dark" 
+              paused={paused} 
+            />
+          </div>
+        )}
+      </div>
+    );
+  }
 
   // Compact Rendering (sm & capsule) for Top Bars & Dynamic Island
   if (size === 'sm' || size === 'capsule') {

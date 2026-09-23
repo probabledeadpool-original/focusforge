@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { Home, CheckSquare, BarChart2, ShoppingBag, Play, Pause, RotateCcw, SkipForward, Plus, X, Timer, Waves, Zap, Rocket, BookOpen, Palette, Flame, ShieldCheck, ArrowRight, ChevronRight, Sliders, SlidersHorizontal, User, Settings, Bell, Volume2, Maximize, Minimize, Bot, Monitor, Smartphone, History, Award, Cpu, Activity, Camera, Target, FileText, Eye, EyeOff, Check, RefreshCw, CheckCircle2, Hand, Mic, Radio, Sparkles, PictureInPicture2, Headphones, Layers, Globe, Coins } from 'lucide-react';
+import { Home, CheckSquare, BarChart2, ShoppingBag, Play, Pause, RotateCcw, SkipForward, Plus, X, Timer, Waves, Zap, Rocket, BookOpen, Palette, Flame, ShieldCheck, ArrowRight, ChevronRight, Sliders, SlidersHorizontal, User, Settings, Bell, Volume2, Maximize, Minimize, Bot, Monitor, Smartphone, History, Award, Cpu, Activity, Camera, Target, FileText, Eye, EyeOff, Check, RefreshCw, CheckCircle2, Hand, Mic, Radio, Sparkles, PictureInPicture2, Headphones, Layers, Globe, Coins, Copy, ChevronDown, ChevronUp, Terminal, Code2, ExternalLink } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { CustomYouTubePlayer } from './components/CustomYouTubePlayer';
 import { useAppStore } from '../hooks/useAppStore';
@@ -355,6 +355,12 @@ export default function FocusForge() {
   const [taskCategoryFilter, setTaskCategoryFilter] = useState<'all' | 'deep-work' | 'coding' | 'study' | 'admin'>('all');
   const [newSubtaskInput, setNewSubtaskInput] = useState<{ [taskId: string]: string }>({});
   const [showMobileToolsSheet, setShowMobileToolsSheet] = useState(false);
+
+  // Profile Sub-Tabs & Vector MCP Bridge States
+  const [profileTab, setProfileTab] = useState<'identity' | 'vector'>('identity');
+  const [isMcpGuideOpen, setIsMcpGuideOpen] = useState<boolean>(true);
+  const [copiedMcpUrl, setCopiedMcpUrl] = useState<boolean>(false);
+  const [copiedConfigType, setCopiedConfigType] = useState<string | null>(null);
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
@@ -2229,285 +2235,679 @@ export default function FocusForge() {
     );
   };
 
-  const renderProfile = () => (
-    <motion.div key="profile" variants={containerVariants} initial="hidden" animate="show" exit="hidden" className="p-4 sm:p-6 md:p-12 max-w-6xl mx-auto space-y-8 sm:space-y-16 pb-32 md:pb-12 min-h-screen">
-      <motion.header variants={itemVariants} className="flex flex-col sm:flex-row justify-between items-start sm:items-end border-b border-white/10 pb-6 sm:pb-8 pt-4 sm:pt-8 md:pt-0 gap-4">
-        <div>
-          <h1 className="font-heading text-4xl sm:text-5xl md:text-7xl font-extrabold tracking-tight lowercase">profile.</h1>
-          <p className="text-white/40 text-xs font-mono mt-1">SOVEREIGN EXECUTIVE IDENTITY • COGNITIVE TELEMETRY</p>
-        </div>
-        <button 
-          onClick={() => setIsEditingProfile(!isEditingProfile)}
-          className="px-5 py-2.5 rounded-full border border-white/10 bg-white/5 hover:bg-white/10 text-xs font-mono font-bold uppercase tracking-wider transition-all flex items-center gap-2 min-h-[40px] cursor-pointer"
-        >
-          <Settings size={14} />
-          <span>{isEditingProfile ? 'Cancel Edit' : 'Edit Identity'}</span>
-        </button>
-      </motion.header>
+  const renderProfile = () => {
+    const mcpServerUrl = typeof window !== 'undefined' && window.location.origin
+      ? `${window.location.origin}/api/mcp`
+      : 'https://focusforge-dcxj.vercel.app/api/mcp';
 
-      {/* User Hero Section & Stats */}
-      <motion.section variants={itemVariants} className="flex flex-col md:flex-row gap-6 sm:gap-8 items-center md:items-start bg-zinc-950/80 border border-white/10 rounded-2xl sm:rounded-3xl p-6 sm:p-8 backdrop-blur-2xl">
-        <div className="w-20 h-20 sm:w-28 sm:h-28 md:w-36 md:h-36 rounded-2xl sm:rounded-3xl bg-gradient-to-br from-cyan-500/20 via-zinc-900 to-purple-500/20 border border-white/15 flex items-center justify-center font-heading font-extrabold text-3xl sm:text-5xl md:text-6xl shadow-[0_0_50px_rgba(255,255,255,0.05)] relative group overflow-hidden shrink-0">
-          <div className="absolute inset-0 bg-gradient-to-br from-cyan-400/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
-          <span className="text-white drop-shadow-lg">{user.name[0] || 'F'}</span>
-        </div>
+    const claudeJsonSnippet = JSON.stringify({
+      mcpServers: {
+        focusforge: {
+          command: "npx",
+          args: [
+            "-y",
+            "mcp-remote",
+            mcpServerUrl
+          ]
+        }
+      }
+    }, null, 2);
 
-        <div className="flex-1 text-center md:text-left space-y-4 w-full">
-          {isEditingProfile ? (
-            <div className="space-y-4 max-w-md">
-              <div>
-                <label className="text-[10px] uppercase font-mono tracking-widest text-white/40 block mb-1">Display Name</label>
-                <input
-                  type="text"
-                  value={editUserName}
-                  onChange={e => setEditUserName(e.target.value)}
-                  className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2 text-sm text-white focus:outline-none focus:border-white/40 font-mono"
-                  placeholder="Your Name..."
-                />
-              </div>
-              <div>
-                <label className="text-[10px] uppercase font-mono tracking-widest text-white/40 block mb-1">Moniker / Title</label>
-                <input
-                  type="text"
-                  value={editUserMoniker}
-                  onChange={e => setEditUserMoniker(e.target.value)}
-                  className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2 text-sm text-white focus:outline-none focus:border-white/40 font-mono"
-                  placeholder="e.g. Sovereign Flow Architect"
-                />
-              </div>
-              <button
-                onClick={handleSaveProfile}
-                className="px-6 py-2 rounded-xl bg-white text-black text-xs font-mono font-bold uppercase tracking-wider hover:opacity-90 transition-opacity"
-              >
-                Save Identity
-              </button>
-            </div>
-          ) : (
-            <div>
-              <h2 className="font-heading text-3xl md:text-4xl font-extrabold lowercase text-white">{user.name}</h2>
-              <p className="text-xs font-mono uppercase tracking-widest text-cyan-400 mt-1">{user.moniker || 'Sovereign Flow Architect'}</p>
-            </div>
-          )}
+    const windsurfJsonSnippet = JSON.stringify({
+      mcpServers: {
+        focusforge: {
+          command: "npx",
+          args: [
+            "-y",
+            "mcp-remote",
+            mcpServerUrl
+          ]
+        }
+      }
+    }, null, 2);
 
-          <div className="flex flex-wrap items-center justify-center md:justify-start gap-3 pt-2">
-            <span className="px-3.5 py-1.5 rounded-full bg-white/10 text-xs font-mono uppercase tracking-[0.2em] font-bold text-white border border-white/10">
-              Level {user.level}
-            </span>
-            <span className="px-3.5 py-1.5 rounded-full bg-cyan-500/10 text-xs font-mono uppercase tracking-[0.2em] font-bold text-cyan-400 border border-cyan-500/20">
-              {user.xp} XP
-            </span>
-            <span className="px-3.5 py-1.5 rounded-full bg-amber-500/10 text-xs font-mono uppercase tracking-[0.2em] font-bold text-amber-400 border border-amber-500/20">
-              {user.coins} Focus Coins
-            </span>
-            <span className="px-3.5 py-1.5 rounded-full bg-emerald-500/10 text-xs font-mono uppercase tracking-[0.2em] font-bold text-emerald-400 border border-emerald-500/20">
-              {user.streak}d Streak
-            </span>
-          </div>
-        </div>
-      </motion.section>
+    const curlSnippet = `curl -X POST ${mcpServerUrl} \\
+  -H "Content-Type: application/json" \\
+  -d '{"jsonrpc": "2.0", "id": 1, "method": "tools/list"}'`;
 
-      {/* 30-Day Activity Heatmap */}
-      <motion.section variants={itemVariants} className="space-y-4">
-        <div className="flex items-center justify-between border-b border-white/10 pb-3">
-          <h2 className="font-heading text-xl md:text-2xl font-bold lowercase text-white">Focus Activity Matrix</h2>
-          <span className="text-[10px] font-mono text-white/40 uppercase">30-Day Velocity</span>
-        </div>
-        <div className="bg-zinc-950/80 border border-white/10 rounded-3xl p-6 backdrop-blur-2xl space-y-3">
-          <div className="grid grid-cols-10 sm:grid-cols-15 md:grid-cols-30 gap-1.5">
-            {Array.from({ length: 30 }).map((_, i) => {
-              const intensity = (i * 7 + 3) % 5;
-              return (
-                <div
-                  key={i}
-                  title={`Day ${30 - i}: ${intensity * 45} mins focus`}
-                  className={`aspect-square rounded-md transition-all hover:scale-125 cursor-pointer ${
-                    intensity === 4 ? 'bg-cyan-400 shadow-[0_0_8px_rgba(34,211,238,0.6)]' :
-                    intensity === 3 ? 'bg-cyan-600/80' :
-                    intensity === 2 ? 'bg-cyan-800/60' :
-                    intensity === 1 ? 'bg-white/10' :
-                    'bg-white/5'
-                  }`}
-                />
-              );
-            })}
-          </div>
-          <div className="flex justify-between items-center text-[9px] font-mono text-white/30 pt-2 border-t border-white/5">
-            <span>30 DAYS AGO</span>
-            <div className="flex items-center gap-1.5">
-              <span>LESS</span>
-              <div className="w-2.5 h-2.5 rounded bg-white/5" />
-              <div className="w-2.5 h-2.5 rounded bg-cyan-800/60" />
-              <div className="w-2.5 h-2.5 rounded bg-cyan-600/80" />
-              <div className="w-2.5 h-2.5 rounded bg-cyan-400" />
-              <span>MORE</span>
-            </div>
-            <span>TODAY</span>
-          </div>
-        </div>
-      </motion.section>
+    const copyMcpUrl = () => {
+      navigator.clipboard.writeText(mcpServerUrl);
+      setCopiedMcpUrl(true);
+      setTimeout(() => setCopiedMcpUrl(false), 2500);
+    };
 
-      {/* AI Model Architecture & Key Configuration */}
-      <motion.section variants={itemVariants} className="space-y-6">
-        <div className="flex items-center justify-between border-b border-white/10 pb-3">
-          <div className="flex items-center gap-3">
-            <Bot size={22} className="text-cyan-400" />
-            <h2 className="font-heading text-xl md:text-2xl font-bold lowercase text-white">AI Engine & Model Architecture</h2>
-          </div>
-          <span className="px-2.5 py-0.5 rounded-full text-[9px] font-mono uppercase tracking-widest bg-cyan-500/10 text-cyan-400 border border-cyan-500/30">
-            GEMMA 4 26B & GEMINI LIVE
-          </span>
-        </div>
+    const copySnippet = (text: string, type: string) => {
+      navigator.clipboard.writeText(text);
+      setCopiedConfigType(type);
+      setTimeout(() => setCopiedConfigType(null), 2500);
+    };
 
-        <AiModelSelector />
-      </motion.section>
-
-      {/* YouTube Data API & Global Media Search Configuration */}
-      <motion.section variants={itemVariants} className="space-y-6">
-        <div className="flex items-center justify-between border-b border-white/10 pb-3">
-          <div className="flex items-center gap-3">
-            <Monitor size={22} className="text-red-400" />
-            <h2 className="font-heading text-xl md:text-2xl font-bold lowercase text-white">YouTube Data Engine</h2>
-          </div>
-          <span className="px-2.5 py-0.5 rounded-full text-[9px] font-mono uppercase tracking-widest bg-red-500/10 text-red-400 border border-red-500/30">
-            DATA API V3 SEARCH
-          </span>
-        </div>
-
-        <YouTubeApiConfig />
-      </motion.section>
-
-      {/* J.A.R.V.I.S. Voice AI & Wake Word Protocol */}
-      <motion.section variants={itemVariants} className="space-y-4">
-        <div className="flex items-center justify-between border-b border-white/10 pb-3">
-          <div className="flex items-center gap-3">
-            <Sparkles size={20} className="text-cyan-400 animate-pulse" />
-            <h2 className="font-heading text-xl md:text-2xl font-bold lowercase text-white">J.A.R.V.I.S. Voice AI Protocol</h2>
-          </div>
-          <span className="text-xs font-mono text-cyan-400/80 uppercase tracking-widest font-bold">Wake Word: "JARVIS"</span>
-        </div>
-
-        <div className="bg-zinc-950/80 border border-cyan-500/20 rounded-3xl p-6 md:p-8 space-y-6 backdrop-blur-2xl shadow-[0_0_30px_rgba(34,211,238,0.05)]">
-          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 border-b border-white/10 pb-6">
-            <div>
-              <h3 className="font-bold text-white text-base">Continuous Hotword Detection</h3>
-              <p className="text-xs text-white/50 font-mono mt-1">
-                When active, simply say <span className="text-cyan-400 font-bold font-mono">"JARVIS"</span> or <span className="text-cyan-400 font-bold font-mono">"Hey JARVIS"</span> anywhere to trigger holographic voice mode.
-              </p>
-            </div>
+    return (
+      <motion.div key="profile" variants={containerVariants} initial="hidden" animate="show" exit="hidden" className="p-4 sm:p-6 md:p-12 max-w-6xl mx-auto space-y-8 sm:space-y-12 pb-32 md:pb-12 min-h-screen">
+        {/* Header with Sub-Navigation Tabs */}
+        <motion.header variants={itemVariants} className="flex flex-col sm:flex-row justify-between items-start sm:items-end border-b border-white/10 pb-6 sm:pb-8 pt-4 sm:pt-8 md:pt-0 gap-4">
+          <div>
             <div className="flex items-center gap-3">
+              <h1 className="font-heading text-4xl sm:text-5xl md:text-7xl font-extrabold tracking-tight lowercase">
+                {profileTab === 'vector' ? 'vector.' : 'profile.'}
+              </h1>
+              {profileTab === 'vector' && (
+                <span className="px-3 py-1 rounded-full text-[10px] font-mono uppercase tracking-widest bg-cyan-500/10 text-cyan-400 border border-cyan-500/30">
+                  MCP PROTOCOL LIVE
+                </span>
+              )}
+            </div>
+            <p className="text-white/40 text-xs font-mono mt-1">
+              {profileTab === 'vector' 
+                ? 'MODEL CONTEXT PROTOCOL (MCP) • SOVEREIGN WORKSPACE BRIDGE' 
+                : 'SOVEREIGN EXECUTIVE IDENTITY • COGNITIVE TELEMETRY'}
+            </p>
+          </div>
+
+          <div className="flex items-center gap-3 w-full sm:w-auto justify-between sm:justify-end">
+            {/* Tab Switcher */}
+            <div className="flex items-center p-1 bg-white/5 border border-white/10 rounded-2xl">
               <button
-                onClick={() => {
-                  const jarvisStore = useJarvisStore.getState();
-                  jarvisStore.setIsHotwordEnabled(!jarvisStore.isHotwordEnabled);
-                }}
-                className={`px-5 py-2.5 rounded-2xl border text-xs font-mono font-bold uppercase tracking-wider transition-all flex items-center gap-2 ${
-                  useJarvisStore.getState().isHotwordEnabled
-                    ? 'bg-cyan-500/15 border-cyan-500/50 text-cyan-400 shadow-[0_0_20px_rgba(34,211,238,0.2)]'
-                    : 'bg-white/5 border-white/10 text-white/40 hover:text-white'
+                onClick={() => setProfileTab('identity')}
+                className={`px-5 py-2 rounded-xl font-mono text-xs uppercase tracking-wider font-bold transition-all duration-300 flex items-center gap-2 ${
+                  profileTab === 'identity'
+                    ? 'bg-white text-black shadow-[0_0_20px_rgba(255,255,255,0.4)]'
+                    : 'text-white/40 hover:text-white'
                 }`}
               >
-                <Radio size={14} className={useJarvisStore.getState().isHotwordEnabled ? "animate-pulse text-cyan-400" : ""} />
-                <span>{useJarvisStore.getState().isHotwordEnabled ? 'Hotword: ACTIVE' : 'Hotword: DISABLED'}</span>
+                <User size={13} />
+                <span>Identity</span>
               </button>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="p-4 rounded-2xl bg-white/[0.02] border border-white/10 space-y-2">
-              <div className="flex justify-between items-center">
-                <span className="text-xs font-mono font-bold text-white/80 uppercase tracking-wider">Voice Speech Output (TTS)</span>
-                <button
-                  onClick={() => {
-                    const jarvisStore = useJarvisStore.getState();
-                    jarvisStore.setVoiceFeedbackEnabled(!jarvisStore.voiceFeedbackEnabled);
-                  }}
-                  className={`px-3 py-1 rounded-xl text-[10px] font-mono uppercase font-bold border transition-colors ${
-                    useJarvisStore.getState().voiceFeedbackEnabled
-                      ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/40'
-                      : 'bg-white/5 text-white/40 border-white/10'
-                  }`}
-                >
-                  {useJarvisStore.getState().voiceFeedbackEnabled ? 'Audio Speech ON' : 'Audio Speech OFF'}
-                </button>
-              </div>
-              <p className="text-[11px] text-white/40 font-mono">
-                J.A.R.V.I.S. will speak aloud using high-fidelity synthesized executive voice.
-              </p>
-            </div>
-
-            <div className="p-4 rounded-2xl bg-white/[0.02] border border-white/10 flex items-center justify-between">
-              <div>
-                <span className="text-xs font-mono font-bold text-white/80 uppercase tracking-wider block">Direct HUD Launcher</span>
-                <p className="text-[11px] text-white/40 font-mono mt-0.5">
-                  Shortcut: <kbd className="px-2 py-0.5 rounded bg-white/10 text-white font-mono text-[10px]">Ctrl</kbd> + <kbd className="px-2 py-0.5 rounded bg-white/10 text-white font-mono text-[10px]">J</kbd>
-                </p>
-              </div>
               <button
-                onClick={() => useJarvisStore.getState().openJarvis()}
-                className="px-4 py-2.5 bg-cyan-400 text-black font-mono font-bold text-xs uppercase tracking-wider rounded-xl hover:bg-cyan-300 transition-all shadow-[0_0_20px_rgba(34,211,238,0.4)] flex items-center gap-1.5"
+                onClick={() => setProfileTab('vector')}
+                className={`px-5 py-2 rounded-xl font-mono text-xs uppercase tracking-wider font-bold transition-all duration-300 flex items-center gap-2 ${
+                  profileTab === 'vector'
+                    ? 'bg-gradient-to-r from-cyan-400 to-sky-400 text-black shadow-[0_0_25px_rgba(34,211,238,0.5)]'
+                    : 'text-cyan-400/80 hover:text-cyan-400'
+                }`}
               >
-                <Sparkles size={14} />
-                <span>Launch HUD</span>
+                <Zap size={13} />
+                <span>Vector</span>
+                <span className="text-[9px] px-1.5 py-0.2 bg-black/20 rounded font-mono font-black">MCP</span>
               </button>
             </div>
-          </div>
 
-          {/* Interactive Wake-Word Training Studio */}
-          <div className="pt-4 border-t border-white/10">
-            <WakeWordTraining />
+            {profileTab === 'identity' && (
+              <button 
+                onClick={() => setIsEditingProfile(!isEditingProfile)}
+                className="px-4 py-2 rounded-2xl border border-white/10 bg-white/5 hover:bg-white/10 text-xs font-mono font-bold uppercase tracking-wider transition-all flex items-center gap-2 min-h-[38px] cursor-pointer"
+              >
+                <Settings size={14} />
+                <span>{isEditingProfile ? 'Cancel Edit' : 'Edit'}</span>
+              </button>
+            )}
           </div>
-        </div>
-      </motion.section>
+        </motion.header>
 
-      {/* Ghost Shelf Archive */}
-      <motion.section variants={itemVariants} className="space-y-4 pb-12">
-        <div className="flex items-center justify-between border-b border-white/10 pb-3">
-          <div className="flex items-center gap-3">
-            <BookOpen size={20} className="text-purple-400" />
-            <h2 className="font-heading text-xl md:text-2xl font-bold lowercase text-white">Ghost Shelf (Bookmarked Media)</h2>
-          </div>
-          <span className="text-xs font-mono text-white/40">{ghostShelf.length} ITEMS</span>
-        </div>
+        {/* ================= IDENTITY TAB VIEW ================= */}
+        {profileTab === 'identity' && (
+          <div className="space-y-8 sm:space-y-16">
+            {/* User Hero Section & Stats */}
+            <motion.section variants={itemVariants} className="flex flex-col md:flex-row gap-6 sm:gap-8 items-center md:items-start bg-zinc-950/80 border border-white/10 rounded-2xl sm:rounded-3xl p-6 sm:p-8 backdrop-blur-2xl">
+              <div className="w-20 h-20 sm:w-28 sm:h-28 md:w-36 md:h-36 rounded-2xl sm:rounded-3xl bg-gradient-to-br from-cyan-500/20 via-zinc-900 to-purple-500/20 border border-white/15 flex items-center justify-center font-heading font-extrabold text-3xl sm:text-5xl md:text-6xl shadow-[0_0_50px_rgba(255,255,255,0.05)] relative group overflow-hidden shrink-0">
+                <div className="absolute inset-0 bg-gradient-to-br from-cyan-400/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
+                <span className="text-white drop-shadow-lg">{user.name[0] || 'F'}</span>
+              </div>
 
-        <div className="bg-zinc-950/80 border border-white/10 rounded-3xl p-6 backdrop-blur-2xl">
-          {ghostShelf.length === 0 ? (
-            <div className="text-white/40 text-xs font-mono text-center py-10">
-              Your archive is empty. Siphon articles or videos in Everything Island to store them here.
-            </div>
-          ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {ghostShelf.map((item, idx) => (
-                <a 
-                  href={item.url} 
-                  onClick={(e) => {
-                    if (item.url && (item.url.includes('youtube.com') || item.url.includes('youtu.be'))) {
-                      e.preventDefault();
-                      window.dispatchEvent(new CustomEvent('changeView', { detail: { view: 'place' } }));
-                      setTimeout(() => {
-                        window.dispatchEvent(new CustomEvent('start-theatre', { detail: { url: item.url } }));
-                      }, 50);
-                    }
-                  }} 
-                  target="_blank" 
-                  rel="noopener noreferrer" 
-                  key={idx} 
-                  className="block group"
-                >
-                  <div className="bg-white/5 border border-white/10 p-4 group-hover:bg-white/10 group-hover:border-white/30 transition-all rounded-2xl relative overflow-hidden">
-                    <h3 className="font-bold text-sm mb-1 text-white truncate max-w-full">{item.title}</h3>
-                    <div className="flex items-center justify-between text-[10px] font-mono text-white/40">
-                      <span>{new Date(item.timestamp).toLocaleDateString()}</span>
-                      <span className="uppercase tracking-widest text-cyan-400">{item.type}</span>
+              <div className="flex-1 text-center md:text-left space-y-4 w-full">
+                {isEditingProfile ? (
+                  <div className="space-y-4 max-w-md">
+                    <div>
+                      <label className="text-[10px] uppercase font-mono tracking-widest text-white/40 block mb-1">Display Name</label>
+                      <input
+                        type="text"
+                        value={editUserName}
+                        onChange={e => setEditUserName(e.target.value)}
+                        className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2 text-sm text-white focus:outline-none focus:border-white/40 font-mono"
+                        placeholder="Your Name..."
+                      />
                     </div>
+                    <div>
+                      <label className="text-[10px] uppercase font-mono tracking-widest text-white/40 block mb-1">Moniker / Title</label>
+                      <input
+                        type="text"
+                        value={editUserMoniker}
+                        onChange={e => setEditUserMoniker(e.target.value)}
+                        className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2 text-sm text-white focus:outline-none focus:border-white/40 font-mono"
+                        placeholder="e.g. Sovereign Flow Architect"
+                      />
+                    </div>
+                    <button
+                      onClick={handleSaveProfile}
+                      className="px-6 py-2 rounded-xl bg-white text-black text-xs font-mono font-bold uppercase tracking-wider hover:opacity-90 transition-opacity"
+                    >
+                      Save Identity
+                    </button>
                   </div>
-                </a>
-              ))}
-            </div>
-          )}
-        </div>
-      </motion.section>
-    </motion.div>
-  );
+                ) : (
+                  <div>
+                    <h2 className="font-heading text-3xl md:text-4xl font-extrabold lowercase text-white">{user.name}</h2>
+                    <p className="text-xs font-mono uppercase tracking-widest text-cyan-400 mt-1">{user.moniker || 'Sovereign Flow Architect'}</p>
+                  </div>
+                )}
+
+                <div className="flex flex-wrap items-center justify-center md:justify-start gap-3 pt-2">
+                  <span className="px-3.5 py-1.5 rounded-full bg-white/10 text-xs font-mono uppercase tracking-[0.2em] font-bold text-white border border-white/10">
+                    Level {user.level}
+                  </span>
+                  <span className="px-3.5 py-1.5 rounded-full bg-cyan-500/10 text-xs font-mono uppercase tracking-[0.2em] font-bold text-cyan-400 border border-cyan-500/20">
+                    {user.xp} XP
+                  </span>
+                  <span className="px-3.5 py-1.5 rounded-full bg-amber-500/10 text-xs font-mono uppercase tracking-[0.2em] font-bold text-amber-400 border border-amber-500/20">
+                    {user.coins} Focus Coins
+                  </span>
+                  <span className="px-3.5 py-1.5 rounded-full bg-emerald-500/10 text-xs font-mono uppercase tracking-[0.2em] font-bold text-emerald-400 border border-emerald-500/20">
+                    {user.streak}d Streak
+                  </span>
+                </div>
+              </div>
+            </motion.section>
+
+            {/* 30-Day Activity Heatmap */}
+            <motion.section variants={itemVariants} className="space-y-4">
+              <div className="flex items-center justify-between border-b border-white/10 pb-3">
+                <h2 className="font-heading text-xl md:text-2xl font-bold lowercase text-white">Focus Activity Matrix</h2>
+                <span className="text-[10px] font-mono text-white/40 uppercase">30-Day Velocity</span>
+              </div>
+              <div className="bg-zinc-950/80 border border-white/10 rounded-3xl p-6 backdrop-blur-2xl space-y-3">
+                <div className="grid grid-cols-10 sm:grid-cols-15 md:grid-cols-30 gap-1.5">
+                  {Array.from({ length: 30 }).map((_, i) => {
+                    const intensity = (i * 7 + 3) % 5;
+                    return (
+                      <div
+                        key={i}
+                        title={`Day ${30 - i}: ${intensity * 45} mins focus`}
+                        className={`aspect-square rounded-md transition-all hover:scale-125 cursor-pointer ${
+                          intensity === 4 ? 'bg-cyan-400 shadow-[0_0_8px_rgba(34,211,238,0.6)]' :
+                          intensity === 3 ? 'bg-cyan-600/80' :
+                          intensity === 2 ? 'bg-cyan-800/60' :
+                          intensity === 1 ? 'bg-white/10' :
+                          'bg-white/5'
+                        }`}
+                      />
+                    );
+                  })}
+                </div>
+                <div className="flex justify-between items-center text-[9px] font-mono text-white/30 pt-2 border-t border-white/5">
+                  <span>30 DAYS AGO</span>
+                  <div className="flex items-center gap-1.5">
+                    <span>LESS</span>
+                    <div className="w-2.5 h-2.5 rounded bg-white/5" />
+                    <div className="w-2.5 h-2.5 rounded bg-cyan-800/60" />
+                    <div className="w-2.5 h-2.5 rounded bg-cyan-600/80" />
+                    <div className="w-2.5 h-2.5 rounded bg-cyan-400" />
+                    <span>MORE</span>
+                  </div>
+                  <span>TODAY</span>
+                </div>
+              </div>
+            </motion.section>
+
+            {/* AI Model Architecture & Key Configuration */}
+            <motion.section variants={itemVariants} className="space-y-6">
+              <div className="flex items-center justify-between border-b border-white/10 pb-3">
+                <div className="flex items-center gap-3">
+                  <Bot size={22} className="text-cyan-400" />
+                  <h2 className="font-heading text-xl md:text-2xl font-bold lowercase text-white">AI Engine & Model Architecture</h2>
+                </div>
+                <span className="px-2.5 py-0.5 rounded-full text-[9px] font-mono uppercase tracking-widest bg-cyan-500/10 text-cyan-400 border border-cyan-500/30">
+                  GEMMA 4 26B & GEMINI LIVE
+                </span>
+              </div>
+
+              <AiModelSelector />
+            </motion.section>
+
+            {/* YouTube Data API & Global Media Search Configuration */}
+            <motion.section variants={itemVariants} className="space-y-6">
+              <div className="flex items-center justify-between border-b border-white/10 pb-3">
+                <div className="flex items-center gap-3">
+                  <Monitor size={22} className="text-red-400" />
+                  <h2 className="font-heading text-xl md:text-2xl font-bold lowercase text-white">YouTube Data Engine</h2>
+                </div>
+                <span className="px-2.5 py-0.5 rounded-full text-[9px] font-mono uppercase tracking-widest bg-red-500/10 text-red-400 border border-red-500/30">
+                  DATA API V3 SEARCH
+                </span>
+              </div>
+
+              <YouTubeApiConfig />
+            </motion.section>
+
+            {/* J.A.R.V.I.S. Voice AI & Wake Word Protocol */}
+            <motion.section variants={itemVariants} className="space-y-4">
+              <div className="flex items-center justify-between border-b border-white/10 pb-3">
+                <div className="flex items-center gap-3">
+                  <Sparkles size={20} className="text-cyan-400 animate-pulse" />
+                  <h2 className="font-heading text-xl md:text-2xl font-bold lowercase text-white">J.A.R.V.I.S. Voice AI Protocol</h2>
+                </div>
+                <span className="text-xs font-mono text-cyan-400/80 uppercase tracking-widest font-bold">Wake Word: "JARVIS"</span>
+              </div>
+
+              <div className="bg-zinc-950/80 border border-cyan-500/20 rounded-3xl p-6 md:p-8 space-y-6 backdrop-blur-2xl shadow-[0_0_30px_rgba(34,211,238,0.05)]">
+                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 border-b border-white/10 pb-6">
+                  <div>
+                    <h3 className="font-bold text-white text-base">Continuous Hotword Detection</h3>
+                    <p className="text-xs text-white/50 font-mono mt-1">
+                      When active, simply say <span className="text-cyan-400 font-bold font-mono">"JARVIS"</span> or <span className="text-cyan-400 font-bold font-mono">"Hey JARVIS"</span> anywhere to trigger holographic voice mode.
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <button
+                      onClick={() => {
+                        const jarvisStore = useJarvisStore.getState();
+                        jarvisStore.setIsHotwordEnabled(!jarvisStore.isHotwordEnabled);
+                      }}
+                      className={`px-5 py-2.5 rounded-2xl border text-xs font-mono font-bold uppercase tracking-wider transition-all flex items-center gap-2 ${
+                        useJarvisStore.getState().isHotwordEnabled
+                          ? 'bg-cyan-500/15 border-cyan-500/50 text-cyan-400 shadow-[0_0_20px_rgba(34,211,238,0.2)]'
+                          : 'bg-white/5 border-white/10 text-white/40 hover:text-white'
+                      }`}
+                    >
+                      <Radio size={14} className={useJarvisStore.getState().isHotwordEnabled ? "animate-pulse text-cyan-400" : ""} />
+                      <span>{useJarvisStore.getState().isHotwordEnabled ? 'Hotword: ACTIVE' : 'Hotword: DISABLED'}</span>
+                    </button>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="p-4 rounded-2xl bg-white/[0.02] border border-white/10 space-y-2">
+                    <div className="flex justify-between items-center">
+                      <span className="text-xs font-mono font-bold text-white/80 uppercase tracking-wider">Voice Speech Output (TTS)</span>
+                      <button
+                        onClick={() => {
+                          const jarvisStore = useJarvisStore.getState();
+                          jarvisStore.setVoiceFeedbackEnabled(!jarvisStore.voiceFeedbackEnabled);
+                        }}
+                        className={`px-3 py-1 rounded-xl text-[10px] font-mono uppercase font-bold border transition-colors ${
+                          useJarvisStore.getState().voiceFeedbackEnabled
+                            ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/40'
+                            : 'bg-white/5 text-white/40 border-white/10'
+                        }`}
+                      >
+                        {useJarvisStore.getState().voiceFeedbackEnabled ? 'Audio Speech ON' : 'Audio Speech OFF'}
+                      </button>
+                    </div>
+                    <p className="text-[11px] text-white/40 font-mono">
+                      J.A.R.V.I.S. will speak aloud using high-fidelity synthesized executive voice.
+                    </p>
+                  </div>
+
+                  <div className="p-4 rounded-2xl bg-white/[0.02] border border-white/10 flex items-center justify-between">
+                    <div>
+                      <span className="text-xs font-mono font-bold text-white/80 uppercase tracking-wider block">Direct HUD Launcher</span>
+                      <p className="text-[11px] text-white/40 font-mono mt-0.5">
+                        Shortcut: <kbd className="px-2 py-0.5 rounded bg-white/10 text-white font-mono text-[10px]">Ctrl</kbd> + <kbd className="px-2 py-0.5 rounded bg-white/10 text-white font-mono text-[10px]">J</kbd>
+                      </p>
+                    </div>
+                    <button
+                      onClick={() => useJarvisStore.getState().openJarvis()}
+                      className="px-4 py-2.5 bg-cyan-400 text-black font-mono font-bold text-xs uppercase tracking-wider rounded-xl hover:bg-cyan-300 transition-all shadow-[0_0_20px_rgba(34,211,238,0.4)] flex items-center gap-1.5"
+                    >
+                      <Sparkles size={14} />
+                      <span>Launch HUD</span>
+                    </button>
+                  </div>
+                </div>
+
+                {/* Interactive Wake-Word Training Studio */}
+                <div className="pt-4 border-t border-white/10">
+                  <WakeWordTraining />
+                </div>
+              </div>
+            </motion.section>
+
+            {/* Ghost Shelf Archive */}
+            <motion.section variants={itemVariants} className="space-y-4 pb-12">
+              <div className="flex items-center justify-between border-b border-white/10 pb-3">
+                <div className="flex items-center gap-3">
+                  <BookOpen size={20} className="text-purple-400" />
+                  <h2 className="font-heading text-xl md:text-2xl font-bold lowercase text-white">Ghost Shelf (Bookmarked Media)</h2>
+                </div>
+                <span className="text-xs font-mono text-white/40">{ghostShelf.length} ITEMS</span>
+              </div>
+
+              <div className="bg-zinc-950/80 border border-white/10 rounded-3xl p-6 backdrop-blur-2xl">
+                {ghostShelf.length === 0 ? (
+                  <div className="text-white/40 text-xs font-mono text-center py-10">
+                    Your archive is empty. Siphon articles or videos in Everything Island to store them here.
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {ghostShelf.map((item, idx) => (
+                      <a 
+                        href={item.url} 
+                        onClick={(e) => {
+                          if (item.url && (item.url.includes('youtube.com') || item.url.includes('youtu.be'))) {
+                            e.preventDefault();
+                            window.dispatchEvent(new CustomEvent('changeView', { detail: { view: 'place' } }));
+                            setTimeout(() => {
+                              window.dispatchEvent(new CustomEvent('start-theatre', { detail: { url: item.url } }));
+                            }, 50);
+                          }
+                        }} 
+                        target="_blank" 
+                        rel="noopener noreferrer" 
+                        key={idx} 
+                        className="block group"
+                      >
+                        <div className="bg-white/5 border border-white/10 p-4 group-hover:bg-white/10 group-hover:border-white/30 transition-all rounded-2xl relative overflow-hidden">
+                          <h3 className="font-bold text-sm mb-1 text-white truncate max-w-full">{item.title}</h3>
+                          <div className="flex items-center justify-between text-[10px] font-mono text-white/40">
+                            <span>{new Date(item.timestamp).toLocaleDateString()}</span>
+                            <span className="uppercase tracking-widest text-cyan-400">{item.type}</span>
+                          </div>
+                        </div>
+                      </a>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </motion.section>
+          </div>
+        )}
+
+        {/* ================= VECTOR TAB VIEW (MCP PROTOCOL) ================= */}
+        {profileTab === 'vector' && (
+          <div className="space-y-8 sm:space-y-12 pb-16">
+            {/* 1. Master Connection Bar & 1-Click Copy MCP URL */}
+            <motion.section 
+              variants={itemVariants}
+              className="relative rounded-3xl p-6 sm:p-8 bg-gradient-to-br from-cyan-950/40 via-zinc-950 to-purple-950/30 border border-cyan-500/30 shadow-[0_0_50px_rgba(34,211,238,0.1)] backdrop-blur-2xl overflow-hidden"
+            >
+              <div className="absolute top-0 right-0 w-96 h-96 bg-cyan-500/10 rounded-full blur-3xl pointer-events-none -mr-20 -mt-20" />
+              
+              <div className="relative z-10 space-y-6">
+                <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+                  <div className="space-y-1">
+                    <div className="flex items-center gap-2">
+                      <span className="h-2 w-2 rounded-full bg-emerald-400 animate-ping" />
+                      <span className="text-[10px] font-mono uppercase tracking-[0.3em] font-bold text-emerald-400">MCP ENDPOINT ONLINE</span>
+                    </div>
+                    <h2 className="font-heading text-2xl sm:text-3xl font-extrabold lowercase text-white">
+                      connect to external ai tools
+                    </h2>
+                    <p className="text-xs sm:text-sm text-white/60 font-sans max-w-2xl">
+                      Bridge Focus Forge sovereign workspace tools directly into Claude Desktop, Cursor IDE, Windsurf, Grok, Manus, and custom autonomous agents.
+                    </p>
+                  </div>
+
+                  {/* Copy MCP Server URL Hero Button */}
+                  <button
+                    onClick={copyMcpUrl}
+                    className={`px-6 py-3.5 rounded-2xl font-mono text-xs uppercase tracking-wider font-bold transition-all duration-300 flex items-center gap-2.5 shrink-0 shadow-lg cursor-pointer ${
+                      copiedMcpUrl
+                        ? 'bg-emerald-400 text-black shadow-[0_0_30px_rgba(52,211,153,0.6)] scale-105'
+                        : 'bg-gradient-to-r from-cyan-400 via-sky-300 to-cyan-400 text-black hover:scale-[1.02] shadow-[0_0_25px_rgba(34,211,238,0.4)]'
+                    }`}
+                  >
+                    {copiedMcpUrl ? <CheckCircle2 size={16} /> : <Copy size={16} />}
+                    <span>{copiedMcpUrl ? 'Copied MCP Server URL!' : 'Copy MCP Server URL'}</span>
+                  </button>
+                </div>
+
+                {/* Live URL Pill Bar */}
+                <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 p-3.5 rounded-2xl bg-black/60 border border-white/10 font-mono text-xs">
+                  <div className="flex items-center gap-3 overflow-hidden">
+                    <span className="px-2.5 py-1 rounded-lg bg-white/10 text-white/60 text-[10px] uppercase font-bold shrink-0">SSE / JSON-RPC</span>
+                    <span className="text-cyan-300 truncate select-all">{mcpServerUrl}</span>
+                  </div>
+                  <div className="flex items-center gap-2 self-end sm:self-auto shrink-0 text-[11px] text-white/40">
+                    <span className="text-emerald-400 font-bold">12 Tools Active</span>
+                    <span>•</span>
+                    <span>No Auth Needed</span>
+                  </div>
+                </div>
+              </div>
+            </motion.section>
+
+            {/* 2. Interactive Collapsible Box: Step-by-Step AI Client Guide */}
+            <motion.section variants={itemVariants} className="space-y-4">
+              <div 
+                onClick={() => setIsMcpGuideOpen(!isMcpGuideOpen)}
+                className="flex items-center justify-between p-5 rounded-2xl bg-zinc-950/90 border border-white/15 hover:border-cyan-500/40 transition-all cursor-pointer select-none group"
+              >
+                <div className="flex items-center gap-3.5">
+                  <div className="w-9 h-9 rounded-xl bg-cyan-500/10 border border-cyan-500/30 flex items-center justify-center text-cyan-400">
+                    <Code2 size={18} />
+                  </div>
+                  <div>
+                    <h3 className="font-heading text-lg font-bold lowercase text-white group-hover:text-cyan-300 transition-colors">
+                      Step-by-Step AI Client Integration Guide
+                    </h3>
+                    <p className="text-[11px] font-mono text-white/40">
+                      Claude Desktop • Cursor IDE • Windsurf / Cascade • Grok & Manus
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2 text-white/40 group-hover:text-white transition-colors">
+                  <span className="text-[10px] font-mono uppercase tracking-widest hidden sm:inline">
+                    {isMcpGuideOpen ? 'Collapse Guide' : 'Expand Guide'}
+                  </span>
+                  <div className="w-8 h-8 rounded-full bg-white/5 flex items-center justify-center">
+                    {isMcpGuideOpen ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+                  </div>
+                </div>
+              </div>
+
+              {/* Animated Collapsible Body */}
+              <AnimatePresence>
+                {isMcpGuideOpen && (
+                  <motion.div
+                    initial={{ opacity: 0, height: 0 }}
+                    animate={{ opacity: 1, height: 'auto' }}
+                    exit={{ opacity: 0, height: 0 }}
+                    transition={{ duration: 0.35, ease: credEase }}
+                    className="overflow-hidden space-y-6 pt-2"
+                  >
+                    {/* Client 1: Claude Desktop */}
+                    <div className="p-6 rounded-3xl bg-zinc-950/80 border border-white/10 space-y-4 backdrop-blur-xl">
+                      <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-2 border-b border-white/10 pb-4">
+                        <div className="flex items-center gap-3">
+                          <span className="w-6 h-6 rounded-full bg-amber-500/20 text-amber-400 font-mono text-xs font-bold flex items-center justify-center">1</span>
+                          <h4 className="font-bold text-white text-base">Claude Desktop Integration</h4>
+                        </div>
+                        <span className="text-[11px] font-mono text-white/40">claude_desktop_config.json</span>
+                      </div>
+
+                      <div className="space-y-3 text-xs text-white/70">
+                        <p>
+                          <strong className="text-white">Step 1:</strong> Locate or create your Claude Desktop configuration file:
+                        </p>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 font-mono text-[11px]">
+                          <div className="p-2.5 rounded-xl bg-white/5 border border-white/5">
+                            <span className="text-white/40 block text-[9px] uppercase">macOS</span>
+                            <span className="text-white/90 select-all">~/Library/Application Support/Claude/claude_desktop_config.json</span>
+                          </div>
+                          <div className="p-2.5 rounded-xl bg-white/5 border border-white/5">
+                            <span className="text-white/40 block text-[9px] uppercase">Windows</span>
+                            <span className="text-white/90 select-all">%APPDATA%\Claude\claude_desktop_config.json</span>
+                          </div>
+                        </div>
+
+                        <p className="pt-2">
+                          <strong className="text-white">Step 2:</strong> Add the <code className="text-cyan-300 font-mono">focusforge</code> MCP server block:
+                        </p>
+                        <div className="relative group/code">
+                          <pre className="p-4 rounded-2xl bg-black/90 border border-white/10 text-cyan-300 font-mono text-[11px] overflow-x-auto leading-relaxed">
+                            {claudeJsonSnippet}
+                          </pre>
+                          <button
+                            onClick={() => copySnippet(claudeJsonSnippet, 'claude')}
+                            className="absolute top-3 right-3 px-3 py-1.5 rounded-xl bg-white/10 hover:bg-white/20 text-white text-[10px] font-mono uppercase tracking-wider font-bold transition-all flex items-center gap-1.5 border border-white/10 cursor-pointer"
+                          >
+                            {copiedConfigType === 'claude' ? <Check size={12} className="text-emerald-400" /> : <Copy size={12} />}
+                            <span>{copiedConfigType === 'claude' ? 'Copied' : 'Copy JSON'}</span>
+                          </button>
+                        </div>
+
+                        <p className="text-white/50 text-[11px] pt-1">
+                          <strong className="text-white">Step 3:</strong> Completely restart Claude Desktop. The hammer icon in Claude will light up with all 12 Focus Forge tools!
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* Client 2: Cursor IDE */}
+                    <div className="p-6 rounded-3xl bg-zinc-950/80 border border-white/10 space-y-4 backdrop-blur-xl">
+                      <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-2 border-b border-white/10 pb-4">
+                        <div className="flex items-center gap-3">
+                          <span className="w-6 h-6 rounded-full bg-cyan-500/20 text-cyan-400 font-mono text-xs font-bold flex items-center justify-center">2</span>
+                          <h4 className="font-bold text-white text-base">Cursor IDE Integration</h4>
+                        </div>
+                        <span className="text-[11px] font-mono text-white/40">Cursor Settings → Features → MCP</span>
+                      </div>
+
+                      <div className="space-y-3 text-xs text-white/70">
+                        <p>
+                          <strong className="text-white">Step 1:</strong> Open Cursor Settings (<kbd className="px-1.5 py-0.5 rounded bg-white/10 font-mono text-[10px]">Ctrl</kbd> / <kbd className="px-1.5 py-0.5 rounded bg-white/10 font-mono text-[10px]">Cmd</kbd> + <kbd className="px-1.5 py-0.5 rounded bg-white/10 font-mono text-[10px]">,</kbd>), navigate to <strong>Features</strong> → <strong>MCP</strong>, and click <strong>+ Add New MCP Server</strong>.
+                        </p>
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-2 font-mono text-[11px]">
+                          <div className="p-3 rounded-xl bg-white/5 border border-white/5">
+                            <span className="text-white/40 block text-[9px] uppercase">Name</span>
+                            <span className="text-white font-bold">focusforge</span>
+                          </div>
+                          <div className="p-3 rounded-xl bg-white/5 border border-white/5">
+                            <span className="text-white/40 block text-[9px] uppercase">Type</span>
+                            <span className="text-cyan-300 font-bold">command</span>
+                          </div>
+                          <div className="p-3 rounded-xl bg-white/5 border border-white/5">
+                            <span className="text-white/40 block text-[9px] uppercase">Command</span>
+                            <span className="text-white/90 truncate block select-all">npx -y mcp-remote {mcpServerUrl}</span>
+                          </div>
+                        </div>
+
+                        <div className="flex justify-end pt-1">
+                          <button
+                            onClick={() => copySnippet(`npx -y mcp-remote ${mcpServerUrl}`, 'cursor')}
+                            className="px-4 py-2 rounded-xl bg-white/10 hover:bg-white/20 text-white text-xs font-mono uppercase tracking-wider font-bold transition-all flex items-center gap-2 border border-white/10 cursor-pointer"
+                          >
+                            {copiedConfigType === 'cursor' ? <Check size={14} className="text-emerald-400" /> : <Copy size={14} />}
+                            <span>{copiedConfigType === 'cursor' ? 'Command Copied' : 'Copy Cursor Command'}</span>
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Client 3: Windsurf / Cascade */}
+                    <div className="p-6 rounded-3xl bg-zinc-950/80 border border-white/10 space-y-4 backdrop-blur-xl">
+                      <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-2 border-b border-white/10 pb-4">
+                        <div className="flex items-center gap-3">
+                          <span className="w-6 h-6 rounded-full bg-purple-500/20 text-purple-400 font-mono text-xs font-bold flex items-center justify-center">3</span>
+                          <h4 className="font-bold text-white text-base">Windsurf (Cascade) Integration</h4>
+                        </div>
+                        <span className="text-[11px] font-mono text-white/40">~/.codeium/windsurf/mcp_config.json</span>
+                      </div>
+
+                      <div className="space-y-3 text-xs text-white/70">
+                        <p>
+                          Add the configuration to <code className="text-purple-300 font-mono">~/.codeium/windsurf/mcp_config.json</code>:
+                        </p>
+                        <div className="relative group/code">
+                          <pre className="p-4 rounded-2xl bg-black/90 border border-white/10 text-purple-300 font-mono text-[11px] overflow-x-auto leading-relaxed">
+                            {windsurfJsonSnippet}
+                          </pre>
+                          <button
+                            onClick={() => copySnippet(windsurfJsonSnippet, 'windsurf')}
+                            className="absolute top-3 right-3 px-3 py-1.5 rounded-xl bg-white/10 hover:bg-white/20 text-white text-[10px] font-mono uppercase tracking-wider font-bold transition-all flex items-center gap-1.5 border border-white/10 cursor-pointer"
+                          >
+                            {copiedConfigType === 'windsurf' ? <Check size={12} className="text-emerald-400" /> : <Copy size={12} />}
+                            <span>{copiedConfigType === 'windsurf' ? 'Copied' : 'Copy JSON'}</span>
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Client 4: Grok, Manus & cURL */}
+                    <div className="p-6 rounded-3xl bg-zinc-950/80 border border-white/10 space-y-4 backdrop-blur-xl">
+                      <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-2 border-b border-white/10 pb-4">
+                        <div className="flex items-center gap-3">
+                          <span className="w-6 h-6 rounded-full bg-rose-500/20 text-rose-400 font-mono text-xs font-bold flex items-center justify-center">4</span>
+                          <h4 className="font-bold text-white text-base">Grok, Manus & Autonomous Agents (HTTP / cURL)</h4>
+                        </div>
+                        <span className="text-[11px] font-mono text-white/40">JSON-RPC 2.0 POST</span>
+                      </div>
+
+                      <div className="space-y-3 text-xs text-white/70">
+                        <p>
+                          Focus Forge implements full <strong>JSON-RPC 2.0</strong> protocol over standard HTTP POST and Server-Sent Events (SSE). Test the live endpoint instantly:
+                        </p>
+                        <div className="relative group/code">
+                          <pre className="p-4 rounded-2xl bg-black/90 border border-white/10 text-rose-300 font-mono text-[11px] overflow-x-auto leading-relaxed">
+                            {curlSnippet}
+                          </pre>
+                          <button
+                            onClick={() => copySnippet(curlSnippet, 'curl')}
+                            className="absolute top-3 right-3 px-3 py-1.5 rounded-xl bg-white/10 hover:bg-white/20 text-white text-[10px] font-mono uppercase tracking-wider font-bold transition-all flex items-center gap-1.5 border border-white/10 cursor-pointer"
+                          >
+                            {copiedConfigType === 'curl' ? <Check size={12} className="text-emerald-400" /> : <Copy size={12} />}
+                            <span>{copiedConfigType === 'curl' ? 'Copied' : 'Copy cURL'}</span>
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </motion.section>
+
+            {/* 3. Catalog of 12 Exposed Live Tools */}
+            <motion.section variants={itemVariants} className="space-y-4">
+              <div className="flex items-center justify-between border-b border-white/10 pb-3">
+                <div className="flex items-center gap-3">
+                  <Terminal size={20} className="text-cyan-400" />
+                  <h3 className="font-heading text-xl md:text-2xl font-bold lowercase text-white">
+                    12 Live Sovereign MCP Tools
+                  </h3>
+                </div>
+                <span className="text-xs font-mono text-cyan-400 font-bold uppercase tracking-wider">
+                  ALL CAPABILITIES EXPOSED
+                </span>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {[
+                  { name: 'focusforge_get_tasks', desc: 'Fetch user tasks, filtered by status, priority, or category tag.', tag: 'TASK ENGINE' },
+                  { name: 'focusforge_create_task', desc: 'Insert a new task into the sovereign task store with estimated minutes.', tag: 'TASK ENGINE' },
+                  { name: 'focusforge_get_notes', desc: 'Read notes and ideas captured in The Ledger with tags and timestamps.', tag: 'THE LEDGER' },
+                  { name: 'focusforge_create_note', desc: 'Append a new markdown thought or memo into The Ledger store.', tag: 'THE LEDGER' },
+                  { name: 'focusforge_search_youtube', desc: 'Search YouTube Data API v3 for ambient focus audio, videos, and study tracks.', tag: 'MEDIA SEARCH' },
+                  { name: 'focusforge_get_frequency_status', desc: 'Get live playback status, current track, and binaural sound frequency.', tag: 'FREQUENCY' },
+                  { name: 'focusforge_control_frequency', desc: 'Control playback state (play, pause, next, prev, volume, switch frequency).', tag: 'FREQUENCY' },
+                  { name: 'focusforge_get_market_quote', desc: 'Live market ticker quotes for US and Indian NSE/BSE stocks and crypto.', tag: 'FINANCIAL' },
+                  { name: 'focusforge_get_weather', desc: 'Real-time meteorological conditions, temperature, humidity, and forecast.', tag: 'ATMOSPHERE' },
+                  { name: 'focusforge_get_world_pulse', desc: 'Breaking world intelligence, geopolitical developments, and tech headlines.', tag: 'INTELLIGENCE' },
+                  { name: 'focusforge_siphon_url', desc: 'Siphon web content into clean reader markdown directly into the Ghost Shelf.', tag: 'SIPHON' },
+                  { name: 'focusforge_get_system_telemetry', desc: 'Retrieve executive telemetry: user XP, level, active timers, and velocity.', tag: 'SYSTEM' },
+                ].map((tool, idx) => (
+                  <div 
+                    key={idx} 
+                    className="p-5 rounded-2xl bg-zinc-950/70 border border-white/10 hover:border-cyan-500/30 transition-all space-y-2 group"
+                  >
+                    <div className="flex items-center justify-between">
+                      <span className="text-[9px] font-mono text-cyan-400 font-bold uppercase tracking-widest px-2 py-0.5 bg-cyan-500/10 rounded">
+                        {tool.tag}
+                      </span>
+                    </div>
+                    <h4 className="font-mono text-xs font-bold text-white group-hover:text-cyan-300 transition-colors">
+                      {tool.name}
+                    </h4>
+                    <p className="text-xs text-white/50 leading-relaxed font-sans">
+                      {tool.desc}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            </motion.section>
+          </div>
+        )}
+      </motion.div>
+    );
+  };
 
   // --- Global Dynamic Dock ---
   const GlobalDock = () => {
