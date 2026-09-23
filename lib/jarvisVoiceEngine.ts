@@ -43,12 +43,12 @@ export type VoiceEngineTelemetry = VoiceStateData;
 
 export const VOICE_CONFIG = {
   wakeWord: "jarvis",
-  wakeWordCooldownMs: 1500,
+  wakeWordCooldownMs: 1200,
   commandSilenceTimeoutMs: 1200,
   minimumCommandDurationMs: 250,
   minimumSpeechDurationMs: 200,
-  acknowledgementGuardMs: 200,
-  reconnectDelayMs: 30,
+  acknowledgementGuardMs: 250,
+  reconnectDelayMs: 40,
   maxCommandDurationMs: 60000
 };
 
@@ -82,53 +82,8 @@ const PHONETIC_JARVIS_STEMS = [
   'jarvis', 'javis', 'jarves', 'jarviz', 'jarvice', 'jarv', 'jervis',
   'travis', 'service', 'harvest', 'starck', 'stark', 'friday',
   'darvis', 'garvis', 'charvis', 'larvis', 'marvis', 'harvis',
-  'jarvez', 'jahvis', 'jahves', 'darvish', 'java'
+  'jarvez', 'jahvis', 'jahves', 'darvish', 'java', 'tarvis', 'arvis'
 ];
-
-function checkHotwordMatch(
-  text: string,
-  patterns: RegExp[],
-  trainedWord: string,
-  highSensitivity: boolean
-): boolean {
-  const clean = text.toLowerCase().replace(/['’]/g, '').trim();
-  if (!clean) return false;
-
-  // 1. Direct Regex Patterns
-  if (patterns.some(p => p.test(clean))) return true;
-
-  // 2. Direct inclusion of target wake word
-  const target = (trainedWord || 'jarvis').toLowerCase().trim();
-  if (clean.includes(target) || clean.includes('jarvis') || clean.includes('javis')) {
-    return true;
-  }
-
-  // 3. Word-by-Word Fuzzy & Phonetic Matching
-  const words = clean.replace(/[^a-z0-9\s]/gi, ' ').split(/\s+/).filter(Boolean);
-  for (const word of words) {
-    if (PHONETIC_JARVIS_STEMS.includes(word)) return true;
-
-    if (word.length >= 3) {
-      if (levenshteinDistance(word, 'jarvis') <= (highSensitivity ? 2 : 1)) return true;
-      if (trainedWord && levenshteinDistance(word, target) <= (highSensitivity ? 2 : 1)) return true;
-    }
-
-    if (highSensitivity && word.length >= 3) {
-      if (
-        word.startsWith('jarv') ||
-        word.startsWith('jav') ||
-        word.startsWith('jrv') ||
-        word.endsWith('arvis') ||
-        word.endsWith('ervis') ||
-        word.endsWith('avis')
-      ) {
-        return true;
-      }
-    }
-  }
-
-  return false;
-}
 
 // Default phonetic & natural speech variations of "Jarvis"
 const DEFAULT_HOTWORD_PATTERNS = [
@@ -138,6 +93,80 @@ const DEFAULT_HOTWORD_PATTERNS = [
   /\bjavis\b/i,
   /\bjarv\b/i,
 ];
+
+function checkHotwordMatch(
+  text: string,
+  patterns: RegExp[],
+  trainedWord: string,
+  highSensitivity: boolean
+): { matched: boolean; trailingText: string } {
+  const clean = text.toLowerCase().replace(/['’]/g, '').trim();
+  if (!clean) return { matched: false, trailingText: '' };
+
+  // Helper to extract trailing command after wake word match
+  const extractTrailing = (fullText: string, matchedSegment: string): string => {
+    const idx = fullText.toLowerCase().indexOf(matchedSegment.toLowerCase());
+    if (idx !== -1) {
+      return fullText.slice(idx + matchedSegment.length).replace(/^[,\s:–-]+/, '').trim();
+    }
+    return fullText.replace(/^(hey|ok|okay|yo|hi|hello)?\s*(jarvis|javis|jarv|travis|starck|friday)\s*/i, '').trim();
+  };
+
+  // 1. Direct Regex Patterns
+  for (const p of patterns) {
+    const m = clean.match(p);
+    if (m) {
+      const trailing = extractTrailing(clean, m[0]);
+      return { matched: true, trailingText: trailing };
+    }
+  }
+
+  // 2. Direct inclusion of target wake word
+  const target = (trainedWord || 'jarvis').toLowerCase().trim();
+  if (clean.includes(target)) {
+    return { matched: true, trailingText: extractTrailing(clean, target) };
+  }
+  if (clean.includes('jarvis')) {
+    return { matched: true, trailingText: extractTrailing(clean, 'jarvis') };
+  }
+  if (clean.includes('javis')) {
+    return { matched: true, trailingText: extractTrailing(clean, 'javis') };
+  }
+
+  // 3. Word-by-Word Fuzzy & Phonetic Matching
+  const words = clean.replace(/[^a-z0-9\s]/gi, ' ').split(/\s+/).filter(Boolean);
+  for (let i = 0; i < words.length; i++) {
+    const word = words[i];
+    let isWordMatch = false;
+
+    if (PHONETIC_JARVIS_STEMS.includes(word)) {
+      isWordMatch = true;
+    } else if (word.length >= 3) {
+      if (levenshteinDistance(word, 'jarvis') <= (highSensitivity ? 2 : 1)) isWordMatch = true;
+      else if (trainedWord && levenshteinDistance(word, target) <= (highSensitivity ? 2 : 1)) isWordMatch = true;
+    }
+
+    if (!isWordMatch && highSensitivity && word.length >= 3) {
+      if (
+        word.startsWith('jarv') ||
+        word.startsWith('jav') ||
+        word.startsWith('jrv') ||
+        word.endsWith('arvis') ||
+        word.endsWith('ervis') ||
+        word.endsWith('avis')
+      ) {
+        isWordMatch = true;
+      }
+    }
+
+    if (isWordMatch) {
+      const trailing = words.slice(i + 1).join(' ');
+      return { matched: true, trailingText: trailing };
+    }
+  }
+
+  return { matched: false, trailingText: '' };
+}
 
 export function voiceLog(event: string, details?: any): void {
   const timestamp = new Date().toISOString().split('T')[1].slice(0, -1);
@@ -170,16 +199,16 @@ class JarvisVoiceEngine {
 
   private isWakeWordEnabled: boolean = true;
   private isHighSensitivityMode: boolean = true;
-  private preDuckingVolume: number | null = null;
   private isCooldownActive: boolean = false;
   private activeListenerCount: number = 0;
   private activeHotwordPatterns: RegExp[] = [...DEFAULT_HOTWORD_PATTERNS];
   private trainedWakeWord: string = 'Jarvis';
 
-  // Recognizers & Resources
-  private wakeWordRecognition: any = null;
-  private commandRecognition: any = null;
-  private mediaStream: MediaStream | null = null;
+  // Unified Recognition Engine
+  private recognitionInstance: any = null;
+  private isRecognitionActive: boolean = false;
+  private isStartingRecognition: boolean = false;
+  private desiredRecognitionMode: 'NONE' | 'WAKE_WORD' | 'COMMAND' = 'NONE';
   private activeUtterance: SpeechSynthesisUtterance | null = null;
 
   // Timers
@@ -243,6 +272,8 @@ class JarvisVoiceEngine {
   public async warmupMicrophone(): Promise<boolean> {
     if (typeof window === 'undefined' || !navigator.mediaDevices?.getUserMedia) return false;
     try {
+      this.microphoneStatus = 'requesting';
+      this.notifyTelemetry();
       const stream = await navigator.mediaDevices.getUserMedia({
         audio: {
           echoCancellation: true,
@@ -333,9 +364,9 @@ class JarvisVoiceEngine {
 
   public transitionTo(nextPhase: VoicePhase, reason?: string): boolean {
     const previousPhase = this.phase;
-    if (previousPhase === nextPhase) return false;
+    if (previousPhase === nextPhase) return true;
 
-    // Transition validation
+    // Transition validation - highly relaxed to avoid dropped commands
     if (!this.isTransitionAllowed(previousPhase, nextPhase)) {
       voiceLog("INVALID_TRANSITION_ATTEMPT", { from: previousPhase, to: nextPhase, reason });
       return false;
@@ -379,28 +410,34 @@ class JarvisVoiceEngine {
   }
 
   private isTransitionAllowed(from: VoicePhase, to: VoicePhase): boolean {
+    // Highly resilient transition matrix:
+    // Any state can transition to ERROR or IDLE
     if (to === 'ERROR' || to === 'IDLE') return true;
+
+    // Direct command execution or listening can be initiated from anywhere
+    if (to === 'LISTENING_FOR_COMMAND' || to === 'PROCESSING_COMMAND') return true;
+
     switch (from) {
       case 'IDLE':
-        return to === 'REQUESTING_MICROPHONE' || to === 'WAKE_WORD_LISTENING' || to === 'LISTENING_FOR_COMMAND';
+        return to === 'REQUESTING_MICROPHONE' || to === 'WAKE_WORD_LISTENING';
       case 'REQUESTING_MICROPHONE':
-        return to === 'WAKE_WORD_LISTENING' || to === 'LISTENING_FOR_COMMAND';
+        return to === 'WAKE_WORD_LISTENING';
       case 'WAKE_WORD_LISTENING':
-        return to === 'WAKE_WORD_DETECTED' || to === 'LISTENING_FOR_COMMAND';
+        return to === 'WAKE_WORD_DETECTED';
       case 'WAKE_WORD_DETECTED':
-        return to === 'LISTENING_FOR_COMMAND' || to === 'WAKE_WORD_LISTENING';
+        return to === 'WAKE_WORD_LISTENING';
       case 'LISTENING_FOR_COMMAND':
-        return to === 'PROCESSING_COMMAND' || to === 'WAKE_WORD_LISTENING';
+        return to === 'WAKE_WORD_LISTENING';
       case 'PROCESSING_COMMAND':
         return to === 'EXECUTING_TOOL' || to === 'SPEAKING_RESPONSE' || to === 'WAKE_WORD_LISTENING';
       case 'EXECUTING_TOOL':
-        return to === 'SPEAKING_RESPONSE' || to === 'PROCESSING_COMMAND' || to === 'WAKE_WORD_LISTENING';
+        return to === 'SPEAKING_RESPONSE' || to === 'WAKE_WORD_LISTENING';
       case 'SPEAKING_RESPONSE':
-        return to === 'WAKE_WORD_LISTENING' || to === 'LISTENING_FOR_COMMAND';
+        return to === 'WAKE_WORD_LISTENING';
       case 'ERROR':
-        return to === 'REQUESTING_MICROPHONE' || to === 'WAKE_WORD_LISTENING' || to === 'LISTENING_FOR_COMMAND';
+        return to === 'REQUESTING_MICROPHONE' || to === 'WAKE_WORD_LISTENING';
       default:
-        return false;
+        return true;
     }
   }
 
@@ -421,10 +458,173 @@ class JarvisVoiceEngine {
     this.notifyTelemetry();
   }
 
+  // --- Central Unified Recognition Controller ---
+  private ensureRecognitionLoop(): void {
+    if (typeof window === 'undefined') return;
+    if (this.isRecognitionActive || this.isStartingRecognition) return;
+
+    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    if (!SpeechRecognition) {
+      this.lastError = 'Web Speech API is not supported in this browser.';
+      this.transitionTo('ERROR', 'Speech API missing');
+      return;
+    }
+
+    try {
+      this.isStartingRecognition = true;
+      const recognition = new SpeechRecognition();
+      recognition.continuous = true;
+      recognition.interimResults = true;
+      recognition.maxAlternatives = 5;
+      recognition.lang = 'en-US';
+
+      recognition.onstart = () => {
+        this.isRecognitionActive = true;
+        this.isStartingRecognition = false;
+        voiceLog("RECOGNITION_LOOP_STARTED", { mode: this.desiredRecognitionMode });
+      };
+
+      recognition.onresult = (event: any) => {
+        this.handleRecognitionResult(event);
+      };
+
+      recognition.onerror = (e: any) => {
+        if (e.error === 'not-allowed' || e.error === 'service-not-allowed') {
+          this.lastError = 'Microphone permission denied.';
+          this.transitionTo('ERROR', 'Microphone permission denied');
+          return;
+        }
+        if (e.error !== 'no-speech' && e.error !== 'aborted') {
+          voiceLog("RECOGNITION_NOTE", { error: e.error });
+        }
+      };
+
+      recognition.onend = () => {
+        this.isRecognitionActive = false;
+        this.isStartingRecognition = false;
+        this.recognitionInstance = null;
+
+        // Auto-restart if we desire continuous listening and not currently speaking TTS
+        if (
+          this.desiredRecognitionMode !== 'NONE' &&
+          this.phase !== 'PROCESSING_COMMAND' &&
+          this.phase !== 'EXECUTING_TOOL' &&
+          this.phase !== 'SPEAKING_RESPONSE'
+        ) {
+          if (this.restartTimer) clearTimeout(this.restartTimer);
+          this.restartTimer = setTimeout(() => {
+            this.ensureRecognitionLoop();
+          }, VOICE_CONFIG.reconnectDelayMs);
+        }
+      };
+
+      recognition.start();
+      this.recognitionInstance = recognition;
+    } catch (err: any) {
+      this.isStartingRecognition = false;
+      this.isRecognitionActive = false;
+      voiceLog("RECOGNITION_START_ERROR", { error: err?.message });
+      if (this.restartTimer) clearTimeout(this.restartTimer);
+      this.restartTimer = setTimeout(() => {
+        if (this.desiredRecognitionMode !== 'NONE') {
+          this.ensureRecognitionLoop();
+        }
+      }, 500);
+    }
+  }
+
+  private handleRecognitionResult(event: any): void {
+    // 1. Ignore incoming audio if Jarvis is currently speaking TTS to avoid self-triggering
+    if (this.phase === 'SPEAKING_RESPONSE' || this.phase === 'PROCESSING_COMMAND' || this.phase === 'EXECUTING_TOOL') {
+      return;
+    }
+
+    // 2. Mode: WAKE_WORD detection
+    if (this.desiredRecognitionMode === 'WAKE_WORD' || this.phase === 'WAKE_WORD_LISTENING') {
+      if (this.isCooldownActive) return;
+
+      for (let i = event.resultIndex; i < event.results.length; i++) {
+        const item = event.results[i];
+        for (let k = 0; k < item.length; k++) {
+          const transcript = (item[k].transcript || '').trim();
+          if (!transcript) continue;
+
+          const { matched, trailingText } = checkHotwordMatch(
+            transcript,
+            this.activeHotwordPatterns,
+            this.trainedWakeWord,
+            this.isHighSensitivityMode
+          );
+
+          if (matched) {
+            voiceLog("WAKE_WORD_MATCHED", { 
+              raw: transcript, 
+              trailingText, 
+              altIndex: k 
+            });
+            this.triggerWakeWord(transcript, trailingText);
+            return;
+          }
+        }
+      }
+      return;
+    }
+
+    // 3. Mode: Active COMMAND listening
+    if (this.desiredRecognitionMode === 'COMMAND' || this.phase === 'LISTENING_FOR_COMMAND') {
+      let interim = '';
+      let final = '';
+
+      for (let i = 0; i < event.results.length; i++) {
+        const item = event.results[i];
+        if (item.isFinal) {
+          final += item[0].transcript + ' ';
+        } else {
+          interim += item[0].transcript;
+        }
+      }
+
+      let combined = (final + interim).trim();
+
+      // Clean out leading wake words if present
+      combined = combined.replace(/^(hey|ok|okay|yo|hi|hello)?\s*(jarvis|javis|jarv|travis|starck|friday)\s*/i, '').trim();
+
+      if (combined) {
+        this.accumulatedCommandText = combined;
+        this.liveInterimTranscript = combined;
+        this.lastDetectedTranscript = combined;
+        this.lastActivityAt = Date.now();
+
+        // Reset no speech fallback timer
+        if (this.noSpeechTimer) {
+          clearTimeout(this.noSpeechTimer);
+          this.noSpeechTimer = null;
+        }
+
+        // Reset silence countdown timer
+        if (this.silenceTimer) {
+          clearTimeout(this.silenceTimer);
+          this.silenceTimer = null;
+        }
+
+        // Start silence countdown
+        this.silenceTimer = setTimeout(() => {
+          if (this.phase === 'LISTENING_FOR_COMMAND' && this.accumulatedCommandText.trim()) {
+            voiceLog("SILENCE_FINALIZED_COMMAND", { command: this.accumulatedCommandText });
+            this.commitCommand(this.accumulatedCommandText.trim());
+          }
+        }, VOICE_CONFIG.commandSilenceTimeoutMs);
+
+        this.notifyTelemetry();
+      }
+    }
+  }
+
   // --- 1. Wake-Word Detection Mode ---
   public startWakeWordDetection(): void {
     if (typeof window === 'undefined') return;
     if (!this.isWakeWordEnabled) {
+      this.desiredRecognitionMode = 'NONE';
       this.transitionTo('IDLE', 'Hotword disabled in settings');
       return;
     }
@@ -436,113 +636,20 @@ class JarvisVoiceEngine {
       this.phase === 'EXECUTING_TOOL' ||
       this.phase === 'SPEAKING_RESPONSE'
     ) {
-      voiceLog("WAKE_WORD_PAUSED", { activePhase: this.phase });
+      voiceLog("WAKE_WORD_PAUSED_FOR_ACTIVE_PHASE", { activePhase: this.phase });
       return;
     }
 
-    this.stopCommandListening();
+    this.desiredRecognitionMode = 'WAKE_WORD';
     this.clearVoiceTimers();
-
-    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-    if (!SpeechRecognition) {
-      this.lastError = 'Web Speech API is not supported in this browser.';
-      this.transitionTo('ERROR', 'Speech API missing');
-      return;
-    }
-
-    this.cleanupWakeWordRecognition();
-
-    try {
-      const recognition = new SpeechRecognition();
-      recognition.continuous = true;
-      recognition.interimResults = true;
-      recognition.maxAlternatives = 5;
-      recognition.lang = 'en-US';
-
-      recognition.onstart = () => {
-        this.transitionTo('WAKE_WORD_LISTENING', 'Wake-word detector online');
-      };
-
-      recognition.onresult = (event: any) => {
-        if (this.isCooldownActive) return;
-        if (this.phase !== 'WAKE_WORD_LISTENING') return;
-
-        for (let i = event.resultIndex; i < event.results.length; i++) {
-          const item = event.results[i];
-          for (let k = 0; k < item.length; k++) {
-            const transcript = (item[k].transcript || '').trim();
-            if (!transcript) continue;
-
-            const isMatched = checkHotwordMatch(
-              transcript,
-              this.activeHotwordPatterns,
-              this.trainedWakeWord,
-              this.isHighSensitivityMode
-            );
-
-            if (isMatched) {
-              voiceLog("WAKE_WORD_TRIGGERED", { 
-                matchedPhrase: transcript,
-                altIndex: k,
-                highSensitivity: this.isHighSensitivityMode 
-              });
-              this.triggerWakeWord(transcript);
-              return;
-            }
-          }
-        }
-      };
-
-      recognition.onerror = (e: any) => {
-        if (e.error === 'not-allowed' || e.error === 'service-not-allowed') {
-          this.lastError = 'Microphone permission denied.';
-          this.transitionTo('ERROR', 'Microphone permission denied');
-          return;
-        }
-        voiceLog("WAKE_WORD_RECOGNITION_NOTE", { error: e.error });
-      };
-
-      recognition.onend = () => {
-        if (
-          this.isWakeWordEnabled && 
-          this.phase !== 'LISTENING_FOR_COMMAND' && 
-          this.phase !== 'PROCESSING_COMMAND' && 
-          this.phase !== 'EXECUTING_TOOL' && 
-          this.phase !== 'SPEAKING_RESPONSE'
-        ) {
-          if (this.restartTimer) clearTimeout(this.restartTimer);
-          this.restartTimer = setTimeout(() => {
-            if (
-              this.isWakeWordEnabled && 
-              this.phase !== 'LISTENING_FOR_COMMAND' && 
-              this.phase !== 'PROCESSING_COMMAND' && 
-              this.phase !== 'EXECUTING_TOOL' && 
-              this.phase !== 'SPEAKING_RESPONSE'
-            ) {
-              this.startWakeWordDetection();
-            }
-          }, VOICE_CONFIG.reconnectDelayMs);
-        }
-      };
-
-      try {
-        recognition.start();
-      } catch (err) {
-        voiceLog("WAKE_WORD_ALREADY_STARTED_NOTE");
-      }
-      this.wakeWordRecognition = recognition;
-    } catch (err: any) {
-      voiceLog("WAKE_WORD_START_ERROR", { error: err?.message });
-      this.lastError = err?.message || 'Failed to start microphone listener';
-      if (this.restartTimer) clearTimeout(this.restartTimer);
-      this.restartTimer = setTimeout(() => {
-        if (this.isWakeWordEnabled) this.startWakeWordDetection();
-      }, 500);
-    }
+    this.transitionTo('WAKE_WORD_LISTENING', 'Wake-word detector active');
+    this.ensureRecognitionLoop();
   }
 
   public stopWakeWordDetection(): void {
-    this.cleanupWakeWordRecognition();
+    if (this.desiredRecognitionMode === 'WAKE_WORD') {
+      this.desiredRecognitionMode = 'NONE';
+    }
     if (this.phase === 'WAKE_WORD_LISTENING') {
       this.transitionTo('IDLE', 'Wake-word detection stopped');
     }
@@ -554,7 +661,7 @@ class JarvisVoiceEngine {
   }
 
   // --- 2. Wake-Word Detected Transition ---
-  private triggerWakeWord(rawUtterance: string): void {
+  private triggerWakeWord(rawUtterance: string, trailingCommand?: string): void {
     if (this.isCooldownActive) return;
     this.isCooldownActive = true;
 
@@ -564,20 +671,26 @@ class JarvisVoiceEngine {
       this.wakeWordCooldownTimer = null;
     }, VOICE_CONFIG.wakeWordCooldownMs);
 
-    this.cleanupWakeWordRecognition();
-
     const sessionId = this.generateSessionId();
     this.currentSessionId = sessionId;
 
     this.transitionTo('WAKE_WORD_DETECTED', `Wake word matched: "${rawUtterance}"`);
+    jarvisAudio.playActivate();
 
-    // Clean leading wake word if user spoke full phrase in one breath
-    let trailingCommand = rawUtterance.replace(/^(hey|ok|okay|yo|hi|hello)?\s*(jarvis|javis)\s*/i, '').trim();
+    const cleanTrailing = (trailingCommand || '').trim();
 
     if (typeof window !== 'undefined') {
       window.dispatchEvent(new CustomEvent('jarvis-hotword-triggered', {
-        detail: { rawUtterance, trailingCommand, sessionId }
+        detail: { rawUtterance, trailingCommand: cleanTrailing, sessionId }
       }));
+    }
+
+    // If user spoke the entire command in one breath with the wake word
+    if (cleanTrailing.length > 2) {
+      voiceLog("ONE_BREATH_COMMAND_DETECTED", { trailing: cleanTrailing });
+      this.startCommandListening(cleanTrailing, sessionId);
+    } else {
+      this.startCommandListening('', sessionId);
     }
   }
 
@@ -585,13 +698,16 @@ class JarvisVoiceEngine {
   public startCommandListening(initialBuffer?: string, existingSessionId?: string): void {
     if (typeof window === 'undefined') return;
 
-    this.cleanupWakeWordRecognition();
     this.clearVoiceTimers();
+    this.desiredRecognitionMode = 'COMMAND';
 
     const sessionId = existingSessionId || this.generateSessionId();
     this.currentSessionId = sessionId;
 
-    const cleanInitial = (initialBuffer || '').replace(/^(hey|ok|okay|yo|hi|hello)?\s*(jarvis|javis)\s*/i, '').trim();
+    const cleanInitial = (initialBuffer || '')
+      .replace(/^(hey|ok|okay|yo|hi|hello)?\s*(jarvis|javis|jarv|travis|starck|friday)\s*/i, '')
+      .trim();
+
     this.accumulatedCommandText = cleanInitial;
     this.liveInterimTranscript = cleanInitial;
     this.commandStartedAt = Date.now();
@@ -599,8 +715,10 @@ class JarvisVoiceEngine {
 
     this.transitionTo('LISTENING_FOR_COMMAND', 'Started active command listening session');
     this.notifyTelemetry();
+    this.ensureRecognitionLoop();
 
-    if (cleanInitial.length > 2) {
+    // If initial buffer has words (e.g. from single-breath speech), set a short finalize timer
+    if (cleanInitial.length > 3) {
       this.silenceTimer = setTimeout(() => {
         if (this.phase === 'LISTENING_FOR_COMMAND' && this.accumulatedCommandText.trim()) {
           voiceLog("INITIAL_BUFFER_SILENCE_FINALIZED", { command: this.accumulatedCommandText });
@@ -609,132 +727,34 @@ class JarvisVoiceEngine {
       }, VOICE_CONFIG.commandSilenceTimeoutMs);
     }
 
-    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-    if (!SpeechRecognition) {
-      this.lastError = 'Web Speech API unavailable';
-      this.transitionTo('ERROR', 'Speech API missing');
-      return;
-    }
-
-    this.cleanupCommandRecognition();
-
-    try {
-      const recognition = new SpeechRecognition();
-      recognition.continuous = true;
-      recognition.interimResults = true;
-      recognition.lang = 'en-US';
-
-      // 8-second fallback timeout if user triggers wake-word and never says anything
-      this.noSpeechTimer = setTimeout(() => {
-        if (this.phase === 'LISTENING_FOR_COMMAND') {
-          if (!this.accumulatedCommandText.trim()) {
-            voiceLog("NO_SPEECH_TIMEOUT_STANDBY");
-            this.resetVoiceSession();
-          }
+    // Fallback timeout if user triggers wake word and says nothing for 8 seconds
+    this.noSpeechTimer = setTimeout(() => {
+      if (this.phase === 'LISTENING_FOR_COMMAND') {
+        if (!this.accumulatedCommandText.trim()) {
+          voiceLog("NO_SPEECH_TIMEOUT_STANDBY");
+          this.resetVoiceSession();
         }
-      }, 8000);
-
-      // Max command duration timeout
-      this.maxDurationTimer = setTimeout(() => {
-        if (this.phase === 'LISTENING_FOR_COMMAND') {
-          if (this.accumulatedCommandText.trim()) {
-            voiceLog("MAX_DURATION_EXCEEDED_FINALIZED");
-            this.commitCommand(this.accumulatedCommandText.trim());
-          } else {
-            this.resetVoiceSession();
-          }
-        }
-      }, VOICE_CONFIG.maxCommandDurationMs);
-
-      recognition.onresult = (event: any) => {
-        let interim = '';
-        let final = '';
-
-        for (let i = 0; i < event.results.length; i++) {
-          const item = event.results[i];
-          if (item.isFinal) {
-            final += item[0].transcript + ' ';
-          } else {
-            interim += item[0].transcript;
-          }
-        }
-
-        let combined = (final + interim).trim();
-        if (!combined && initialBuffer) {
-          combined = initialBuffer;
-        }
-
-        // Clean out leading wake word only
-        combined = combined.replace(/^(hey|ok|okay|yo|hi|hello)?\s*(jarvis|javis)\s*/i, '').trim();
-
-        this.accumulatedCommandText = combined;
-        this.liveInterimTranscript = combined;
-        this.lastDetectedTranscript = combined;
-        this.lastActivityAt = Date.now();
-
-        // Reset the no-speech timer since user is actively talking
-        if (this.noSpeechTimer) {
-          clearTimeout(this.noSpeechTimer);
-          this.noSpeechTimer = null;
-        }
-
-        // Clear existing silence timer
-        if (this.silenceTimer) {
-          clearTimeout(this.silenceTimer);
-          this.silenceTimer = null;
-        }
-
-        // When meaningful speech is present, start the silence countdown
-        if (combined.length > 1) {
-          this.silenceTimer = setTimeout(() => {
-            if (this.phase === 'LISTENING_FOR_COMMAND') {
-              const duration = this.commandStartedAt ? Date.now() - this.commandStartedAt : 0;
-              if (duration >= VOICE_CONFIG.minimumCommandDurationMs && this.accumulatedCommandText.trim()) {
-                voiceLog("SILENCE_FINALIZED_COMMAND", { command: this.accumulatedCommandText });
-                this.commitCommand(this.accumulatedCommandText.trim());
-              }
-            }
-          }, VOICE_CONFIG.commandSilenceTimeoutMs);
-        }
-
-        this.notifyTelemetry();
-      };
-
-      recognition.onerror = (e: any) => {
-        if (e.error === 'not-allowed' || e.error === 'service-not-allowed') {
-          this.lastError = 'Microphone access denied';
-          this.transitionTo('ERROR', 'Microphone permission error');
-          return;
-        }
-        if (e.error !== 'no-speech' && e.error !== 'aborted') {
-          voiceLog("COMMAND_LISTENER_NOTE", { error: e.error });
-        }
-      };
-
-      recognition.onend = () => {
-        if (this.phase === 'LISTENING_FOR_COMMAND') {
-          try {
-            recognition.start();
-          } catch (e) {}
-        }
-      };
-
-      try {
-        recognition.start();
-      } catch (e) {
-        voiceLog("COMMAND_RECOGNITION_ALREADY_ACTIVE");
       }
-      this.commandRecognition = recognition;
-    } catch (err: any) {
-      voiceLog("COMMAND_INIT_ERROR", { error: err?.message });
-      this.lastError = err?.message || 'Failed to initiate command stream';
-      this.transitionTo('ERROR', 'Command recognition failure');
-    }
+    }, 8000);
+
+    // Max command duration safety limit
+    this.maxDurationTimer = setTimeout(() => {
+      if (this.phase === 'LISTENING_FOR_COMMAND') {
+        if (this.accumulatedCommandText.trim()) {
+          voiceLog("MAX_DURATION_EXCEEDED_FINALIZED");
+          this.commitCommand(this.accumulatedCommandText.trim());
+        } else {
+          this.resetVoiceSession();
+        }
+      }
+    }, VOICE_CONFIG.maxCommandDurationMs);
   }
 
   public stopCommandListening(): void {
-    this.cleanupCommandRecognition();
     this.clearVoiceTimers();
+    if (this.desiredRecognitionMode === 'COMMAND') {
+      this.desiredRecognitionMode = this.isWakeWordEnabled ? 'WAKE_WORD' : 'NONE';
+    }
   }
 
   // --- 4. Command Commit & Processing ---
@@ -746,8 +766,8 @@ class JarvisVoiceEngine {
     }
 
     const sessionId = this.currentSessionId;
-    this.cleanupCommandRecognition();
     this.clearVoiceTimers();
+    this.desiredRecognitionMode = 'NONE';
 
     if (!this.transitionTo('PROCESSING_COMMAND', `Processing: "${textToProcess}"`)) {
       return;
@@ -766,11 +786,13 @@ class JarvisVoiceEngine {
   public speakResponse(text: string, onComplete?: () => void): void {
     if (typeof window === 'undefined' || !('speechSynthesis' in window)) {
       this.transitionTo('WAKE_WORD_LISTENING', 'TTS unavailable');
+      this.startWakeWordDetection();
       return;
     }
 
     const sessionId = this.currentSessionId;
-    this.cleanupAudioResources();
+    this.desiredRecognitionMode = 'NONE';
+    this.clearVoiceTimers();
 
     this.transitionTo('SPEAKING_RESPONSE', `Speaking: "${text.slice(0, 40)}..."`);
 
@@ -827,11 +849,13 @@ class JarvisVoiceEngine {
             }
           } catch (e) {}
 
-          // Continuous Conversational Listening:
-          // Once Jarvis finishes responding, continue listening for follow-up commands until user is done talking
+          // Conversational Follow-Up:
+          // Continue listening for follow-ups briefly, or revert to wake word mode
           setTimeout(() => {
             if (this.isSessionActive(sessionId)) {
               this.startCommandListening();
+            } else if (this.isWakeWordEnabled) {
+              this.startWakeWordDetection();
             }
           }, VOICE_CONFIG.acknowledgementGuardMs);
         }
@@ -848,8 +872,8 @@ class JarvisVoiceEngine {
             }
           } catch (err) {}
           setTimeout(() => {
-            if (this.isSessionActive(sessionId)) {
-              this.startCommandListening();
+            if (this.isWakeWordEnabled) {
+              this.startWakeWordDetection();
             }
           }, VOICE_CONFIG.acknowledgementGuardMs);
         }
@@ -873,14 +897,16 @@ class JarvisVoiceEngine {
   // --- Reset & Cleanup Helpers ---
   public resetVoiceSession(): void {
     voiceLog("RESET_VOICE_SESSION");
-    this.cleanupAudioResources();
     this.clearVoiceTimers();
     this.accumulatedCommandText = '';
     this.liveInterimTranscript = '';
     this.activeTool = null;
     this.lastError = null;
+    this.desiredRecognitionMode = this.isWakeWordEnabled ? 'WAKE_WORD' : 'NONE';
     this.transitionTo('WAKE_WORD_LISTENING', 'Voice session reset');
-    this.startWakeWordDetection();
+    if (this.isWakeWordEnabled) {
+      this.startWakeWordDetection();
+    }
   }
 
   public cancelCurrentAction(): void {
@@ -891,36 +917,19 @@ class JarvisVoiceEngine {
   }
 
   public cleanupAudioResources(): void {
-    this.cleanupWakeWordRecognition();
-    this.cleanupCommandRecognition();
-    if (this.mediaStream) {
-      this.mediaStream.getTracks().forEach((track) => track.stop());
-      this.mediaStream = null;
-    }
-  }
-
-  private cleanupWakeWordRecognition(): void {
-    if (this.wakeWordRecognition) {
+    this.clearVoiceTimers();
+    this.desiredRecognitionMode = 'NONE';
+    if (this.recognitionInstance) {
       try {
-        this.wakeWordRecognition.onend = null;
-        this.wakeWordRecognition.onerror = null;
-        this.wakeWordRecognition.onresult = null;
-        this.wakeWordRecognition.abort();
+        this.recognitionInstance.onend = null;
+        this.recognitionInstance.onerror = null;
+        this.recognitionInstance.onresult = null;
+        this.recognitionInstance.abort();
       } catch (e) {}
-      this.wakeWordRecognition = null;
+      this.recognitionInstance = null;
     }
-  }
-
-  private cleanupCommandRecognition(): void {
-    if (this.commandRecognition) {
-      try {
-        this.commandRecognition.onend = null;
-        this.commandRecognition.onerror = null;
-        this.commandRecognition.onresult = null;
-        this.commandRecognition.abort();
-      } catch (e) {}
-      this.commandRecognition = null;
-    }
+    this.isRecognitionActive = false;
+    this.isStartingRecognition = false;
   }
 
   public clearVoiceTimers(): void {
