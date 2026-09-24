@@ -12,16 +12,41 @@ export interface WakeWordVerificationResult {
   isEmbedded?: boolean;
 }
 
-const ALLOWED_PREAMBLES = ['hey', 'ok', 'okay', 'yo', 'hi', 'hello', 'listen', 'mr', 'mister', 'dear'];
+const ALLOWED_PREAMBLES = [
+  'hey', 'ok', 'okay', 'yo', 'hi', 'hello', 'listen', 'mr', 'mister', 
+  'dear', 'alright', 'so', 'please', 'sup', 'a', 'the', 'now'
+];
 
-const NEAR_MISS_WORDS = [
-  'harvest', 'service', 'travis', 'java', 'artists', 'target', 'drivers', 
-  'garbage', 'charlie', 'davis', 'jar', 'car', 'star', 'bars', 'hardest'
+// Phonetic close variants of "Jarvis" across diverse accents
+const PHONETIC_JARVIS_VARIANTS = [
+  'jarvis', 'javis', 'jervis', 'jarves', 'jarviz', 'jar-vis', 'jar vis', 
+  'jarviss', 'jarvas', 'jarbus', 'jarbes', 'charvis', 'djarvis', 'jahvis', 
+  'jarvys', 'jarvice'
+];
+
+// Direct phrase triggers that activate without needing "Jarvis" prefix
+const DIRECT_PHRASE_TRIGGERS = [
+  "let's lock in",
+  "lets lock in",
+  "lock in",
+  "batman mode",
+  "iron man mode",
+  "activate hud",
+  "start focus music",
+  "play focus music",
+  "focus music",
+  "wake up",
+  "hey buddy"
+];
+
+// Non-wake words / phonetic near-misses that should not activate in isolation
+const STRICT_NON_WAKE_WORDS = [
+  'harvest', 'service', 'travis', 'drivers', 'garbage', 'charlie', 
+  'target', 'hardest', 'star', 'java', 'artists', 'davis', 'cars'
 ];
 
 const EMBEDDED_CONTEXT_INDICATORS = [
-  'about', 'with', 'to', 'for', 'from', 'in', 'on', 'at', 'reading', 'told',
-  'saw', 'heard', 'called', 'named', 'said', 'thinks', 'was', 'is', 'like'
+  'about', 'with', 'reading', 'told', 'saw', 'heard', 'called', 'named'
 ];
 
 /**
@@ -53,7 +78,7 @@ function levenshteinDistance(a: string, b: string): number {
 }
 
 /**
- * Two-Pass Wake Word Phrase & Positional Verification Engine
+ * High-Accuracy, Multi-Accent Two-Pass Wake Word Phrase & Positional Verification Engine
  */
 export class WakeWordDetector {
   private static instance: WakeWordDetector;
@@ -84,7 +109,6 @@ export class WakeWordDetector {
       };
     }
 
-    // Tokenize words and normalize
     const clean = text.toLowerCase().replace(/[.,/#!$%^&*;:{}=\-_`~()?'"’]/g, ' ').replace(/\s+/g, ' ').trim();
     const words = clean.split(' ').filter(Boolean);
 
@@ -98,39 +122,52 @@ export class WakeWordDetector {
       };
     }
 
-    const targetWake = (voiceConfig.wakeWord || 'jarvis').toLowerCase();
+    // 0. Direct Phrase Activations (e.g. "let's lock in", "start focus music", "lock in")
+    for (const trigger of DIRECT_PHRASE_TRIGGERS) {
+      if (clean === trigger || clean.startsWith(trigger + ' ')) {
+        const trailing = clean.substring(trigger.length).trim();
+        return {
+          matched: true,
+          confidence: 0.99,
+          wakePhrase: trigger,
+          trailingCommand: trailing || trigger,
+        };
+      }
+    }
 
-    // 1. Check for Near-Miss Words
-    for (const word of words.slice(0, 3)) {
-      if (NEAR_MISS_WORDS.includes(word)) {
+    // 1. Check for Strict Near-Miss / Non-Wake Words (when used in first 2 tokens)
+    for (const word of words.slice(0, 2)) {
+      if (STRICT_NON_WAKE_WORDS.includes(word)) {
         return {
           matched: false,
           confidence: 0.25,
           wakePhrase: word,
           trailingCommand: '',
           isNearMiss: true,
-          rejectionReason: `NEAR_MISS_DETECTED: "${word}"`
+          rejectionReason: `STRICT_NON_WAKE_WORD: "${word}"`
         };
       }
     }
 
-    // 2. Locate the position of the wake word (or closest variant)
+    const targetWake = (voiceConfig.wakeWord || 'jarvis').toLowerCase();
+
+    // 2. Locate the position of the wake word (exact, phonetic, or fuzzy)
     let wakeIndex = -1;
     let wakeWordFound = '';
     let matchConfidence = 0;
 
     for (let i = 0; i < words.length; i++) {
       const word = words[i];
-      
-      // Exact match
-      if (word === targetWake || word === 'javis' || word === 'jarves') {
+
+      // Exact match with primary wake word or known phonetic variants
+      if (word === targetWake || PHONETIC_JARVIS_VARIANTS.includes(word)) {
         wakeIndex = i;
         wakeWordFound = word;
-        matchConfidence = 0.98;
+        matchConfidence = (word === targetWake || word === 'javis' || word === 'jarves') ? 0.98 : 0.92;
         break;
       }
 
-      // Fuzzy match (distance <= 1 for 6-letter word)
+      // Levenshtein fuzzy match
       const dist = levenshteinDistance(word, targetWake);
       if (dist === 1 && word.length >= 5) {
         wakeIndex = i;
@@ -152,7 +189,7 @@ export class WakeWordDetector {
     }
 
     // 3. Positional Constraint & Embedded Sentence Validation
-    // Wake word must be at index 0 (e.g. "Jarvis start timer") or index 1 with valid preamble (e.g. "Hey Jarvis start timer")
+    // Wake word must be within the first 3 tokens (e.g. "Jarvis ...", "Hey Jarvis ...", "Yo mr Jarvis ...")
     if (wakeIndex > 2) {
       return {
         matched: false,
@@ -164,17 +201,27 @@ export class WakeWordDetector {
       };
     }
 
-    // If wake word is at index 1 or 2, verify preceding words are allowed preambles (greetings/salutations)
+    // If wake word is preceded by words, check if they are allowed preambles
     if (wakeIndex > 0) {
       const precedingWords = words.slice(0, wakeIndex);
-      const allPrecedingAllowed = precedingWords.every(w => ALLOWED_PREAMBLES.includes(w));
+      const hasEmbeddedContext = precedingWords.some(w => EMBEDDED_CONTEXT_INDICATORS.includes(w));
       
-      if (!allPrecedingAllowed) {
-        // If preceding words contain embedded context markers (e.g. "about", "with", "reading")
-        const hasEmbeddedContext = precedingWords.some(w => EMBEDDED_CONTEXT_INDICATORS.includes(w));
+      if (hasEmbeddedContext) {
         return {
           matched: false,
-          confidence: hasEmbeddedContext ? 0.15 : 0.35,
+          confidence: 0.15,
+          wakePhrase: wakeWordFound,
+          trailingCommand: '',
+          isEmbedded: true,
+          rejectionReason: `EMBEDDED_CONTEXT_DETECTED: "${precedingWords.join(' ')}" before wake word`
+        };
+      }
+
+      const allPrecedingAllowed = precedingWords.every(w => ALLOWED_PREAMBLES.includes(w));
+      if (!allPrecedingAllowed) {
+        return {
+          matched: false,
+          confidence: 0.35,
           wakePhrase: wakeWordFound,
           trailingCommand: '',
           isEmbedded: true,
@@ -184,24 +231,25 @@ export class WakeWordDetector {
     }
 
     // 4. Extract Trailing Command (Pre-roll Command Preservation)
-    // Everything after the wake word is preserved as trailing command
     const wakePhraseTokens = words.slice(0, wakeIndex + 1);
     const wakePhrase = wakePhraseTokens.join(' ');
     const trailingTokens = words.slice(wakeIndex + 1);
     const trailingCommand = trailingTokens.join(' ').trim();
 
-    // Confidence adjustments based on context
     let finalConfidence = matchConfidence;
 
-    // Standalone wake word ("Jarvis", "Hey Jarvis") has highest confidence
+    // Standalone wake word ("Jarvis", "Hey Jarvis") has high confidence
     if (trailingTokens.length === 0) {
       finalConfidence = Math.min(1.0, finalConfidence + 0.02);
     } else {
-      // If trailing command starts with a verb or command starter, confidence remains high
       const firstCommandWord = trailingTokens[0];
-      const commandStarters = ['start', 'play', 'pause', 'stop', 'show', 'add', 'create', 'complete', 'delete', 'set', 'search', 'what', 'how', 'lock', 'unlock', 'open', 'close'];
+      const commandStarters = [
+        'start', 'play', 'pause', 'stop', 'show', 'add', 'create', 
+        'complete', 'delete', 'set', 'search', 'what', 'how', 'lock', 
+        'unlock', 'open', 'close', 'tell', 'convert', 'volume', 'next'
+      ];
       if (commandStarters.includes(firstCommandWord)) {
-        finalConfidence = Math.min(1.0, finalConfidence + 0.02);
+        finalConfidence = Math.min(1.0, finalConfidence + 0.05);
       }
     }
 
@@ -217,7 +265,7 @@ export class WakeWordDetector {
   }
 
   /**
-   * Temporal Stability Check: Verifies candidate stability across a temporal buffer window
+   * Temporal Stability Check
    */
   public verifyTemporalStability(candidateText: string): boolean {
     const now = Date.now();
