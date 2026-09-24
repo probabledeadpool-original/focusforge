@@ -14,7 +14,8 @@ export type BatmanIntroPhase =
   | 'blurring' 
   | 'blank_delay' 
   | 'animating_intro' 
-  | 'active';
+  | 'active'
+  | 'disengaging';
 
 export type BatmanActiveModule = 
   | 'voice_core' 
@@ -48,6 +49,7 @@ export const SPOT_ROOMS: SpotRoom[] = [
 interface BatmanStore {
   isBatmanMode: boolean;
   introPhase: BatmanIntroPhase;
+  isDisengaging: boolean;
   hudStatus: HudStatus;
   activeModule: BatmanActiveModule;
   targetFocus: string;
@@ -63,6 +65,7 @@ interface BatmanStore {
   
   // Actions
   setBatmanMode: (active: boolean) => void;
+  disengageBatmanMode: () => void;
   toggleBatmanMode: (active?: boolean) => void;
   setIntroPhase: (phase: BatmanIntroPhase) => void;
   setHudStatus: (status: HudStatus) => void;
@@ -84,6 +87,7 @@ interface BatmanStore {
 export const useBatmanStore = create<BatmanStore>((set, get) => ({
   isBatmanMode: false,
   introPhase: 'idle',
+  isDisengaging: false,
   hudStatus: 'STANDBY',
   activeModule: 'voice_core',
   targetFocus: 'DEEP WORK FOCUS DIRECTIVE // ALPHA',
@@ -99,25 +103,39 @@ export const useBatmanStore = create<BatmanStore>((set, get) => ({
 
   setBatmanMode: (active: boolean) => {
     if (active) {
-      // Begin 3-stage cinematic transition: Blurring -> Blank 2s -> Intro Animation -> Active
       set({
         isBatmanMode: true,
+        isDisengaging: false,
         introPhase: 'blurring',
         lockInStartTime: get().lockInStartTime || Date.now(),
         hudStatus: 'LOCKED_IN',
       });
     } else {
+      get().disengageBatmanMode();
+    }
+  },
+
+  disengageBatmanMode: () => {
+    if (!get().isBatmanMode) return;
+    set({ isDisengaging: true, introPhase: 'disengaging' });
+    
+    setTimeout(() => {
       set({
         isBatmanMode: false,
+        isDisengaging: false,
         introPhase: 'idle',
         hudStatus: 'STANDBY',
       });
-    }
+    }, 700);
   },
 
   toggleBatmanMode: (active?: boolean) => {
     const next = active !== undefined ? active : !get().isBatmanMode;
-    get().setBatmanMode(next);
+    if (next) {
+      get().setBatmanMode(true);
+    } else {
+      get().disengageBatmanMode();
+    }
   },
 
   setIntroPhase: (phase: BatmanIntroPhase) => set({ introPhase: phase }),
