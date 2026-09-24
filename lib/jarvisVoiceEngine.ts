@@ -43,12 +43,12 @@ export type VoiceEngineTelemetry = VoiceStateData;
 
 export const VOICE_CONFIG = {
   wakeWord: "jarvis",
-  wakeWordCooldownMs: 1200,
+  wakeWordCooldownMs: 1400,
   commandSilenceTimeoutMs: 1200,
   minimumCommandDurationMs: 250,
   minimumSpeechDurationMs: 200,
-  acknowledgementGuardMs: 250,
-  reconnectDelayMs: 40,
+  acknowledgementGuardMs: 750,
+  reconnectDelayMs: 60,
   maxCommandDurationMs: 60000
 };
 
@@ -80,18 +80,15 @@ function levenshteinDistance(a: string, b: string): number {
 
 const PHONETIC_JARVIS_STEMS = [
   'jarvis', 'javis', 'jarves', 'jarviz', 'jarvice', 'jarv', 'jervis',
-  'travis', 'service', 'harvest', 'starck', 'stark', 'friday',
-  'darvis', 'garvis', 'charvis', 'larvis', 'marvis', 'harvis',
-  'jarvez', 'jahvis', 'jahves', 'darvish', 'java', 'tarvis', 'arvis'
+  'darvis', 'charvis', 'larvis', 'harvis', 'jarvez', 'jahvis', 'jahves'
 ];
 
 // Default phonetic & natural speech variations of "Jarvis"
 const DEFAULT_HOTWORD_PATTERNS = [
-  /\b(hey|ok|okay|yo|hi|hello|listen|start|dear|mr|mister)?\s*(jarvis|javis|jarvises|jarves|jarviz|jar\s*vis|jar\s*vice|travis|service|harvest|starck|stark|charles|jervis|darvis|garvis|charvis|arvis|jarv|jrv|jav|java|jarvez|darvish|jahvis|jahves)\b/i,
+  /\b(hey|ok|okay|yo|hi|hello|listen|start|dear|mr|mister)?\s*(jarvis|javis|jarves|jarviz|jar\s*vis|jar\s*vice|jervis|darvis|charvis|jarvez|jahvis|jahves)\b/i,
   /\b(hey|ok|okay|yo|hi|hello)\s*jarvis\b/i,
   /\bjarvis\b/i,
   /\bjavis\b/i,
-  /\bjarv\b/i,
 ];
 
 function checkHotwordMatch(
@@ -109,7 +106,7 @@ function checkHotwordMatch(
     if (idx !== -1) {
       return fullText.slice(idx + matchedSegment.length).replace(/^[,\s:–-]+/, '').trim();
     }
-    return fullText.replace(/^(hey|ok|okay|yo|hi|hello)?\s*(jarvis|javis|jarv|travis|starck|friday)\s*/i, '').trim();
+    return fullText.replace(/^(hey|ok|okay|yo|hi|hello)?\s*(jarvis|javis|jarv|jervis)\s*/i, '').trim();
   };
 
   // 1. Direct Regex Patterns
@@ -123,7 +120,7 @@ function checkHotwordMatch(
 
   // 2. Direct inclusion of target wake word
   const target = (trainedWord || 'jarvis').toLowerCase().trim();
-  if (clean.includes(target)) {
+  if (target && clean.includes(target)) {
     return { matched: true, trailingText: extractTrailing(clean, target) };
   }
   if (clean.includes('jarvis')) {
@@ -133,7 +130,7 @@ function checkHotwordMatch(
     return { matched: true, trailingText: extractTrailing(clean, 'javis') };
   }
 
-  // 3. Word-by-Word Fuzzy & Phonetic Matching
+  // 3. Word-by-Word Fuzzy & Phonetic Matching (stricter to avoid triggering on music lyrics)
   const words = clean.replace(/[^a-z0-9\s]/gi, ' ').split(/\s+/).filter(Boolean);
   for (let i = 0; i < words.length; i++) {
     const word = words[i];
@@ -141,19 +138,17 @@ function checkHotwordMatch(
 
     if (PHONETIC_JARVIS_STEMS.includes(word)) {
       isWordMatch = true;
-    } else if (word.length >= 3) {
-      if (levenshteinDistance(word, 'jarvis') <= (highSensitivity ? 2 : 1)) isWordMatch = true;
-      else if (trainedWord && levenshteinDistance(word, target) <= (highSensitivity ? 2 : 1)) isWordMatch = true;
+    } else if (word.length >= 4) {
+      if (levenshteinDistance(word, 'jarvis') <= 1) isWordMatch = true;
+      else if (trainedWord && trainedWord.length >= 4 && levenshteinDistance(word, target) <= 1) isWordMatch = true;
     }
 
-    if (!isWordMatch && highSensitivity && word.length >= 3) {
+    if (!isWordMatch && highSensitivity && word.length >= 4) {
       if (
         word.startsWith('jarv') ||
-        word.startsWith('jav') ||
-        word.startsWith('jrv') ||
+        word.startsWith('javis') ||
         word.endsWith('arvis') ||
-        word.endsWith('ervis') ||
-        word.endsWith('avis')
+        word.endsWith('ervis')
       ) {
         isWordMatch = true;
       }
@@ -211,6 +206,12 @@ class JarvisVoiceEngine {
   private desiredRecognitionMode: 'NONE' | 'WAKE_WORD' | 'COMMAND' = 'NONE';
   private activeUtterance: SpeechSynthesisUtterance | null = null;
 
+  // Audio Ducking & Self-Speech Echo Cancellation
+  private isSpeakingTTS: boolean = false;
+  private lastSpokenText: string = '';
+  private lastSpokenTimestamp: number = 0;
+  private previousFrequencyVolume: number | null = null;
+
   // Timers
   private silenceTimer: NodeJS.Timeout | null = null;
   private noSpeechTimer: NodeJS.Timeout | null = null;
@@ -220,6 +221,35 @@ class JarvisVoiceEngine {
 
   private commandHandler: CommandHandler | null = null;
   private listeners: Set<StateChangeListener> = new Set();
+
+  private duckAudio(): void {
+    try {
+      if (typeof window !== 'undefined') {
+        const store = (window as any).__frequencyStore;
+        if (store && typeof store.getState === 'function') {
+          const state = store.getState();
+          if (state.isPlaying && state.volume > 0.15 && this.previousFrequencyVolume === null) {
+            this.previousFrequencyVolume = state.volume;
+            state.setVolume(Math.min(0.12, state.volume * 0.18));
+            voiceLog("AUDIO_DUCKED", { from: this.previousFrequencyVolume, to: 0.12 });
+          }
+        }
+      }
+    } catch (e) {}
+  }
+
+  private unduckAudio(): void {
+    try {
+      if (this.previousFrequencyVolume !== null && typeof window !== 'undefined') {
+        const store = (window as any).__frequencyStore;
+        if (store && typeof store.getState === 'function') {
+          store.getState().setVolume(this.previousFrequencyVolume);
+          voiceLog("AUDIO_UNDUCKED", { restored: this.previousFrequencyVolume });
+        }
+        this.previousFrequencyVolume = null;
+      }
+    } catch (e) {}
+  }
 
   private constructor() {
     if (typeof window !== 'undefined') {
@@ -534,8 +564,18 @@ class JarvisVoiceEngine {
   }
 
   private handleRecognitionResult(event: any): void {
-    // 1. Ignore incoming audio if Jarvis is currently speaking TTS to avoid self-triggering
-    if (this.phase === 'SPEAKING_RESPONSE' || this.phase === 'PROCESSING_COMMAND' || this.phase === 'EXECUTING_TOOL') {
+    // 1. Strict Echo Suppression: Ignore incoming audio if TTS is speaking in browser, or engine is speaking, or within reverberation drain window (850ms)
+    const isBrowserSpeaking = typeof window !== 'undefined' && 'speechSynthesis' in window && window.speechSynthesis.speaking;
+    const isDrainPeriod = Date.now() - this.lastSpokenTimestamp < 850;
+
+    if (
+      this.isSpeakingTTS ||
+      isBrowserSpeaking ||
+      isDrainPeriod ||
+      this.phase === 'SPEAKING_RESPONSE' ||
+      this.phase === 'PROCESSING_COMMAND' ||
+      this.phase === 'EXECUTING_TOOL'
+    ) {
       return;
     }
 
@@ -548,6 +588,16 @@ class JarvisVoiceEngine {
         for (let k = 0; k < item.length; k++) {
           const transcript = (item[k].transcript || '').trim();
           if (!transcript) continue;
+
+          // Ignore self-speech / recent assistant output echo
+          const cleanTranscript = transcript.toLowerCase();
+          if (this.lastSpokenText && (
+            (cleanTranscript.length > 4 && this.lastSpokenText.includes(cleanTranscript)) ||
+            (this.lastSpokenText.length > 4 && cleanTranscript.includes(this.lastSpokenText.slice(0, 30)))
+          )) {
+            voiceLog("SELF_VOICE_ECHO_FILTERED", { transcript });
+            continue;
+          }
 
           const { matched, trailingText } = checkHotwordMatch(
             transcript,
@@ -587,7 +637,17 @@ class JarvisVoiceEngine {
       let combined = (final + interim).trim();
 
       // Clean out leading wake words if present
-      combined = combined.replace(/^(hey|ok|okay|yo|hi|hello)?\s*(jarvis|javis|jarv|travis|starck|friday)\s*/i, '').trim();
+      combined = combined.replace(/^(hey|ok|okay|yo|hi|hello)?\s*(jarvis|javis|jarv|jervis)\s*/i, '').trim();
+
+      // Filter out self speech in active command mode
+      const cleanCombined = combined.toLowerCase();
+      if (this.lastSpokenText && cleanCombined.length > 5 && (
+        this.lastSpokenText.includes(cleanCombined) ||
+        cleanCombined.includes(this.lastSpokenText.slice(0, 30))
+      )) {
+        voiceLog("SELF_SPEECH_COMMAND_SUPPRESSED", { combined });
+        return;
+      }
 
       if (combined) {
         this.accumulatedCommandText = combined;
@@ -700,12 +760,13 @@ class JarvisVoiceEngine {
 
     this.clearVoiceTimers();
     this.desiredRecognitionMode = 'COMMAND';
+    this.duckAudio();
 
     const sessionId = existingSessionId || this.generateSessionId();
     this.currentSessionId = sessionId;
 
     const cleanInitial = (initialBuffer || '')
-      .replace(/^(hey|ok|okay|yo|hi|hello)?\s*(jarvis|javis|jarv|travis|starck|friday)\s*/i, '')
+      .replace(/^(hey|ok|okay|yo|hi|hello)?\s*(jarvis|javis|jarv|jervis)\s*/i, '')
       .trim();
 
     this.accumulatedCommandText = cleanInitial;
@@ -752,6 +813,7 @@ class JarvisVoiceEngine {
 
   public stopCommandListening(): void {
     this.clearVoiceTimers();
+    this.unduckAudio();
     if (this.desiredRecognitionMode === 'COMMAND') {
       this.desiredRecognitionMode = this.isWakeWordEnabled ? 'WAKE_WORD' : 'NONE';
     }
@@ -785,6 +847,7 @@ class JarvisVoiceEngine {
   // --- 5. Speaking Response State ---
   public speakResponse(text: string, onComplete?: () => void): void {
     if (typeof window === 'undefined' || !('speechSynthesis' in window)) {
+      this.unduckAudio();
       this.transitionTo('WAKE_WORD_LISTENING', 'TTS unavailable');
       this.startWakeWordDetection();
       return;
@@ -793,6 +856,11 @@ class JarvisVoiceEngine {
     const sessionId = this.currentSessionId;
     this.desiredRecognitionMode = 'NONE';
     this.clearVoiceTimers();
+
+    // Explicitly abort recognition instance to prevent buffer collection during speech
+    this.cleanupAudioResources();
+    this.isSpeakingTTS = true;
+    this.duckAudio();
 
     this.transitionTo('SPEAKING_RESPONSE', `Speaking: "${text.slice(0, 40)}..."`);
 
@@ -812,11 +880,16 @@ class JarvisVoiceEngine {
         .trim();
 
       if (!cleanText) {
+        this.isSpeakingTTS = false;
+        this.unduckAudio();
         this.transitionTo('WAKE_WORD_LISTENING', 'Empty speech text');
         if (onComplete) onComplete();
         this.startWakeWordDetection();
         return;
       }
+
+      this.lastSpokenText = cleanText.toLowerCase();
+      this.lastSpokenTimestamp = Date.now();
 
       const utterance = new SpeechSynthesisUtterance(cleanText);
       utterance.rate = 1.05;
@@ -836,7 +909,15 @@ class JarvisVoiceEngine {
 
       if (preferred) utterance.voice = preferred;
 
+      utterance.onstart = () => {
+        this.isSpeakingTTS = true;
+      };
+
       utterance.onend = () => {
+        this.isSpeakingTTS = false;
+        this.lastSpokenTimestamp = Date.now();
+        this.unduckAudio();
+
         if (this.isSessionActive(sessionId)) {
           voiceLog("TTS_PLAYBACK_FINISHED");
           this.activeUtterance = null;
@@ -850,7 +931,7 @@ class JarvisVoiceEngine {
           } catch (e) {}
 
           // Conversational Follow-Up:
-          // Continue listening for follow-ups briefly, or revert to wake word mode
+          // Wait for reverberation drain before resuming recognition
           setTimeout(() => {
             if (this.isSessionActive(sessionId)) {
               this.startCommandListening();
@@ -862,6 +943,10 @@ class JarvisVoiceEngine {
       };
 
       utterance.onerror = (e) => {
+        this.isSpeakingTTS = false;
+        this.lastSpokenTimestamp = Date.now();
+        this.unduckAudio();
+
         voiceLog("TTS_PLAYBACK_NOTE", { error: e });
         if (this.isSessionActive(sessionId)) {
           this.activeUtterance = null;
@@ -888,6 +973,8 @@ class JarvisVoiceEngine {
 
       window.speechSynthesis.speak(utterance);
     } catch (e: any) {
+      this.isSpeakingTTS = false;
+      this.unduckAudio();
       voiceLog("TTS_SYNTHESIS_ERROR", { error: e?.message });
       this.transitionTo('WAKE_WORD_LISTENING', 'TTS execution error');
       this.startWakeWordDetection();
@@ -898,6 +985,8 @@ class JarvisVoiceEngine {
   public resetVoiceSession(): void {
     voiceLog("RESET_VOICE_SESSION");
     this.clearVoiceTimers();
+    this.isSpeakingTTS = false;
+    this.unduckAudio();
     this.accumulatedCommandText = '';
     this.liveInterimTranscript = '';
     this.activeTool = null;

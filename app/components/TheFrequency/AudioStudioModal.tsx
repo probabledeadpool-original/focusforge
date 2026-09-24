@@ -80,6 +80,22 @@ export default function AudioStudioModal() {
   const [visualizerBands, setVisualizerBands] = useState<number[]>(new Array(24).fill(0.1));
   const animRef = useRef<number | null>(null);
 
+  // Listen for open-audio-studio window event from QuickSettings or other panels
+  useEffect(() => {
+    const handleOpenStudio = (e: Event) => {
+      const customEvent = e as CustomEvent<{ tab?: 'dsp' | 'lighting' }>;
+      if (customEvent.detail?.tab) {
+        setActiveTab(customEvent.detail.tab);
+      }
+      store.setStudioOpen(true);
+    };
+
+    window.addEventListener('open-audio-studio', handleOpenStudio);
+    return () => {
+      window.removeEventListener('open-audio-studio', handleOpenStudio);
+    };
+  }, [store]);
+
   // Live 24-Band Visualizer Animation Loop
   useEffect(() => {
     if (!store.isStudioOpen) return;

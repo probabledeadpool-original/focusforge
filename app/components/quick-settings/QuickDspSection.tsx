@@ -6,6 +6,7 @@ import { Activity } from 'lucide-react';
 interface QuickDspSectionProps {
   audioPreset: string;
   onSetAudioPreset: (preset: any) => void;
+  onOpenStudio?: () => void;
 }
 
 const DSP_PRESETS = [
@@ -18,7 +19,8 @@ const DSP_PRESETS = [
 
 export const QuickDspSection: React.FC<QuickDspSectionProps> = ({
   audioPreset,
-  onSetAudioPreset
+  onSetAudioPreset,
+  onOpenStudio
 }) => {
   return (
     <div className="p-3.5 rounded-2xl bg-white/[0.04] border border-white/10 hover:border-white/20 transition-all backdrop-blur-2xl space-y-2.5 shadow-lg">
@@ -32,21 +34,33 @@ export const QuickDspSection: React.FC<QuickDspSectionProps> = ({
           </span>
         </div>
         
-        <span
-          className={`text-[10px] font-mono font-bold px-2 py-0.5 rounded-md border uppercase tracking-wider ${
-            audioPreset === 'immersive'
-              ? 'text-purple-300 bg-purple-500/15 border-purple-500/30'
-              : audioPreset === 'bass-titan'
-              ? 'text-amber-300 bg-amber-500/15 border-amber-500/30'
-              : audioPreset === 'vocal-air'
-              ? 'text-emerald-300 bg-emerald-500/15 border-emerald-500/30'
-              : audioPreset === 'enhanced'
-              ? 'text-cyan-300 bg-cyan-500/15 border-cyan-500/30'
-              : 'text-white/40 bg-white/5 border-white/10'
-          }`}
-        >
-          {audioPreset}
-        </span>
+        <div className="flex items-center gap-2">
+          {onOpenStudio && (
+            <button
+              type="button"
+              onClick={onOpenStudio}
+              className="px-2.5 py-1 rounded-xl bg-white/10 hover:bg-white/15 text-white text-[9px] font-mono uppercase tracking-wider border border-white/10 cursor-pointer transition-all focus:outline-none focus:ring-1 focus:ring-cyan-500/50"
+            >
+              Studio Pro
+            </button>
+          )}
+
+          <span
+            className={`text-[10px] font-mono font-bold px-2 py-0.5 rounded-md border uppercase tracking-wider ${
+              audioPreset === 'immersive'
+                ? 'text-purple-300 bg-purple-500/15 border-purple-500/30'
+                : audioPreset === 'bass-titan'
+                ? 'text-amber-300 bg-amber-500/15 border-amber-500/30'
+                : audioPreset === 'vocal-air'
+                ? 'text-emerald-300 bg-emerald-500/15 border-emerald-500/30'
+                : audioPreset === 'enhanced'
+                ? 'text-cyan-300 bg-cyan-500/15 border-cyan-500/30'
+                : 'text-white/40 bg-white/5 border-white/10'
+            }`}
+          >
+            {audioPreset}
+          </span>
+        </div>
       </div>
 
       {/* 5 DSP Modes */}

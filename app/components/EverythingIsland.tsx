@@ -1794,38 +1794,52 @@ Answer directly, clearly, and concisely in normal natural language. Provide dire
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               transition={{ duration: 0.15 }}
-              className={`w-full h-full flex ${isIslandMusicExpanded ? 'flex-col justify-between p-6' : 'items-center justify-between px-4'}`}
+              className={`w-full h-full flex ${isIslandMusicExpanded ? 'flex-col justify-between p-6' : 'items-center justify-between px-3.5'}`}
             >
               {isIslandMusicExpanded ? (
                 <>
                   {/* Top Bar: Art and Info */}
                   <div className="flex items-center gap-4">
                     <div className="w-16 h-16 rounded-2xl overflow-hidden shrink-0 border border-white/10 shadow-2xl">
-                      <img src={frequencyStore.getCurrentTrack()?.thumbnail} className="w-full h-full object-cover" alt="" />
+                      <img src={frequencyStore.getCurrentTrack()?.thumbnail || "https://picsum.photos/400"} className="w-full h-full object-cover" alt="" />
                     </div>
                     <div className="flex flex-col min-w-0 flex-1">
-                      <span className="text-lg font-bold text-white/90 truncate">{frequencyStore.getCurrentTrack()?.title}</span>
-                      <span className="text-sm text-white/40 truncate">{frequencyStore.getCurrentTrack()?.artist}</span>
+                      <span className="text-lg font-bold text-white/90 truncate">{frequencyStore.getCurrentTrack()?.title || "Focus Soundscape"}</span>
+                      <span className="text-sm text-white/40 truncate">{frequencyStore.getCurrentTrack()?.artist || "The Frequency"}</span>
                     </div>
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-1.5">
+                      <button 
+                        onClick={(e) => { e.stopPropagation(); setIslandState('ai'); }}
+                        className="w-8 h-8 rounded-full bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-300 border border-cyan-500/20 flex items-center justify-center transition-all"
+                        title="Open AI Copilot"
+                      >
+                        <Bot size={14} />
+                      </button>
                       <button 
                         onClick={(e) => { e.stopPropagation(); setIslandState('search'); }}
                         className="w-8 h-8 rounded-full bg-white/5 hover:bg-white/10 flex items-center justify-center text-white/60 hover:text-white transition-all animate-pulse"
-                        title="Search Portal"
+                        title="Search Portal (/g, /yt, /wiki)"
                       >
                         <Search size={14} />
                       </button>
                       <button 
                         onClick={(e) => { e.stopPropagation(); setIslandState('shelf'); }}
                         className="w-8 h-8 rounded-full bg-white/5 hover:bg-white/10 flex items-center justify-center text-white/60 hover:text-white transition-all"
-                        title="Open Shelf Dashboard"
+                        title="Open Shelf (Notes, Tasks, Market, Weather)"
                       >
                         <Activity size={14} />
                       </button>
                       <button 
+                        onClick={(e) => { e.stopPropagation(); setIslandState('settings'); }}
+                        className="w-8 h-8 rounded-full bg-white/5 hover:bg-white/10 flex items-center justify-center text-white/60 hover:text-white transition-all"
+                        title="Quick Settings"
+                      >
+                        <SlidersHorizontal size={13} />
+                      </button>
+                      <button 
                         onClick={(e) => { e.stopPropagation(); setIsIslandMusicExpanded(false); }}
                         className="w-8 h-8 rounded-full bg-white/5 hover:bg-white/10 flex items-center justify-center text-white/60 hover:text-white transition-all"
-                        title="Collapse"
+                        title="Collapse to Pill"
                       >
                         <X size={14} />
                       </button>
@@ -1833,11 +1847,22 @@ Answer directly, clearly, and concisely in normal natural language. Provide dire
                   </div>
 
                   {/* Progress Bar */}
-                  <div className="space-y-1">
-                    <div className="h-1 bg-white/5 rounded-full overflow-hidden cursor-pointer">
-                      <div className="h-full bg-purple-500 transition-all duration-300" style={{ width: frequencyStore.duration > 0 ? `${Math.min(100, Math.max(0, (frequencyStore.currentTime / frequencyStore.duration) * 100))}%` : '0%' }} />
+                  <div className="space-y-1 my-2">
+                    <div 
+                      className="h-1.5 bg-white/10 rounded-full overflow-hidden cursor-pointer"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        const rect = e.currentTarget.getBoundingClientRect();
+                        const clickX = e.clientX - rect.left;
+                        const pct = Math.max(0, Math.min(1, clickX / rect.width));
+                        if (frequencyStore.duration > 0) {
+                          frequencyStore.seek(pct * frequencyStore.duration);
+                        }
+                      }}
+                    >
+                      <div className="h-full bg-purple-500 transition-all duration-150" style={{ width: frequencyStore.duration > 0 ? `${Math.min(100, Math.max(0, (frequencyStore.currentTime / frequencyStore.duration) * 100))}%` : '0%' }} />
                     </div>
-                    <div className="flex justify-between text-[10px] font-mono text-white/20">
+                    <div className="flex justify-between text-[10px] font-mono text-white/30">
                       <span>{formatTime(frequencyStore.currentTime)}</span>
                       <span>{formatTime(frequencyStore.duration)}</span>
                     </div>
@@ -1852,8 +1877,8 @@ Answer directly, clearly, and concisely in normal natural language. Provide dire
                       <button onClick={(e) => { e.stopPropagation(); frequencyStore.previous(); }} className="text-white/40 hover:text-white transition-colors">
                         <SkipBack size={20} fill="currentColor" />
                       </button>
-                      <button onClick={(e) => { e.stopPropagation(); frequencyStore.togglePlay(); }} className="w-12 h-12 rounded-full bg-white text-black flex items-center justify-center hover:scale-105 transition-transform">
-                        {frequencyStore.isPlaying ? <Pause size={24} fill="black" /> : <Play size={24} fill="black" className="ml-0.5" />}
+                      <button onClick={(e) => { e.stopPropagation(); frequencyStore.togglePlay(); }} className="w-12 h-12 rounded-full bg-white text-black flex items-center justify-center hover:scale-105 transition-transform shadow-lg">
+                        {frequencyStore.isPlaying ? <Pause size={22} fill="black" /> : <Play size={22} fill="black" className="ml-0.5" />}
                       </button>
                       <button onClick={(e) => { e.stopPropagation(); frequencyStore.next(); }} className="text-white/40 hover:text-white transition-colors">
                         <SkipForward size={20} fill="currentColor" />
@@ -1866,48 +1891,93 @@ Answer directly, clearly, and concisely in normal natural language. Provide dire
                 </>
               ) : (
                 <>
-                  <div className="flex items-center gap-3">
-                    <div className="w-8 h-8 rounded-full overflow-hidden shrink-0 border border-white/10">
-                      <img src={frequencyStore.getCurrentTrack()?.thumbnail} className="w-full h-full object-cover" alt="" />
+                  {/* Collapsed Pill Mode */}
+                  <div 
+                    className="flex items-center gap-2.5 cursor-pointer min-w-0 flex-1 group/track"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setIsIslandMusicExpanded(true);
+                    }}
+                    title="Click to expand player"
+                  >
+                    <div className="w-7 h-7 rounded-full overflow-hidden shrink-0 border border-white/15 relative shadow-sm">
+                      <img src={frequencyStore.getCurrentTrack()?.thumbnail || "https://picsum.photos/100"} className="w-full h-full object-cover" alt="" />
+                      <div className="absolute inset-0 bg-black/20 group-hover/track:bg-black/0 transition-colors" />
                     </div>
                     <div className="flex flex-col min-w-0">
-                      <span className="text-xs font-bold text-white/90 truncate max-w-[150px]">{frequencyStore.getCurrentTrack()?.title}</span>
-                      <span className="text-[10px] text-white/40 truncate max-w-[150px]">{frequencyStore.getCurrentTrack()?.artist}</span>
+                      <span className="text-xs font-bold text-white/90 truncate max-w-[130px] group-hover/track:text-purple-300 transition-colors">
+                        {frequencyStore.getCurrentTrack()?.title || "Playing"}
+                      </span>
+                      <span className="text-[9px] text-white/40 truncate max-w-[130px]">
+                        {frequencyStore.getCurrentTrack()?.artist || "The Frequency"}
+                      </span>
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-3">
+                  <div className="flex items-center gap-1.5 shrink-0">
+                    {/* Live Voice Button */}
+                    <button 
+                      onClick={(e) => { e.stopPropagation(); useJarvisStore.getState().startLiveMode(); }} 
+                      className="w-6 h-6 rounded-full flex items-center justify-center transition-all bg-cyan-500/20 hover:bg-cyan-400 text-cyan-300 hover:text-black border border-cyan-400/40 relative shadow-sm"
+                      title="Live Voice AI (Shift+L)"
+                    >
+                      <Radio size={11} className="animate-pulse" />
+                    </button>
+
+                    {/* AI Copilot Button */}
+                    <button 
+                      onClick={(e) => { e.stopPropagation(); setIslandState('ai'); }}
+                      className="w-6 h-6 rounded-full flex items-center justify-center transition-all text-white/50 hover:text-white hover:bg-white/10"
+                      title="Ask AI Copilot"
+                    >
+                      <Sparkles size={12} />
+                    </button>
+
+                    {/* Search Portal Button */}
                     <button 
                       onClick={(e) => { e.stopPropagation(); setIslandState('search'); }}
-                      className="text-white/50 hover:text-white transition-colors"
-                      title="Search Portal"
+                      className="w-6 h-6 rounded-full flex items-center justify-center transition-all text-white/50 hover:text-white hover:bg-white/10"
+                      title="Search Portal (/yt, /g, web)"
                     >
-                      <Search size={14} />
+                      <Search size={12} />
                     </button>
+
+                    {/* Shelf Hub Button */}
                     <button 
                       onClick={(e) => { e.stopPropagation(); setIslandState('shelf'); }}
-                      className="text-white/50 hover:text-white transition-colors"
-                      title="Open Shelf Dashboard"
+                      className="w-6 h-6 rounded-full flex items-center justify-center transition-all text-white/50 hover:text-white hover:bg-white/10"
+                      title="Shelf (Notes, Tasks, Weather)"
                     >
-                      <Activity size={14} />
+                      <Activity size={12} />
                     </button>
-                    <div className="w-[1px] h-3 bg-white/10 mx-1" />
-                    <button onClick={(e) => { e.stopPropagation(); frequencyStore.togglePlay(); }} className="text-white/70 hover:text-white transition-colors">
-                      {frequencyStore.isPlaying ? <Pause size={16} fill="white" /> : <Play size={16} fill="white" />}
-                    </button>
-                    <button onClick={(e) => { e.stopPropagation(); frequencyStore.next(); }} className="text-white/70 hover:text-white transition-colors">
-                      <SkipForward size={16} />
-                    </button>
-                    {frequencyStore.getCurrentTrack() && (
-                      <button onClick={(e) => { e.stopPropagation(); frequencyStore.setExpanded(true); }} className="text-white/70 hover:text-white transition-colors" title="Open full-screen player">
-                        <Maximize2 size={16} />
-                      </button>
-                    )}
+
+                    {/* Quick Settings Button */}
                     <button 
-                      onClick={(e) => { e.stopPropagation(); window.dispatchEvent(new CustomEvent('changeView', { detail: { view: 'place' } })); }} 
-                      className="text-white/30 hover:text-white transition-colors ml-1"
+                      onClick={(e) => { e.stopPropagation(); setIslandState('settings'); }} 
+                      className="w-6 h-6 rounded-full flex items-center justify-center transition-all text-white/50 hover:text-white hover:bg-white/10"
+                      title="Quick Settings (Ctrl+,)"
                     >
-                      <ArrowUp size={14} />
+                      <SlidersHorizontal size={12} strokeWidth={1.5} />
+                    </button>
+
+                    <div className="w-[1px] h-3 bg-white/10 mx-0.5" />
+
+                    {/* Play/Pause */}
+                    <button 
+                      onClick={(e) => { e.stopPropagation(); frequencyStore.togglePlay(); }} 
+                      className="w-6 h-6 rounded-full flex items-center justify-center text-white/80 hover:text-white hover:bg-white/10 transition-colors"
+                      title={frequencyStore.isPlaying ? "Pause" : "Play"}
+                    >
+                      {frequencyStore.isPlaying ? <Pause size={13} fill="currentColor" /> : <Play size={13} fill="currentColor" className="ml-0.5" />}
+                    </button>
+
+                    {/* Skip */}
+                    <button 
+                      onClick={(e) => { e.stopPropagation(); frequencyStore.next(); }} 
+                      className="w-6 h-6 rounded-full flex items-center justify-center text-white/60 hover:text-white hover:bg-white/10 transition-colors"
+                      title="Next track"
+                    >
+                      <SkipForward size={13} />
                     </button>
                   </div>
                 </>
@@ -2351,7 +2421,8 @@ Answer directly, clearly, and concisely in normal natural language. Provide dire
                   { id: 'notes', label: 'Notes' },
                   { id: 'tasks', label: 'Tasks' },
                   { id: 'market', label: 'Market' },
-                  { id: 'weather', label: 'Weather' }
+                  { id: 'weather', label: 'Weather' },
+                  { id: 'media', label: 'Media' }
                 ].map(tab => (
                   <button 
                     key={tab.id}
@@ -2463,6 +2534,70 @@ Answer directly, clearly, and concisely in normal natural language. Provide dire
                     ) : (
                       <div className="text-white/40 text-sm font-medium">Telemetry unavailable.</div>
                     )}
+                  </div>
+                )}
+
+                {activeTab === 'media' && (
+                  <div className="bg-white/5 border border-white/10 rounded-2xl p-4 flex flex-col justify-between h-[200px] relative overflow-hidden" onClick={(e) => e.stopPropagation()}>
+                    <div className="flex items-center gap-3">
+                      <div className="w-12 h-12 rounded-xl overflow-hidden border border-white/10 shrink-0 shadow-md">
+                        <img src={frequencyStore.getCurrentTrack()?.thumbnail || "https://picsum.photos/200"} alt="" className="w-full h-full object-cover" />
+                      </div>
+                      <div className="flex flex-col min-w-0 flex-1">
+                        <span className="text-sm font-bold text-white truncate">
+                          {frequencyStore.getCurrentTrack()?.title || "No track playing"}
+                        </span>
+                        <span className="text-xs text-white/40 truncate">
+                          {frequencyStore.getCurrentTrack()?.artist || "Open The Frequency to stream"}
+                        </span>
+                      </div>
+                      <button
+                        onClick={() => {
+                          window.dispatchEvent(new CustomEvent('changeView', { detail: { view: 'frequency' } }));
+                          setIslandState('mini');
+                        }}
+                        className="px-2.5 py-1 rounded-lg bg-white/10 hover:bg-white text-white hover:text-black text-[10px] font-mono font-bold uppercase transition-all"
+                      >
+                        Studio
+                      </button>
+                    </div>
+
+                    <div className="space-y-1 my-1">
+                      <div 
+                        className="h-1 bg-white/10 rounded-full overflow-hidden cursor-pointer"
+                        onClick={(e) => {
+                          const rect = e.currentTarget.getBoundingClientRect();
+                          const pct = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+                          if (frequencyStore.duration > 0) frequencyStore.seek(pct * frequencyStore.duration);
+                        }}
+                      >
+                        <div className="h-full bg-purple-400 transition-all duration-150" style={{ width: frequencyStore.duration > 0 ? `${(frequencyStore.currentTime / frequencyStore.duration) * 100}%` : '0%' }} />
+                      </div>
+                      <div className="flex justify-between text-[9px] font-mono text-white/30">
+                        <span>{formatTime(frequencyStore.currentTime)}</span>
+                        <span>{formatTime(frequencyStore.duration)}</span>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center justify-between pt-1">
+                      <button onClick={() => frequencyStore.toggleShuffle()} className={`text-xs ${frequencyStore.shuffle ? 'text-purple-400' : 'text-white/30 hover:text-white'}`}>
+                        <Shuffle size={14} />
+                      </button>
+                      <div className="flex items-center gap-4">
+                        <button onClick={() => frequencyStore.previous()} className="text-white/50 hover:text-white">
+                          <SkipBack size={16} fill="currentColor" />
+                        </button>
+                        <button onClick={() => frequencyStore.togglePlay()} className="w-9 h-9 rounded-full bg-white text-black flex items-center justify-center hover:scale-105 transition-transform shadow-md">
+                          {frequencyStore.isPlaying ? <Pause size={16} fill="black" /> : <Play size={16} fill="black" className="ml-0.5" />}
+                        </button>
+                        <button onClick={() => frequencyStore.next()} className="text-white/50 hover:text-white">
+                          <SkipForward size={16} fill="currentColor" />
+                        </button>
+                      </div>
+                      <button onClick={() => frequencyStore.cycleRepeat()} className={`text-xs ${frequencyStore.repeat !== 'none' ? 'text-purple-400' : 'text-white/30 hover:text-white'}`}>
+                        {frequencyStore.repeat === 'one' ? <Repeat1 size={14} /> : <Repeat size={14} />}
+                      </button>
+                    </div>
                   </div>
                 )}
 

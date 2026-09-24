@@ -489,7 +489,8 @@ export const QuickSettingsPanel: React.FC<QuickSettingsPanelProps> = ({
           onSetColorSource={(src) => frequencyStore.setEdgeLightingColorSource(src)}
           onSetMode={(m) => frequencyStore.setEdgeLightingMode(m)}
           onOpenStudio={() => {
-            window.dispatchEvent(new CustomEvent('open-audio-studio'));
+            frequencyStore.setStudioOpen(true);
+            window.dispatchEvent(new CustomEvent('open-audio-studio', { detail: { tab: 'lighting' } }));
             onClose();
           }}
         />
@@ -498,6 +499,11 @@ export const QuickSettingsPanel: React.FC<QuickSettingsPanelProps> = ({
         <QuickDspSection
           audioPreset={frequencyStore.audioPreset}
           onSetAudioPreset={(p: AudioEnhancementPreset) => frequencyStore.setAudioPreset(p)}
+          onOpenStudio={() => {
+            frequencyStore.setStudioOpen(true);
+            window.dispatchEvent(new CustomEvent('open-audio-studio', { detail: { tab: 'dsp' } }));
+            onClose();
+          }}
         />
 
         {/* 8. COGNITIVE AI MODEL SELECTOR */}

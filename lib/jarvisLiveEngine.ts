@@ -182,6 +182,36 @@ class JarvisLiveEngine {
   private silenceTimer: NodeJS.Timeout | null = null;
   private speechBuffer: string = '';
   private isWebSocketActive: boolean = false;
+  private lastSpeechTimestamp: number = 0;
+  private lastSpeechText: string = '';
+  private previousFrequencyVolume: number | null = null;
+
+  private duckAudio(): void {
+    try {
+      if (typeof window !== 'undefined') {
+        const store = (window as any).__frequencyStore;
+        if (store && typeof store.getState === 'function') {
+          const state = store.getState();
+          if (state.isPlaying && state.volume > 0.15 && this.previousFrequencyVolume === null) {
+            this.previousFrequencyVolume = state.volume;
+            state.setVolume(Math.min(0.12, state.volume * 0.18));
+          }
+        }
+      }
+    } catch (e) {}
+  }
+
+  private unduckAudio(): void {
+    try {
+      if (this.previousFrequencyVolume !== null && typeof window !== 'undefined') {
+        const store = (window as any).__frequencyStore;
+        if (store && typeof store.getState === 'function') {
+          store.getState().setVolume(this.previousFrequencyVolume);
+        }
+        this.previousFrequencyVolume = null;
+      }
+    } catch (e) {}
+  }
 
   private constructor() {
     if (typeof window !== 'undefined') {
@@ -672,6 +702,14 @@ class JarvisLiveEngine {
       recognition.onresult = (event: any) => {
         if (this.currentSessionId !== sessionId || this.isMuted) return;
 
+        // Echo Suppression: Ignore incoming audio if TTS is currently speaking or in reverberation drain window (850ms)
+        const isBrowserSpeaking = typeof window !== 'undefined' && 'speechSynthesis' in window && window.speechSynthesis.speaking;
+        const isDrainPeriod = Date.now() - this.lastSpeechTimestamp < 850;
+
+        if (this.phase === 'LIVE_SPEAKING' || isBrowserSpeaking || isDrainPeriod) {
+          return;
+        }
+
         let interim = '';
         let final = '';
 
@@ -687,9 +725,13 @@ class JarvisLiveEngine {
         const combined = (final + interim).trim();
         if (!combined) return;
 
-        // If Jarvis is currently speaking and user speaks, barge in immediately
-        if (this.phase === 'LIVE_SPEAKING') {
-          this.handleBargeIn(sessionId, 'speech_interruption');
+        // Filter out self-speech echo matching last spoken model response
+        const cleanCombined = combined.toLowerCase();
+        if (this.lastSpeechText && cleanCombined.length > 5 && (
+          this.lastSpeechText.includes(cleanCombined) ||
+          cleanCombined.includes(this.lastSpeechText.slice(0, 30))
+        )) {
+          return;
         }
 
         this.speechBuffer = combined;
@@ -719,7 +761,7 @@ class JarvisLiveEngine {
       };
 
       recognition.onend = () => {
-        if (this.currentSessionId === sessionId && this.phase !== 'EXITING_LIVE' && this.phase !== 'IDLE') {
+        if (this.currentSessionId === sessionId && this.phase !== 'EXITING_LIVE' && this.phase !== 'IDLE' && this.phase !== 'LIVE_SPEAKING') {
           try { recognition.start(); } catch (e) {}
         }
       };
@@ -829,6 +871,7 @@ class JarvisLiveEngine {
 
   private speakAudioResponse(text: string, sessionId: string): void {
     if (typeof window === 'undefined' || !('speechSynthesis' in window)) {
+      this.unduckAudio();
       this.transitionTo('LIVE_LISTENING', 'Speech complete');
       return;
     }
@@ -837,6 +880,14 @@ class JarvisLiveEngine {
       window.speechSynthesis.cancel();
       if (window.speechSynthesis.paused) {
         window.speechSynthesis.resume();
+      }
+
+      this.lastSpeechText = text.toLowerCase();
+      this.lastSpeechTimestamp = Date.now();
+      this.duckAudio();
+
+      if (this.speechRecognition) {
+        try { this.speechRecognition.abort(); } catch(e){}
       }
 
       const utterance = new SpeechSynthesisUtterance(text);
@@ -864,19 +915,36 @@ class JarvisLiveEngine {
 
       utterance.onend = () => {
         if (this.currentSessionId !== sessionId) return;
+        this.lastSpeechTimestamp = Date.now();
+        this.unduckAudio();
         this.currentTurn = 'user';
         this.transitionTo('LIVE_LISTENING', 'Jarvis finished speaking');
+
+        setTimeout(() => {
+          if (this.currentSessionId === sessionId && this.phase === 'LIVE_LISTENING') {
+            this.initContinuousSpeechRecognition(sessionId);
+          }
+        }, 700);
       };
 
       utterance.onerror = (e) => {
         if (this.currentSessionId !== sessionId) return;
+        this.lastSpeechTimestamp = Date.now();
+        this.unduckAudio();
         console.warn('[JarvisLiveEngine] Speech synthesis note:', e);
         this.currentTurn = 'user';
         this.transitionTo('LIVE_LISTENING', 'Speech fallback');
+
+        setTimeout(() => {
+          if (this.currentSessionId === sessionId) {
+            this.initContinuousSpeechRecognition(sessionId);
+          }
+        }, 700);
       };
 
       window.speechSynthesis.speak(utterance);
     } catch (e) {
+      this.unduckAudio();
       this.transitionTo('LIVE_LISTENING', 'Speech exception');
     }
   }

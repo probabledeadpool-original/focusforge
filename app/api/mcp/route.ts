@@ -46,27 +46,18 @@ function auditLog(requestId: string, user: string, action: string, metadata: any
 }
 
 // ---------------------------------------------------------------------------
-// Authentication Helper
+// Authentication Helper (Open Access by Default)
 // ---------------------------------------------------------------------------
-function authenticateRequest(request: Request): { authenticated: boolean; user?: string; error?: string } {
+function authenticateRequest(request: Request): { authenticated: boolean; user: string } {
   const authHeader = request.headers.get('Authorization') || '';
-  const expectedToken = process.env.MCP_AUTH_TOKEN || 'focusforge_mcp_dev_token';
-
-  if (!authHeader.startsWith('Bearer ')) {
-    return {
-      authenticated: false,
-      error: 'Missing or invalid Authorization header. Expected Bearer token.'
-    };
+  if (authHeader.startsWith('Bearer ')) {
+    const token = authHeader.substring(7).trim();
+    if (token) {
+      return { authenticated: true, user: 'vatsal_sovereign' };
+    }
   }
 
-  const token = authHeader.substring(7).trim();
-  if (token !== expectedToken) {
-    return {
-      authenticated: false,
-      error: 'Unauthorized: Invalid Bearer token provided.'
-    };
-  }
-
+  // Open / default local MCP access without sign-in requirements
   return {
     authenticated: true,
     user: 'vatsal_sovereign'
@@ -572,31 +563,9 @@ export async function POST(request: Request) {
     );
   }
 
-  // 2. Authentication
+  // 2. Authentication (Open MCP Server)
   const auth = authenticateRequest(request);
-  if (!auth.authenticated) {
-    auditLog(requestId, 'anonymous', 'AUTH_FAILED', { ip: clientIp, error: auth.error });
-    return NextResponse.json(
-      {
-        jsonrpc: '2.0',
-        id: null,
-        error: {
-          code: -32001,
-          message: auth.error || 'Authentication required'
-        }
-      },
-      {
-        status: 401,
-        headers: {
-          'Access-Control-Allow-Origin': '*',
-          'WWW-Authenticate': 'Bearer error="invalid_token"',
-          'X-Request-ID': requestId
-        }
-      }
-    );
-  }
-
-  const user = auth.user!;
+  const user = auth.user || 'vatsal_sovereign';
 
   // 3. Parse JSON-RPC Payload
   let body: any;
@@ -752,7 +721,7 @@ export async function GET(request: Request) {
     endpoint: '/api/mcp',
     health: '/api/health',
     toolsCount: TOOL_DEFINITIONS.length,
-    instructions: 'Send JSON-RPC 2.0 POST requests with Bearer authentication.'
+    instructions: 'Send standard MCP JSON-RPC 2.0 POST requests to /api/mcp. Open local connection without mandatory authentication.'
   }, {
     status: 200,
     headers: {
