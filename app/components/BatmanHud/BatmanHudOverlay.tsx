@@ -15,6 +15,7 @@ import {
   Maximize2, Power
 } from 'lucide-react';
 import { ThinkingOrb, OrbState } from 'thinking-orbs';
+import { TargetingUI, HudFrame } from '@/components/ui/animated-hud-targeting-ui';
 import { useBatmanStore, SPOT_ROOMS, BatmanActiveModule, SpotRoom } from '@/hooks/useBatmanStore';
 import { useFrequencyStore } from '@/hooks/useFrequencyStore';
 import { useJarvisStore } from '@/hooks/useJarvisStore';
@@ -352,42 +353,47 @@ export default function BatmanHudOverlay() {
         />
 
         {/* ========================================================================= */}
-        {/* PHASE 1 & 2: INTRO BLUR & OLED BLACKOUT SUSPENSION                       */}
+        {/* PHASE 1, 2 & 3: CINEMATIC BLUR, BLACKOUT & TARGETING RETICLE ANIMATION    */}
         {/* ========================================================================= */}
-        {(batmanStore.introPhase === 'blurring' || batmanStore.introPhase === 'blank_delay') && (
+        {(batmanStore.introPhase === 'blurring' || batmanStore.introPhase === 'blank_delay' || batmanStore.introPhase === 'animating_intro') && (
           <motion.div 
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="absolute inset-0 bg-black flex flex-col items-center justify-center p-6 z-50"
+            className="absolute inset-0 bg-black flex flex-col items-center justify-center p-6 z-50 overflow-hidden"
           >
-            {batmanStore.introPhase === 'blank_delay' && (
+            <motion.div
+              initial={{ opacity: 0, scale: 0.85 }}
+              animate={{ opacity: 1, scale: 1 }}
+              transition={{ duration: 0.8, ease: [0.22, 1, 0.36, 1] }}
+              className="relative flex flex-col items-center justify-center"
+            >
+              <TargetingUI className="w-80 h-80 max-w-full" pathColors={{ light: "white", dark: "white" }} />
+              
               <motion.div
-                initial={{ opacity: 0, scale: 0.8 }}
-                animate={{ opacity: 1, scale: 1 }}
-                className="flex flex-col items-center gap-4"
+                initial={{ opacity: 0, y: 15 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.5, duration: 0.4 }}
+                className="absolute -bottom-8 flex flex-col items-center gap-1.5"
               >
-                <div className="w-16 h-16 rounded-full border border-white/30 flex items-center justify-center animate-pulse">
-                  <Shield size={26} className="text-white" />
+                <div className="flex items-center gap-2 bg-white text-black px-3 py-1 text-[10px] font-extrabold tracking-[0.3em] uppercase">
+                  <Shield size={12} />
+                  <span>B.A.T.M.A.N. // LOCK-IN</span>
                 </div>
-                <div className="text-[10px] tracking-[0.4em] uppercase text-white font-bold">
-                  B.A.T.M.A.N. // LOCK-IN PROTOCOL
-                </div>
+                <span className="text-[9px] text-white/50 font-mono tracking-widest animate-pulse">
+                  CALIBRATING TARGETING SYSTEMS...
+                </span>
               </motion.div>
-            )}
+            </motion.div>
           </motion.div>
         )}
 
         {/* ========================================================================= */}
-        {/* PHASE 3 & 4: GLORIOUS TACTICAL HUD INTERFACE                              */}
+        {/* PHASE 4: GLORIOUS TACTICAL HUD INTERFACE WITH HUDFRAME                    */}
         {/* ========================================================================= */}
-        {(batmanStore.introPhase === 'animating_intro' || batmanStore.introPhase === 'active') && (
-          <motion.div 
-            initial={{ opacity: 0, scale: 0.98 }}
-            animate={{ opacity: 1, scale: 1 }}
-            transition={{ duration: 0.5, ease: "easeOut" }}
-            className="w-full h-full p-4 md:p-6 flex flex-col justify-between relative z-20"
-          >
+        {batmanStore.introPhase === 'active' && (
+          <HudFrame className="w-full h-full p-4 md:p-6 flex flex-col justify-between relative z-20">
+            <div className="w-full h-full flex flex-col justify-between">
             {/* 1. TOP TACTICAL SYSTEM BAR */}
             <motion.header 
               initial={{ y: -30, opacity: 0 }}
@@ -712,7 +718,8 @@ export default function BatmanHudOverlay() {
                 <span className="uppercase font-bold">OLED LOCK-IN PROTOCOL ACTIVE</span>
               </div>
             </motion.footer>
-          </motion.div>
+            </div>
+          </HudFrame>
         )}
       </motion.div>
     </AnimatePresence>
