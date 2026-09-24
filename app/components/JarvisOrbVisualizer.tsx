@@ -63,9 +63,9 @@ export function resolveOrbState(
 
   // 2. State & Engine Mappings
   if (geminiStatus === 'connecting') return 'connecting';
-  if (geminiStatus === 'processing' || aiState === 'thinking' || voiceState === 'PROCESSING_COMMAND') return 'working';
-  if (voiceState === 'LISTENING_FOR_COMMAND' || aiState === 'listening') return 'listening';
-  if (voiceState === 'SPEAKING_RESPONSE' || aiState === 'speaking') return 'working';
+  if (geminiStatus === 'processing' || aiState === 'thinking' || (voiceState as string) === 'processing_command' || (voiceState as string) === 'PROCESSING_COMMAND') return 'working';
+  if ((voiceState as string) === 'listening_for_command' || (voiceState as string) === 'transcribing_command' || (voiceState as string) === 'activated' || (voiceState as string) === 'wake_candidate' || (voiceState as string) === 'LISTENING_FOR_COMMAND' || aiState === 'listening') return 'listening';
+  if ((voiceState as string) === 'speaking_response' || (voiceState as string) === 'SPEAKING_RESPONSE' || aiState === 'speaking') return 'working';
   
   // 3. Ambient Standby
   return 'breathing';
@@ -131,10 +131,10 @@ export default function JarvisOrbVisualizer({
   // - "dots" for active listening to microphone
   // - "orb" for thinking / processing / solving / connecting / ambient breathing
   const mode: 'wave' | 'dots' | 'orb' = useMemo(() => {
-    if (voiceState === 'SPEAKING_RESPONSE' || aiState === 'speaking') {
+    if ((voiceState as string) === 'speaking_response' || (voiceState as string) === 'SPEAKING_RESPONSE' || aiState === 'speaking') {
       return 'wave';
     }
-    if (voiceState === 'LISTENING_FOR_COMMAND' || aiState === 'listening') {
+    if ((voiceState as string) === 'listening_for_command' || (voiceState as string) === 'transcribing_command' || (voiceState as string) === 'activated' || (voiceState as string) === 'LISTENING_FOR_COMMAND' || aiState === 'listening') {
       // In mini capsule or sm mode, we can use fluid-dots or listening orb
       return 'dots';
     }

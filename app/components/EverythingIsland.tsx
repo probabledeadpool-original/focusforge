@@ -1346,7 +1346,7 @@ Answer directly, clearly, and concisely in normal natural language. Provide dire
     else if (islandState === 'ai') target = 680;
     else if (islandState === 'settings') target = typeof window !== 'undefined' ? Math.min(540, window.innerWidth - 24) : 540;
     else if (jarvisStore.isOpen && (jarvisStore.isMinimized || jarvisStore.displayMode === 'minimized') && islandState === 'mini') {
-      const isVoiceActive = jarvisStore.voiceState === 'SPEAKING_RESPONSE' || jarvisStore.voiceState === 'LISTENING_FOR_COMMAND' || jarvisStore.aiState === 'listening' || jarvisStore.aiState === 'speaking';
+      const isVoiceActive = (jarvisStore.voiceState as string) === 'speaking_response' || (jarvisStore.voiceState as string) === 'listening_for_command' || (jarvisStore.voiceState as string) === 'transcribing_command' || (jarvisStore.voiceState as string) === 'activated' || jarvisStore.aiState === 'listening' || jarvisStore.aiState === 'speaking';
       target = isVoiceActive ? 58 : 52;
     }
     else if (islandState === 'mini') target = 210;
@@ -1370,7 +1370,7 @@ Answer directly, clearly, and concisely in normal natural language. Provide dire
     else if (islandState === 'ai') target = chatHistory.length > 0 ? 560 : 440;
     else if (islandState === 'settings') target = typeof window !== 'undefined' ? Math.min(680, window.innerHeight - 50) : 680;
     else if (jarvisStore.isOpen && (jarvisStore.isMinimized || jarvisStore.displayMode === 'minimized') && islandState === 'mini') {
-      const isVoiceActive = jarvisStore.voiceState === 'SPEAKING_RESPONSE' || jarvisStore.voiceState === 'LISTENING_FOR_COMMAND' || jarvisStore.aiState === 'listening' || jarvisStore.aiState === 'speaking';
+      const isVoiceActive = (jarvisStore.voiceState as string) === 'speaking_response' || (jarvisStore.voiceState as string) === 'listening_for_command' || (jarvisStore.voiceState as string) === 'transcribing_command' || (jarvisStore.voiceState as string) === 'activated' || jarvisStore.aiState === 'listening' || jarvisStore.aiState === 'speaking';
       target = isVoiceActive ? 58 : 52;
     }
     else if (islandState === 'mini') target = 40;
@@ -1403,13 +1403,13 @@ Answer directly, clearly, and concisely in normal natural language. Provide dire
     if (isShooting) return "0 0 80px rgba(66, 133, 244, 1), 0 0 30px rgba(255, 255, 255, 1)";
     if (isPreparingShoot) return "0 10px 30px rgba(66, 133, 244, 0.8), 0 0 20px rgba(139, 92, 246, 0.8)";
     if (jarvisStore.isOpen && (jarvisStore.isMinimized || jarvisStore.displayMode === 'minimized') && islandState === 'mini') {
-      if (jarvisStore.voiceState === 'LISTENING_FOR_COMMAND' || jarvisStore.aiState === 'listening') {
+      if ((jarvisStore.voiceState as string) === 'listening_for_command' || (jarvisStore.voiceState as string) === 'transcribing_command' || (jarvisStore.voiceState as string) === 'activated' || jarvisStore.aiState === 'listening') {
         return "0 16px 45px rgba(244,63,94,0.45), 0 0 35px rgba(244,63,94,0.5), inset 0 2px 3px rgba(255,255,255,0.7), inset 0 -4px 10px rgba(0,0,0,0.85)";
       }
-      if (jarvisStore.voiceState === 'SPEAKING_RESPONSE' || jarvisStore.aiState === 'speaking') {
+      if ((jarvisStore.voiceState as string) === 'speaking_response' || jarvisStore.aiState === 'speaking') {
         return "0 16px 45px rgba(6,182,212,0.45), 0 0 35px rgba(6,182,212,0.5), inset 0 2px 3px rgba(255,255,255,0.7), inset 0 -4px 10px rgba(0,0,0,0.85)";
       }
-      if (jarvisStore.voiceState === 'PROCESSING_COMMAND' || jarvisStore.aiState === 'thinking') {
+      if ((jarvisStore.voiceState as string) === 'processing_command' || jarvisStore.aiState === 'thinking') {
         return "0 16px 45px rgba(168,85,247,0.45), 0 0 35px rgba(168,85,247,0.5), inset 0 2px 3px rgba(255,255,255,0.7), inset 0 -4px 10px rgba(0,0,0,0.85)";
       }
       return "0 14px 40px rgba(0, 0, 0, 0.9), 0 0 25px rgba(6, 182, 212, 0.3), inset 0 2px 3px rgba(255,255,255,0.65), inset 0 -4px 10px rgba(0,0,0,0.85)";
@@ -1740,11 +1740,11 @@ Answer directly, clearly, and concisely in normal natural language. Provide dire
             borderRadius: isShooting ? 20 : (jarvisStore.isOpen && (jarvisStore.isMinimized || jarvisStore.displayMode === 'minimized') && islandState === 'mini') ? 9999 : (islandState === 'ai' || islandState === 'settings') ? 32 : (islandState === 'shelf' || islandState === 'fog') ? 32 : 40,
             border: isStressed ? "1px solid rgba(239, 68, 68, 0.8)" : 
                     (jarvisStore.isOpen && (jarvisStore.isMinimized || jarvisStore.displayMode === 'minimized') && islandState === 'mini') ? 
-                      (jarvisStore.voiceState === 'LISTENING_FOR_COMMAND' || jarvisStore.aiState === 'listening'
+                      ((jarvisStore.voiceState as string) === 'listening_for_command' || (jarvisStore.voiceState as string) === 'transcribing_command' || (jarvisStore.voiceState as string) === 'activated' || jarvisStore.aiState === 'listening'
                         ? "1px solid rgba(244, 63, 94, 0.45)"
-                        : jarvisStore.voiceState === 'SPEAKING_RESPONSE' || jarvisStore.aiState === 'speaking'
+                        : (jarvisStore.voiceState as string) === 'speaking_response' || jarvisStore.aiState === 'speaking'
                         ? "1px solid rgba(6, 182, 212, 0.45)"
-                        : jarvisStore.voiceState === 'PROCESSING_COMMAND' || jarvisStore.aiState === 'thinking'
+                        : (jarvisStore.voiceState as string) === 'processing_command' || jarvisStore.aiState === 'thinking'
                         ? "1px solid rgba(168, 85, 247, 0.45)"
                         : "1px solid rgba(255, 255, 255, 0.16)") :
                     islandState === 'ai' ? "1px solid rgba(255, 255, 255, 0.15)" :
@@ -2003,10 +2003,10 @@ Answer directly, clearly, and concisely in normal natural language. Provide dire
                   className="w-full h-full relative rounded-full flex items-center justify-center select-none group/bubble overflow-hidden cursor-pointer"
                   onClick={(e) => {
                     e.stopPropagation();
-                    if (jarvisStore.voiceState === 'LISTENING_FOR_COMMAND' || jarvisStore.aiState === 'listening') {
+                    if ((jarvisStore.voiceState as string) === 'listening_for_command' || (jarvisStore.voiceState as string) === 'transcribing_command' || jarvisStore.aiState === 'listening') {
                       // Commit command if already talking
                       jarvisVoiceEngine.commitCommand();
-                    } else if (jarvisStore.voiceState === 'SPEAKING_RESPONSE' || jarvisStore.aiState === 'speaking') {
+                    } else if ((jarvisStore.voiceState as string) === 'speaking_response' || jarvisStore.aiState === 'speaking') {
                       // Interrupt and listen
                       jarvisVoiceEngine.cancelCurrentAction();
                       jarvisVoiceEngine.startCommandListening();
@@ -2026,7 +2026,7 @@ Answer directly, clearly, and concisely in normal natural language. Provide dire
                     voiceState={jarvisStore.voiceState}
                     aiState={jarvisStore.aiState}
                     activeTool={jarvisStore.telemetry?.activeTool}
-                    geminiStatus={jarvisStore.telemetry?.geminiStatus}
+                    geminiStatus={jarvisStore.telemetry?.geminiStatus as any}
                     size="bubble"
                   />
                 </div>
@@ -2753,7 +2753,7 @@ Answer directly, clearly, and concisely in normal natural language. Provide dire
                       voiceState={jarvisStore.voiceState}
                       aiState={jarvisStore.aiState}
                       activeTool={jarvisStore.telemetry?.activeTool}
-                      geminiStatus={jarvisStore.telemetry?.geminiStatus}
+                      geminiStatus={jarvisStore.telemetry?.geminiStatus as any}
                       size="sm"
                     />
                   </div>

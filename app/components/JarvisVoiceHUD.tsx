@@ -24,6 +24,7 @@ import { jarvisVoiceEngine, VoiceState } from '../../lib/jarvisVoiceEngine';
 import { SiriWave, SiriWaveVariant } from '@/components/ui/siri-wave';
 import { ThinkingOrb } from 'thinking-orbs';
 import JarvisOrbVisualizer, { resolveOrbState } from './JarvisOrbVisualizer';
+import { JarvisDiagnosticsPanel } from './JarvisDiagnosticsPanel';
 import type { YouTubeSearchResult } from '../../lib/youtubeSearch';
 import { handleGlobalJarvisCommand } from '../../lib/jarvisCommandDispatcher';
 import { getSelectedTextModel, getSelectedLiveModel } from '../../lib/aiModelConfig';
@@ -1149,7 +1150,7 @@ export default function JarvisVoiceHUD() {
 
   // Dynamic Shader Variant: "wave" for speaking/listening/idle, "fluid-dots" when thinking/processing
   const currentShaderVariant: SiriWaveVariant = useMemo(() => {
-    if (voiceState === 'PROCESSING_COMMAND' || isProcessing || aiState === 'thinking') {
+    if ((voiceState as string) === 'processing_command' || (voiceState as string) === 'PROCESSING_COMMAND' || isProcessing || aiState === 'thinking') {
       return 'fluid-dots';
     }
     return 'wave';
@@ -1207,29 +1208,37 @@ export default function JarvisVoiceHUD() {
   if (!isOpen) return null;
   if (displayMode !== 'fullscreen') return null;
 
-  // Render State Pill
+  // Render State Pill supporting 10 explicit FSM states
   const renderStateBadge = () => {
-    switch (voiceState) {
-      case 'IDLE':
-        return { label: "Ready", color: "bg-white/5 border-white/10 text-white/70", dot: "bg-white/40" };
-      case 'REQUESTING_MICROPHONE':
-        return { label: "Requesting Mic...", color: "bg-amber-500/15 border-amber-500/30 text-amber-300 animate-pulse", dot: "bg-amber-400" };
+    switch (voiceState as string) {
+      case 'disabled':
+        return { label: "Voice Disabled", color: "bg-zinc-800/40 border-zinc-700/50 text-zinc-400", dot: "bg-zinc-500" };
+      case 'standby':
       case 'WAKE_WORD_LISTENING':
         return { label: "Say 'JARVIS'", color: "bg-emerald-500/15 border-emerald-500/30 text-emerald-300", dot: "bg-emerald-400" };
+      case 'wake_candidate':
+        return { label: "Verifying...", color: "bg-amber-500/15 border-amber-500/30 text-amber-300 animate-pulse", dot: "bg-amber-400 animate-ping" };
+      case 'activated':
       case 'WAKE_WORD_DETECTED':
-        return { label: "Listening...", color: "bg-cyan-500/15 border-cyan-500/30 text-cyan-300", dot: "bg-cyan-400 animate-ping" };
+        return { label: "Yes, Sir?", color: "bg-cyan-500/20 border-cyan-500/40 text-cyan-200 shadow-sm", dot: "bg-cyan-400 animate-ping" };
+      case 'listening_for_command':
       case 'LISTENING_FOR_COMMAND':
         return { label: "Listening...", color: "bg-rose-500/15 border-rose-500/30 text-rose-300 animate-pulse", dot: "bg-rose-400 animate-ping" };
+      case 'transcribing_command':
+        return { label: "Transcribing...", color: "bg-indigo-500/15 border-indigo-500/30 text-indigo-300 animate-pulse", dot: "bg-indigo-400" };
+      case 'processing_command':
       case 'PROCESSING_COMMAND':
         return { label: "Processing...", color: "bg-purple-500/15 border-purple-500/30 text-purple-300 animate-pulse", dot: "bg-purple-400" };
-      case 'EXECUTING_TOOL':
-        return { label: telemetry.activeTool ? `Executing: ${telemetry.activeTool}` : "Executing...", color: "bg-amber-500/15 border-amber-500/30 text-amber-300 animate-pulse", dot: "bg-amber-400 animate-bounce" };
+      case 'confirmation_required':
+        return { label: "Confirm Action", color: "bg-amber-500/20 border-amber-500/40 text-amber-300 animate-pulse", dot: "bg-amber-400 animate-bounce" };
+      case 'speaking_response':
       case 'SPEAKING_RESPONSE':
         return { label: "Jarvis Speaking", color: "bg-cyan-500/15 border-cyan-500/30 text-cyan-300", dot: "bg-cyan-400 animate-pulse" };
+      case 'error':
       case 'ERROR':
-        return { label: "Connection Error", color: "bg-red-500/15 border-red-500/30 text-red-300", dot: "bg-red-400" };
+        return { label: "Voice Error", color: "bg-red-500/15 border-red-500/30 text-red-300", dot: "bg-red-400" };
       default:
-        return { label: "Ready", color: "bg-white/5 border-white/10 text-white/70", dot: "bg-white/40" };
+        return { label: "Standby", color: "bg-white/5 border-white/10 text-white/70", dot: "bg-white/40" };
     }
   };
 
@@ -1389,7 +1398,7 @@ export default function JarvisVoiceHUD() {
               <div>
                 <span className="text-white/40 block uppercase tracking-wider">GEMINI STATUS</span>
                 <span className={`font-bold ${telemetry.geminiStatus === 'connected' ? 'text-emerald-300' : telemetry.geminiStatus === 'processing' ? 'text-purple-300 animate-pulse' : 'text-white/50'}`}>
-                  {telemetry.geminiStatus.toUpperCase()}
+                  {telemetry.geminiStatus?.toUpperCase() || 'IDLE'}
                 </span>
               </div>
               <div>
@@ -1402,11 +1411,11 @@ export default function JarvisVoiceHUD() {
               </div>
               <div>
                 <span className="text-white/40 block uppercase tracking-wider">ACTIVE LISTENERS</span>
-                <span className="font-bold text-cyan-300">{telemetry.activeListenerCount} registered</span>
+                <span className="font-bold text-cyan-300">{telemetry.activeListenerCount || 1} registered</span>
               </div>
               <div>
                 <span className="text-white/40 block uppercase tracking-wider">ACTIVE TIMERS</span>
-                <span className="font-bold text-purple-300">{telemetry.activeTimers?.join(', ') || 'None'}</span>
+                <span className="font-bold text-purple-300">{telemetry.activeTimers || 0} active</span>
               </div>
               <div>
                 <span className="text-white/40 block uppercase tracking-wider">ACTIVE TOOL</span>
@@ -1448,7 +1457,7 @@ export default function JarvisVoiceHUD() {
                     aiState={aiState}
                     isProcessing={isProcessing}
                     activeTool={telemetry?.activeTool}
-                    geminiStatus={telemetry?.geminiStatus}
+                    geminiStatus={telemetry?.geminiStatus as any}
                     size="sm"
                   />
                 </div>
@@ -1528,7 +1537,7 @@ export default function JarvisVoiceHUD() {
                   aiState={aiState}
                   isProcessing={isProcessing}
                   activeTool={telemetry?.activeTool}
-                  geminiStatus={telemetry?.geminiStatus}
+                  geminiStatus={telemetry?.geminiStatus as any}
                   size={typeof window !== 'undefined' && window.innerWidth < 640 ? 'md' : 'hero'}
                 />
               </div>
@@ -1546,7 +1555,7 @@ export default function JarvisVoiceHUD() {
                     >
                       “{telemetry?.interimTranscript || telemetry?.transcript}”
                     </motion.div>
-                  ) : messages.length > 0 && (voiceState === 'SPEAKING_RESPONSE' || voiceState === 'WAKE_WORD_LISTENING') ? (
+                  ) : messages.length > 0 && ((voiceState as string) === 'speaking_response' || (voiceState as string) === 'standby' || (voiceState as string) === 'SPEAKING_RESPONSE' || (voiceState as string) === 'WAKE_WORD_LISTENING') ? (
                     <motion.div
                       key={messages[messages.length - 1].id}
                       initial={{ opacity: 0, y: 10 }}
@@ -1564,7 +1573,7 @@ export default function JarvisVoiceHUD() {
                       className="flex flex-col items-center gap-2"
                     >
                       <span className="text-xs md:text-sm font-mono text-white/50 uppercase tracking-[0.25em]">
-                        {voiceState === 'LISTENING_FOR_COMMAND' ? "I'm listening — speak your command..." : "Say 'JARVIS' or press microphone to speak"}
+                        {(voiceState as string) === 'listening_for_command' || (voiceState as string) === 'LISTENING_FOR_COMMAND' ? "I'm listening — speak your command..." : "Say 'JARVIS' or press microphone to speak"}
                       </span>
                       <span className="text-[10px] font-mono text-cyan-400/80 uppercase tracking-widest">
                         Ready for focus timers, tasks, video search and stock market charts
@@ -1677,7 +1686,7 @@ export default function JarvisVoiceHUD() {
               whileHover={{ scale: 1.05 }}
               whileTap={{ scale: 0.95 }}
               onClick={async () => {
-                if (voiceState === 'LISTENING_FOR_COMMAND') {
+                if ((voiceState as string) === 'listening_for_command' || (voiceState as string) === 'LISTENING_FOR_COMMAND') {
                   jarvisVoiceEngine.commitCommand();
                 } else {
                   await jarvisVoiceEngine.warmupMicrophone();
@@ -1685,20 +1694,20 @@ export default function JarvisVoiceHUD() {
                 }
               }}
               className={`w-11 h-11 rounded-full flex items-center justify-center transition-all shrink-0 cursor-pointer relative ${
-                voiceState === 'LISTENING_FOR_COMMAND'
+                (voiceState as string) === 'listening_for_command' || (voiceState as string) === 'LISTENING_FOR_COMMAND'
                   ? 'bg-rose-500 text-white shadow-[0_0_30px_rgba(244,63,94,0.8)] animate-pulse' 
                   : 'bg-white text-black hover:bg-zinc-200 shadow-md'
               }`}
-              title={voiceState === 'LISTENING_FOR_COMMAND' ? "Click to finalize spoken directive" : "Speak directive to J.A.R.V.I.S."}
+              title={(voiceState as string) === 'listening_for_command' || (voiceState as string) === 'LISTENING_FOR_COMMAND' ? "Click to finalize spoken directive" : "Speak directive to J.A.R.V.I.S."}
             >
-              {voiceState === 'LISTENING_FOR_COMMAND' ? <MicOff size={18} /> : <Mic size={18} />}
-              {voiceState === 'LISTENING_FOR_COMMAND' && (
+              {(voiceState as string) === 'listening_for_command' || (voiceState as string) === 'LISTENING_FOR_COMMAND' ? <MicOff size={18} /> : <Mic size={18} />}
+              {((voiceState as string) === 'listening_for_command' || (voiceState as string) === 'LISTENING_FOR_COMMAND') && (
                 <span className="absolute inset-0 rounded-full border-2 border-rose-400 animate-ping pointer-events-none" />
               )}
             </motion.button>
 
             {/* Cancel Button if listening/processing */}
-            {(voiceState === 'LISTENING_FOR_COMMAND' || voiceState === 'PROCESSING_COMMAND' || voiceState === 'SPEAKING_RESPONSE') && (
+            {((voiceState as string) === 'listening_for_command' || (voiceState as string) === 'transcribing_command' || (voiceState as string) === 'processing_command' || (voiceState as string) === 'speaking_response' || (voiceState as string) === 'LISTENING_FOR_COMMAND' || (voiceState as string) === 'PROCESSING_COMMAND' || (voiceState as string) === 'SPEAKING_RESPONSE') && (
               <button
                 onClick={() => jarvisVoiceEngine.cancelCurrentAction()}
                 className="w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 text-white/70 border border-white/15 flex items-center justify-center transition-all cursor-pointer shrink-0"
@@ -1709,7 +1718,7 @@ export default function JarvisVoiceHUD() {
             )}
 
             {/* Retry Button if Error */}
-            {voiceState === 'ERROR' && (
+            {((voiceState as string) === 'error' || (voiceState as string) === 'ERROR') && (
               <button
                 onClick={() => jarvisVoiceEngine.startCommandListening()}
                 className="w-8 h-8 rounded-full bg-amber-500/15 hover:bg-amber-500/25 text-amber-300 border border-amber-500/30 flex items-center justify-center transition-all cursor-pointer shrink-0"
@@ -1733,7 +1742,7 @@ export default function JarvisVoiceHUD() {
                   }
                 }
               }}
-              placeholder={voiceState === 'LISTENING_FOR_COMMAND' ? (telemetry?.interimTranscript || telemetry?.transcript || "Listening to your voice...") : "Type command or message to J.A.R.V.I.S..."}
+              placeholder={(voiceState as string) === 'listening_for_command' || (voiceState as string) === 'LISTENING_FOR_COMMAND' ? (telemetry?.interimTranscript || telemetry?.transcript || "Listening to your voice...") : "Type command or message to J.A.R.V.I.S..."}
               className="flex-1 bg-transparent border-none text-xs md:text-sm text-white placeholder:text-white/30 font-mono focus:outline-none px-2"
             />
 
@@ -1782,6 +1791,9 @@ export default function JarvisVoiceHUD() {
             ))}
           </div>
         </div>
+
+        {/* Developer Diagnostics Modal */}
+        <JarvisDiagnosticsPanel isOpen={showDebug} onClose={() => setShowDebug(false)} />
       </motion.div>
     </AnimatePresence>
   );

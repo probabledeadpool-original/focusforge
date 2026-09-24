@@ -16,6 +16,7 @@ interface TargetingUIProps {
 
 interface HudFrameProps {
   children?: React.ReactNode;
+  className?: string;
   backgroundImage?: string;
   backgroundColor?: string;
   backgroundVideo?: string;
@@ -794,9 +795,9 @@ export function TargetingUI({
   );
 }
 
-export function HudFrame({ children, backgroundImage, backgroundColor, backgroundVideo }: HudFrameProps) {
+export function HudFrame({ children, className, backgroundImage, backgroundColor, backgroundVideo }: HudFrameProps) {
   return (
-    <div className="relative w-full h-full">
+    <div className={cn("relative w-full h-full", className)}>
       {/* Content area - this is where children will render */}
       <div className="w-full h-full relative z-20">{children}</div>
 

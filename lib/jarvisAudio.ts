@@ -179,6 +179,14 @@ class JarvisAudioEngine {
       osc.stop(now + 0.1);
     } catch (e) {}
   }
+
+  /**
+   * Alias for wake-word activation sound
+   */
+  playWake() {
+    this.playActivate();
+  }
 }
 
 export const jarvisAudio = new JarvisAudioEngine();
+

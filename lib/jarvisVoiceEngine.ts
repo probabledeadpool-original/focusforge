@@ -2,325 +2,122 @@
 
 import { jarvisAudio } from './jarvisAudio';
 import { cleanJarvisOutput } from './jarvisOutputCleaner';
+import { 
+  VoiceState, 
+  voiceConfig, 
+  VoiceConfig, 
+  DiagnosticEvent, 
+  StructuredIntentResult 
+} from './voiceConfig';
+import { wakeWordDetector, WakeWordVerificationResult } from './wakeWordDetector';
 
-export type VoicePhase = 
-  | 'IDLE'
-  | 'REQUESTING_MICROPHONE'
-  | 'WAKE_WORD_LISTENING'
-  | 'WAKE_WORD_DETECTED'
-  | 'LISTENING_FOR_COMMAND'
-  | 'PROCESSING_COMMAND'
-  | 'EXECUTING_TOOL'
-  | 'SPEAKING_RESPONSE'
-  | 'ERROR';
+export type { VoiceState, VoiceConfig, DiagnosticEvent, StructuredIntentResult };
 
-// Deprecated alias for backwards compatibility
-export type VoiceState = VoicePhase;
+export function voiceLog(type: string, data?: any): void {
+  try {
+    if (typeof window !== 'undefined' && (window as any).__JARVIS_DEBUG) {
+      console.log(`[JARVIS_VOICE:${type}]`, data || '');
+    }
+  } catch (e) {}
+}
 
-export interface VoiceStateData {
-  phase: VoicePhase;
-  sessionId: string;
+export interface VoiceEngineTelemetry {
+  state: VoiceState;
+  previousState: VoiceState;
   microphoneStatus: 'idle' | 'requesting' | 'granted' | 'listening' | 'denied' | 'error';
-  geminiStatus: 'idle' | 'connecting' | 'connected' | 'processing' | 'error';
-  transcript: string;
+  isMicrophoneActive: boolean;
+  wakeWordDetected: boolean;
+  wakeConfidence: number;
+  lastWakeCandidateText: string;
   interimTranscript: string;
-  liveInterimTranscript: string;
-  error: string | null;
-  wakeWordEnabled: boolean;
-  commandStartedAt: number | null;
-  lastActivityAt: number;
-  activeTool: string | null;
-  activeTimers: string[];
-  activeListenerCount: number;
-  audioSampleRate: number;
-  channels: number;
-  mimeType: string;
-  lastTransition: string;
+  finalCommandTranscript: string;
+  intentConfidence: number;
+  lastParsedIntent: string;
+  pendingConfirmationPrompt: string | null;
+  hasPendingConfirmation: boolean;
+  errorMessage: string | null;
+  errorRecoveryHint: string | null;
+  isTTSPlaying: boolean;
+  audioUploaded: boolean;
+  lastTransitionTimestamp: number;
+  stateHistory: DiagnosticEvent[];
+
+  // Compatibility aliases & properties
+  phase?: string;
+  transcript?: string;
+  activeTool?: string | null;
+  geminiStatus?: string;
+  sessionId?: string;
+  wakeWordEnabled?: boolean;
+  audioSampleRate?: number;
+  activeListenerCount?: number;
+  activeTimers?: number;
+  lastTransition?: string;
+  error?: string | null;
 }
 
-// Deprecated alias for backwards compatibility
-export type VoiceEngineTelemetry = VoiceStateData;
+export type VoiceStateListener = (telemetry: VoiceEngineTelemetry) => void;
+export type CommandHandler = (commandText: string, sessionId: string) => Promise<void>;
 
-export const VOICE_CONFIG = {
-  wakeWord: "jarvis",
-  wakeWordCooldownMs: 1400,
-  commandSilenceTimeoutMs: 1200,
-  minimumCommandDurationMs: 250,
-  minimumSpeechDurationMs: 200,
-  acknowledgementGuardMs: 750,
-  reconnectDelayMs: 60,
-  maxCommandDurationMs: 60000
-};
-
-// Levenshtein distance calculation for ultra-high sensitivity fuzzy matching
-function levenshteinDistance(a: string, b: string): number {
-  if (a === b) return 0;
-  if (!a.length) return b.length;
-  if (!b.length) return a.length;
-
-  const matrix: number[][] = [];
-  for (let i = 0; i <= b.length; i++) matrix[i] = [i];
-  for (let j = 0; j <= a.length; j++) matrix[0][j] = j;
-
-  for (let i = 1; i <= b.length; i++) {
-    for (let j = 1; j <= a.length; j++) {
-      if (b.charAt(i - 1) === a.charAt(j - 1)) {
-        matrix[i][j] = matrix[i - 1][j - 1];
-      } else {
-        matrix[i][j] = Math.min(
-          matrix[i - 1][j - 1] + 1,
-          matrix[i][j - 1] + 1,
-          matrix[i - 1][j] + 1
-        );
-      }
-    }
-  }
-  return matrix[b.length][a.length];
-}
-
-const PHONETIC_JARVIS_STEMS = [
-  'jarvis', 'javis', 'jarves', 'jarviz', 'jarvice', 'jarv', 'jervis',
-  'darvis', 'charvis', 'larvis', 'harvis', 'jarvez', 'jahvis', 'jahves'
-];
-
-// Default phonetic & natural speech variations of "Jarvis"
-const DEFAULT_HOTWORD_PATTERNS = [
-  /\b(hey|ok|okay|yo|hi|hello|listen|start|dear|mr|mister)?\s*(jarvis|javis|jarves|jarviz|jar\s*vis|jar\s*vice|jervis|darvis|charvis|jarvez|jahvis|jahves)\b/i,
-  /\b(hey|ok|okay|yo|hi|hello)\s*jarvis\b/i,
-  /\bjarvis\b/i,
-  /\bjavis\b/i,
-];
-
-function checkHotwordMatch(
-  text: string,
-  patterns: RegExp[],
-  trainedWord: string,
-  highSensitivity: boolean
-): { matched: boolean; trailingText: string } {
-  const clean = text.toLowerCase().replace(/['’]/g, '').trim();
-  if (!clean) return { matched: false, trailingText: '' };
-
-  // Helper to extract trailing command after wake word match
-  const extractTrailing = (fullText: string, matchedSegment: string): string => {
-    const idx = fullText.toLowerCase().indexOf(matchedSegment.toLowerCase());
-    if (idx !== -1) {
-      return fullText.slice(idx + matchedSegment.length).replace(/^[,\s:–-]+/, '').trim();
-    }
-    return fullText.replace(/^(hey|ok|okay|yo|hi|hello)?\s*(jarvis|javis|jarv|jervis)\s*/i, '').trim();
-  };
-
-  // 1. Direct Regex Patterns
-  for (const p of patterns) {
-    const m = clean.match(p);
-    if (m) {
-      const trailing = extractTrailing(clean, m[0]);
-      return { matched: true, trailingText: trailing };
-    }
-  }
-
-  // 2. Direct inclusion of target wake word
-  const target = (trainedWord || 'jarvis').toLowerCase().trim();
-  if (target && clean.includes(target)) {
-    return { matched: true, trailingText: extractTrailing(clean, target) };
-  }
-  if (clean.includes('jarvis')) {
-    return { matched: true, trailingText: extractTrailing(clean, 'jarvis') };
-  }
-  if (clean.includes('javis')) {
-    return { matched: true, trailingText: extractTrailing(clean, 'javis') };
-  }
-
-  // 3. Word-by-Word Fuzzy & Phonetic Matching (stricter to avoid triggering on music lyrics)
-  const words = clean.replace(/[^a-z0-9\s]/gi, ' ').split(/\s+/).filter(Boolean);
-  for (let i = 0; i < words.length; i++) {
-    const word = words[i];
-    let isWordMatch = false;
-
-    if (PHONETIC_JARVIS_STEMS.includes(word)) {
-      isWordMatch = true;
-    } else if (word.length >= 4) {
-      if (levenshteinDistance(word, 'jarvis') <= 1) isWordMatch = true;
-      else if (trainedWord && trainedWord.length >= 4 && levenshteinDistance(word, target) <= 1) isWordMatch = true;
-    }
-
-    if (!isWordMatch && highSensitivity && word.length >= 4) {
-      if (
-        word.startsWith('jarv') ||
-        word.startsWith('javis') ||
-        word.endsWith('arvis') ||
-        word.endsWith('ervis')
-      ) {
-        isWordMatch = true;
-      }
-    }
-
-    if (isWordMatch) {
-      const trailing = words.slice(i + 1).join(' ');
-      return { matched: true, trailingText: trailing };
-    }
-  }
-
-  return { matched: false, trailingText: '' };
-}
-
-export function voiceLog(event: string, details?: any): void {
-  const timestamp = new Date().toISOString().split('T')[1].slice(0, -1);
-  if (details) {
-    console.info(`[JarvisVoiceEngine ${timestamp}] 🔊 ${event}:`, details);
-  } else {
-    console.info(`[JarvisVoiceEngine ${timestamp}] 🔊 ${event}`);
-  }
-}
-
-type StateChangeListener = (state: VoiceStateData) => void;
-type CommandHandler = (commandText: string, sessionId: string) => Promise<void>;
-
-class JarvisVoiceEngine {
+/**
+ * Universal High-Reliability Explicit Finite State Machine Voice Engine for JARVIS
+ */
+export class JarvisVoiceEngine {
   private static instance: JarvisVoiceEngine;
 
-  private phase: VoicePhase = 'IDLE';
+  // State Machine State
+  private state: VoiceState = 'standby';
+  private previousState: VoiceState = 'disabled';
   private currentSessionId: string = '';
-  private microphoneStatus: 'idle' | 'requesting' | 'granted' | 'listening' | 'denied' | 'error' = 'idle';
-  private geminiStatus: 'idle' | 'connecting' | 'connected' | 'processing' | 'error' = 'idle';
-  private activeTool: string | null = null;
-  private lastError: string | null = null;
-  private lastTransition: string = 'INIT -> IDLE';
+  private stateEntryTimestamp: number = Date.now();
 
-  private accumulatedCommandText: string = '';
-  private lastDetectedTranscript: string = '';
-  private liveInterimTranscript: string = '';
-  private commandStartedAt: number | null = null;
-  private lastActivityAt: number = Date.now();
-
-  private isWakeWordEnabled: boolean = true;
-  private isHighSensitivityMode: boolean = true;
-  private isCooldownActive: boolean = false;
-  private activeListenerCount: number = 0;
-  private activeHotwordPatterns: RegExp[] = [...DEFAULT_HOTWORD_PATTERNS];
-  private trainedWakeWord: string = 'Jarvis';
-
-  // Unified Recognition Engine
+  // Speech Recognition Instances & Controllers
   private recognitionInstance: any = null;
-  private isRecognitionActive: boolean = false;
-  private isStartingRecognition: boolean = false;
-  private desiredRecognitionMode: 'NONE' | 'WAKE_WORD' | 'COMMAND' = 'NONE';
-  private activeUtterance: SpeechSynthesisUtterance | null = null;
+  private isRecognitionRunning: boolean = false;
+  private recognitionRestartAttempts: number = 0;
+  private maxRestartAttempts: number = 4;
 
-  // Audio Ducking & Self-Speech Echo Cancellation
-  private isSpeakingTTS: boolean = false;
-  private lastSpokenText: string = '';
-  private lastSpokenTimestamp: number = 0;
-  private previousFrequencyVolume: number | null = null;
+  // Transcript Data
+  private currentInterimTranscript: string = '';
+  private currentFinalTranscript: string = '';
+  private lastWakeCandidate: string = '';
+  private lastWakeConfidence: number = 0;
+  private lastIntentConfidence: number = 0;
+  private lastParsedIntent: string = '';
+
+  // Confirmation Flow
+  private pendingConfirmationAction: (() => Promise<void>) | null = null;
+  private pendingConfirmationPrompt: string | null = null;
+
+  // Telemetry & Diagnostic History Ring Buffer
+  private diagnosticHistory: DiagnosticEvent[] = [];
+  private readonly maxDiagnosticLogs: number = 50;
+  private listeners: Set<VoiceStateListener> = new Set();
+  private commandHandler: CommandHandler | null = null;
 
   // Timers
-  private silenceTimer: NodeJS.Timeout | null = null;
-  private noSpeechTimer: NodeJS.Timeout | null = null;
-  private maxDurationTimer: NodeJS.Timeout | null = null;
-  private wakeWordCooldownTimer: NodeJS.Timeout | null = null;
-  private restartTimer: NodeJS.Timeout | null = null;
+  private commandTimeoutTimer: any = null;
+  private silenceDebounceTimer: any = null;
+  private confirmationTimeoutTimer: any = null;
+  private restartDebounceTimer: any = null;
+  private wakeVerificationTimer: any = null;
 
-  private commandHandler: CommandHandler | null = null;
-  private listeners: Set<StateChangeListener> = new Set();
-
-  private duckAudio(): void {
-    try {
-      if (typeof window !== 'undefined') {
-        const store = (window as any).__frequencyStore;
-        if (store && typeof store.getState === 'function') {
-          const state = store.getState();
-          if (state.isPlaying && state.volume > 0.15 && this.previousFrequencyVolume === null) {
-            this.previousFrequencyVolume = state.volume;
-            state.setVolume(Math.min(0.12, state.volume * 0.18));
-            voiceLog("AUDIO_DUCKED", { from: this.previousFrequencyVolume, to: 0.12 });
-          }
-        }
-      }
-    } catch (e) {}
-  }
-
-  private unduckAudio(): void {
-    try {
-      if (this.previousFrequencyVolume !== null && typeof window !== 'undefined') {
-        const store = (window as any).__frequencyStore;
-        if (store && typeof store.getState === 'function') {
-          store.getState().setVolume(this.previousFrequencyVolume);
-          voiceLog("AUDIO_UNDUCKED", { restored: this.previousFrequencyVolume });
-        }
-        this.previousFrequencyVolume = null;
-      }
-    } catch (e) {}
-  }
+  // Audio Gating & Ducking
+  private isSpeakingTTS: boolean = false;
+  private speechSynthesisUtterance: SpeechSynthesisUtterance | null = null;
+  private errorMessage: string | null = null;
+  private errorRecoveryHint: string | null = null;
 
   private constructor() {
     if (typeof window !== 'undefined') {
-      const savedPref = localStorage.getItem('jarvis-hotword-enabled');
-      if (savedPref !== null) {
-        this.isWakeWordEnabled = savedPref !== 'false';
+      const storedEnabled = localStorage.getItem('jarvis-always-listening') !== 'false';
+      this.state = storedEnabled ? 'standby' : 'disabled';
+      this.previousState = 'disabled';
+      
+      // Initialize on client mount if standby
+      if (this.state === 'standby') {
+        setTimeout(() => this.startWakeWordRecognition(), 500);
       }
-      this.currentSessionId = this.generateSessionId();
-      this.loadTrainedWakeWord();
-
-      // Listen for updates from WakeWordTraining component
-      window.addEventListener('trained-wakeword-updated', (e: any) => {
-        this.loadTrainedWakeWord(e?.detail);
-      });
-    }
-  }
-
-  public loadTrainedWakeWord(customProfile?: any): void {
-    if (typeof window === 'undefined') return;
-    try {
-      const profile = customProfile || JSON.parse(localStorage.getItem('focusforge-trained-wakeword') || '{}');
-      const patterns: RegExp[] = [...DEFAULT_HOTWORD_PATTERNS];
-
-      if (profile.wakeWord && typeof profile.wakeWord === 'string') {
-        this.trainedWakeWord = profile.wakeWord.trim();
-        const escaped = this.trainedWakeWord.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-        patterns.unshift(new RegExp(`\\b(hey|ok|okay|yo|hi|hello)?\\s*${escaped}\\b`, 'i'));
-        patterns.unshift(new RegExp(`\\b${escaped}\\b`, 'i'));
-      }
-
-      if (Array.isArray(profile.phoneticAliases)) {
-        profile.phoneticAliases.forEach((alias: string) => {
-          if (alias && alias.trim()) {
-            const esc = alias.trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-            patterns.push(new RegExp(`\\b${esc}\\b`, 'i'));
-          }
-        });
-      }
-
-      this.activeHotwordPatterns = patterns;
-      voiceLog("TRAINED_WAKEWORD_LOADED", { 
-        wakeWord: this.trainedWakeWord, 
-        aliasesCount: profile.phoneticAliases?.length || 0 
-      });
-    } catch (e) {
-      this.activeHotwordPatterns = [...DEFAULT_HOTWORD_PATTERNS];
-    }
-  }
-
-  public async warmupMicrophone(): Promise<boolean> {
-    if (typeof window === 'undefined' || !navigator.mediaDevices?.getUserMedia) return false;
-    try {
-      this.microphoneStatus = 'requesting';
-      this.notifyTelemetry();
-      const stream = await navigator.mediaDevices.getUserMedia({
-        audio: {
-          echoCancellation: true,
-          noiseSuppression: true,
-          autoGainControl: true
-        }
-      });
-      this.microphoneStatus = 'granted';
-      // Release test tracks
-      stream.getTracks().forEach(t => t.stop());
-      this.notifyTelemetry();
-      return true;
-    } catch (err: any) {
-      this.microphoneStatus = 'denied';
-      this.lastError = 'Microphone permission denied or device not found.';
-      this.notifyTelemetry();
-      return false;
     }
   }
 
@@ -331,683 +128,353 @@ class JarvisVoiceEngine {
     return JarvisVoiceEngine.instance;
   }
 
-  public generateSessionId(): string {
-    if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
-      return crypto.randomUUID();
-    }
-    return `session-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
-  }
-
-  // --- Observability & Listener Management ---
-  public subscribe(listener: StateChangeListener): () => void {
-    this.listeners.add(listener);
-    this.activeListenerCount = this.listeners.size;
-    listener(this.getStateData());
-    return () => {
-      this.listeners.delete(listener);
-      this.activeListenerCount = this.listeners.size;
-    };
-  }
-
-  public setCommandHandler(handler: CommandHandler): void {
-    this.commandHandler = handler;
-  }
-
-  public getStateData(): VoiceStateData {
-    const activeTimers: string[] = [];
-    if (this.silenceTimer) activeTimers.push('silenceTimer');
-    if (this.noSpeechTimer) activeTimers.push('noSpeechTimer');
-    if (this.maxDurationTimer) activeTimers.push('maxDurationTimer');
-    if (this.wakeWordCooldownTimer) activeTimers.push('wakeWordCooldown');
-    if (this.restartTimer) activeTimers.push('restartTimer');
-
-    return {
-      phase: this.phase,
-      sessionId: this.currentSessionId,
-      microphoneStatus: this.microphoneStatus,
-      geminiStatus: this.geminiStatus,
-      transcript: this.lastDetectedTranscript || '',
-      interimTranscript: this.liveInterimTranscript || '',
-      liveInterimTranscript: this.liveInterimTranscript || '',
-      error: this.lastError,
-      wakeWordEnabled: this.isWakeWordEnabled,
-      commandStartedAt: this.commandStartedAt,
-      lastActivityAt: this.lastActivityAt,
-      activeTool: this.activeTool,
-      activeTimers,
-      activeListenerCount: this.activeListenerCount,
-      audioSampleRate: 16000,
-      channels: 1,
-      mimeType: 'audio/pcm;rate=16000',
-      lastTransition: this.lastTransition,
-    };
-  }
-
-  // Backwards compatibility getter
-  public getTelemetry(): VoiceStateData {
-    return this.getStateData();
-  }
-
-  public get state(): VoicePhase {
-    return this.phase;
-  }
-
-  public transitionTo(nextPhase: VoicePhase, reason?: string): boolean {
-    const previousPhase = this.phase;
-    if (previousPhase === nextPhase) return true;
-
-    // Transition validation - highly relaxed to avoid dropped commands
-    if (!this.isTransitionAllowed(previousPhase, nextPhase)) {
-      voiceLog("INVALID_TRANSITION_ATTEMPT", { from: previousPhase, to: nextPhase, reason });
+  // ---------------------------------------------------------------------------
+  // EXPLICIT STATE MACHINE TRANSITION CONTROLLER
+  // ---------------------------------------------------------------------------
+  public transitionTo(
+    nextState: VoiceState, 
+    reason: string, 
+    extraData: Partial<DiagnosticEvent> = {}
+  ): boolean {
+    const prevState = this.state;
+    if (prevState === nextState && nextState !== 'transcribing_command') {
       return false;
     }
 
-    this.phase = nextPhase;
-    this.lastTransition = `${previousPhase} -> ${nextPhase} (${reason || 'normal'})`;
-    this.lastActivityAt = Date.now();
+    const now = Date.now();
+    const durationInPrevState = now - this.stateEntryTimestamp;
 
-    // Sync microphoneStatus with phase
-    if (nextPhase === 'REQUESTING_MICROPHONE') {
-      this.microphoneStatus = 'requesting';
-    } else if (nextPhase === 'WAKE_WORD_LISTENING' || nextPhase === 'LISTENING_FOR_COMMAND') {
-      this.microphoneStatus = 'listening';
-    } else if (nextPhase === 'ERROR') {
-      this.microphoneStatus = this.lastError?.toLowerCase().includes('mic') ? 'denied' : 'error';
-    } else if (nextPhase === 'IDLE') {
-      this.microphoneStatus = 'idle';
+    this.previousState = prevState;
+    this.state = nextState;
+    this.stateEntryTimestamp = now;
+
+    // Record Structured Diagnostic Event
+    const diagEvent: DiagnosticEvent = {
+      id: `diag-${now}-${Math.random().toString(36).substring(2, 6)}`,
+      timestamp: now,
+      fromState: prevState,
+      toState: nextState,
+      reason,
+      wakeConfidence: this.lastWakeConfidence,
+      candidateText: this.lastWakeCandidate,
+      commandTranscript: this.currentFinalTranscript,
+      intentConfidence: this.lastIntentConfidence,
+      intent: this.lastParsedIntent,
+      error: this.errorMessage,
+      durationMs: durationInPrevState,
+      audioUploaded: false,
+      ...extraData
+    };
+
+    this.diagnosticHistory.unshift(diagEvent);
+    if (this.diagnosticHistory.length > this.maxDiagnosticLogs) {
+      this.diagnosticHistory.pop();
     }
 
-    voiceLog("STATE_TRANSITION", {
-      from: previousPhase,
-      to: nextPhase,
-      sessionId: this.currentSessionId,
-      reason: reason || 'normal'
-    });
+    // State Entry Side Effects
+    this.handleStateEntry(nextState, prevState, reason);
 
-    const stateData = this.getStateData();
-    this.listeners.forEach((listener) => {
-      try {
-        listener(stateData);
-      } catch (e) {
-        console.error('[JarvisVoiceEngine] Listener dispatch error:', e);
-      }
-    });
-
-    if (typeof window !== 'undefined') {
-      window.dispatchEvent(new CustomEvent('jarvis-voice-state', { detail: stateData }));
-    }
+    // Notify all UI & Store Subscribers
+    this.notifyTelemetry();
     return true;
   }
 
-  private isTransitionAllowed(from: VoicePhase, to: VoicePhase): boolean {
-    // Highly resilient transition matrix:
-    // Any state can transition to ERROR or IDLE
-    if (to === 'ERROR' || to === 'IDLE') return true;
+  private handleStateEntry(nextState: VoiceState, prevState: VoiceState, reason: string): void {
+    switch (nextState) {
+      case 'disabled':
+        this.cleanupAllTimers();
+        this.stopSpeechRecognition();
+        break;
 
-    // Direct command execution or listening can be initiated from anywhere
-    if (to === 'LISTENING_FOR_COMMAND' || to === 'PROCESSING_COMMAND') return true;
+      case 'standby':
+        this.cleanupAllTimers();
+        this.currentInterimTranscript = '';
+        this.currentFinalTranscript = '';
+        this.errorMessage = null;
+        this.errorRecoveryHint = null;
+        this.pendingConfirmationAction = null;
+        this.pendingConfirmationPrompt = null;
+        this.isSpeakingTTS = false;
+        this.unduckAudio();
+        this.startWakeWordRecognition();
+        break;
 
-    switch (from) {
-      case 'IDLE':
-        return to === 'REQUESTING_MICROPHONE' || to === 'WAKE_WORD_LISTENING';
-      case 'REQUESTING_MICROPHONE':
-        return to === 'WAKE_WORD_LISTENING';
-      case 'WAKE_WORD_LISTENING':
-        return to === 'WAKE_WORD_DETECTED';
-      case 'WAKE_WORD_DETECTED':
-        return to === 'WAKE_WORD_LISTENING';
-      case 'LISTENING_FOR_COMMAND':
-        return to === 'WAKE_WORD_LISTENING';
-      case 'PROCESSING_COMMAND':
-        return to === 'EXECUTING_TOOL' || to === 'SPEAKING_RESPONSE' || to === 'WAKE_WORD_LISTENING';
-      case 'EXECUTING_TOOL':
-        return to === 'SPEAKING_RESPONSE' || to === 'WAKE_WORD_LISTENING';
-      case 'SPEAKING_RESPONSE':
-        return to === 'WAKE_WORD_LISTENING';
-      case 'ERROR':
-        return to === 'REQUESTING_MICROPHONE' || to === 'WAKE_WORD_LISTENING';
-      default:
-        return true;
+      case 'wake_candidate':
+        // Candidate detection in progress
+        break;
+
+      case 'activated':
+        this.currentSessionId = `session-${Date.now()}`;
+        this.cleanupAllTimers();
+        this.duckAudio();
+
+        if (voiceConfig.soundFeedbackEnabled) {
+          jarvisAudio.playWake();
+        }
+
+        // Check if pre-roll command was already provided in candidate phrase
+        if (this.currentFinalTranscript.trim().length > 0) {
+          setTimeout(() => {
+            this.transitionTo('processing_command', 'Executing pre-roll trailing command from single utterance');
+          }, 150);
+        } else {
+          // Transition to listening for command
+          setTimeout(() => {
+            this.transitionTo('listening_for_command', 'Waiting for command utterance');
+          }, 200);
+        }
+        break;
+
+      case 'listening_for_command':
+        this.currentInterimTranscript = '';
+        this.startCommandRecognition();
+        
+        // Command Timeout (e.g. 6 seconds of silence -> returns quietly to standby)
+        this.commandTimeoutTimer = setTimeout(() => {
+          if (this.state === 'listening_for_command' && !this.currentInterimTranscript && !this.currentFinalTranscript) {
+            this.transitionTo('standby', `Command timeout reached (${voiceConfig.commandTimeoutMs}ms silence)`);
+          }
+        }, voiceConfig.commandTimeoutMs);
+        break;
+
+      case 'transcribing_command':
+        // Active transcribing: reset silence debounce
+        this.resetSilenceDebounce();
+        break;
+
+      case 'processing_command':
+        this.cleanupAllTimers();
+        this.stopSpeechRecognition();
+        this.executeCommandPipeline(this.currentFinalTranscript);
+        break;
+
+      case 'confirmation_required':
+        this.startConfirmationTimer();
+        break;
+
+      case 'speaking_response':
+        this.cleanupAllTimers();
+        this.stopSpeechRecognition();
+        break;
+
+      case 'error':
+        this.cleanupAllTimers();
+        this.stopSpeechRecognition();
+        break;
     }
   }
 
-  public isSessionActive(sessionId: string): boolean {
-    return this.currentSessionId === sessionId;
+  // ---------------------------------------------------------------------------
+  // WEB SPEECH RECOGNITION PIPELINE & LIFECYCLE
+  // ---------------------------------------------------------------------------
+  private getSpeechRecognitionAPI(): any {
+    if (typeof window === 'undefined') return null;
+    return (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition || null;
   }
 
-  public setGeminiStatus(status: 'idle' | 'connecting' | 'connected' | 'processing' | 'error'): void {
-    this.geminiStatus = status;
-    this.notifyTelemetry();
-  }
-
-  public setActiveTool(toolName: string | null): void {
-    this.activeTool = toolName;
-    if (toolName) {
-      this.transitionTo('EXECUTING_TOOL', `Tool invoked: ${toolName}`);
-    }
-    this.notifyTelemetry();
-  }
-
-  // --- Central Unified Recognition Controller ---
-  private ensureRecognitionLoop(): void {
+  private startWakeWordRecognition(): void {
+    if (this.state === 'disabled' || this.isSpeakingTTS) return;
     if (typeof window === 'undefined') return;
-    if (this.isRecognitionActive || this.isStartingRecognition) return;
+    const SpeechRecognition = this.getSpeechRecognitionAPI();
 
-    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
     if (!SpeechRecognition) {
-      this.lastError = 'Web Speech API is not supported in this browser.';
-      this.transitionTo('ERROR', 'Speech API missing');
+      this.errorMessage = 'Web Speech API is not supported in this browser.';
+      this.errorRecoveryHint = 'Use Google Chrome, Microsoft Edge, or the text-input fallback.';
+      this.transitionTo('error', 'Browser unsupported');
       return;
     }
 
+    // Reuse or create recognition instance
     try {
-      this.isStartingRecognition = true;
+      if (this.recognitionInstance) {
+        try {
+          this.recognitionInstance.abort();
+        } catch (e) {}
+      }
+
       const recognition = new SpeechRecognition();
       recognition.continuous = true;
       recognition.interimResults = true;
-      recognition.maxAlternatives = 5;
       recognition.lang = 'en-US';
+      recognition.maxAlternatives = 3;
 
       recognition.onstart = () => {
-        this.isRecognitionActive = true;
-        this.isStartingRecognition = false;
-        voiceLog("RECOGNITION_LOOP_STARTED", { mode: this.desiredRecognitionMode });
+        this.isRecognitionRunning = true;
+        this.recognitionRestartAttempts = 0;
+        this.notifyTelemetry();
       };
 
       recognition.onresult = (event: any) => {
-        this.handleRecognitionResult(event);
+        if (this.state !== 'standby' && this.state !== 'wake_candidate') return;
+
+        let interimCombined = '';
+        let finalCombined = '';
+
+        for (let i = event.resultIndex; i < event.results.length; i++) {
+          const res = event.results[i];
+          const transcriptPiece = res[0]?.transcript || '';
+          if (res.isFinal) {
+            finalCombined += ' ' + transcriptPiece;
+          } else {
+            interimCombined += ' ' + transcriptPiece;
+          }
+        }
+
+        const candidateText = (finalCombined || interimCombined).trim();
+        if (!candidateText) return;
+
+        this.lastWakeCandidate = candidateText;
+
+        // Pass 1: Wake Word Candidate Verification
+        const verification = wakeWordDetector.verifyWakeWord(candidateText, voiceConfig.wakeConfidenceThreshold);
+        this.lastWakeConfidence = verification.confidence;
+
+        if (verification.matched) {
+          // Transition to wake candidate verification
+          this.transitionTo('wake_candidate', `Candidate wake phrase detected: "${verification.wakePhrase}"`, {
+            wakeConfidence: verification.confidence,
+            candidateText
+          });
+
+          // Pass 2: Temporal Stability Verification
+          if (wakeWordDetector.verifyTemporalStability(candidateText)) {
+            this.currentFinalTranscript = verification.trailingCommand;
+            this.transitionTo('activated', `Wake word verified with confidence ${verification.confidence.toFixed(2)}`, {
+              wakeConfidence: verification.confidence,
+              commandTranscript: verification.trailingCommand
+            });
+          }
+        } else if (verification.isNearMiss) {
+          // Near miss: remain in standby without activating
+          this.notifyTelemetry();
+        }
       };
 
-      recognition.onerror = (e: any) => {
-        if (e.error === 'not-allowed' || e.error === 'service-not-allowed') {
-          this.lastError = 'Microphone permission denied.';
-          this.transitionTo('ERROR', 'Microphone permission denied');
+      recognition.onerror = (event: any) => {
+        const err = event?.error || 'unknown_recognition_error';
+        if (err === 'no-speech') return; // Normal quiet period
+
+        if (err === 'not-allowed' || err === 'service-not-allowed') {
+          this.errorMessage = 'Microphone access was denied or blocked.';
+          this.errorRecoveryHint = 'Please grant microphone permissions in your browser URL bar.';
+          this.transitionTo('error', `Microphone permission denied (${err})`);
           return;
         }
-        if (e.error !== 'no-speech' && e.error !== 'aborted') {
-          voiceLog("RECOGNITION_NOTE", { error: e.error });
+
+        if (err === 'network') {
+          this.errorMessage = 'Speech recognition network connection interrupted.';
+          this.errorRecoveryHint = 'Check your internet connection or use text input.';
+          this.transitionTo('error', 'Network error');
+          return;
         }
+
+        // For transient errors, attempt graceful restart with backoff
+        this.handleTransientRecognitionError(err);
       };
 
       recognition.onend = () => {
-        this.isRecognitionActive = false;
-        this.isStartingRecognition = false;
-        this.recognitionInstance = null;
-
-        // Auto-restart if we desire continuous listening and not currently speaking TTS
-        if (
-          this.desiredRecognitionMode !== 'NONE' &&
-          this.phase !== 'PROCESSING_COMMAND' &&
-          this.phase !== 'EXECUTING_TOOL' &&
-          this.phase !== 'SPEAKING_RESPONSE'
-        ) {
-          if (this.restartTimer) clearTimeout(this.restartTimer);
-          this.restartTimer = setTimeout(() => {
-            this.ensureRecognitionLoop();
-          }, VOICE_CONFIG.reconnectDelayMs);
+        this.isRecognitionRunning = false;
+        if (this.state === 'standby' && !this.isSpeakingTTS) {
+          this.scheduleRecognitionRestart();
         }
       };
 
-      recognition.start();
       this.recognitionInstance = recognition;
-    } catch (err: any) {
-      this.isStartingRecognition = false;
-      this.isRecognitionActive = false;
-      voiceLog("RECOGNITION_START_ERROR", { error: err?.message });
-      if (this.restartTimer) clearTimeout(this.restartTimer);
-      this.restartTimer = setTimeout(() => {
-        if (this.desiredRecognitionMode !== 'NONE') {
-          this.ensureRecognitionLoop();
-        }
-      }, 500);
+      recognition.start();
+    } catch (e: any) {
+      this.handleTransientRecognitionError(e?.message || 'Failed to start recognition');
     }
   }
 
-  private handleRecognitionResult(event: any): void {
-    // 1. Strict Echo Suppression: Ignore incoming audio if TTS is speaking in browser, or engine is speaking, or within reverberation drain window (850ms)
-    const isBrowserSpeaking = typeof window !== 'undefined' && 'speechSynthesis' in window && window.speechSynthesis.speaking;
-    const isDrainPeriod = Date.now() - this.lastSpokenTimestamp < 850;
-
-    if (
-      this.isSpeakingTTS ||
-      isBrowserSpeaking ||
-      isDrainPeriod ||
-      this.phase === 'SPEAKING_RESPONSE' ||
-      this.phase === 'PROCESSING_COMMAND' ||
-      this.phase === 'EXECUTING_TOOL'
-    ) {
-      return;
-    }
-
-    // 2. Mode: WAKE_WORD detection
-    if (this.desiredRecognitionMode === 'WAKE_WORD' || this.phase === 'WAKE_WORD_LISTENING') {
-      if (this.isCooldownActive) return;
-
-      for (let i = event.resultIndex; i < event.results.length; i++) {
-        const item = event.results[i];
-        for (let k = 0; k < item.length; k++) {
-          const transcript = (item[k].transcript || '').trim();
-          if (!transcript) continue;
-
-          // Ignore self-speech / recent assistant output echo
-          const cleanTranscript = transcript.toLowerCase();
-          if (this.lastSpokenText && (
-            (cleanTranscript.length > 4 && this.lastSpokenText.includes(cleanTranscript)) ||
-            (this.lastSpokenText.length > 4 && cleanTranscript.includes(this.lastSpokenText.slice(0, 30)))
-          )) {
-            voiceLog("SELF_VOICE_ECHO_FILTERED", { transcript });
-            continue;
-          }
-
-          const { matched, trailingText } = checkHotwordMatch(
-            transcript,
-            this.activeHotwordPatterns,
-            this.trainedWakeWord,
-            this.isHighSensitivityMode
-          );
-
-          if (matched) {
-            voiceLog("WAKE_WORD_MATCHED", { 
-              raw: transcript, 
-              trailingText, 
-              altIndex: k 
-            });
-            this.triggerWakeWord(transcript, trailingText);
-            return;
-          }
-        }
-      }
-      return;
-    }
-
-    // 3. Mode: Active COMMAND listening
-    if (this.desiredRecognitionMode === 'COMMAND' || this.phase === 'LISTENING_FOR_COMMAND') {
-      let interim = '';
-      let final = '';
-
-      for (let i = 0; i < event.results.length; i++) {
-        const item = event.results[i];
-        if (item.isFinal) {
-          final += item[0].transcript + ' ';
-        } else {
-          interim += item[0].transcript;
-        }
-      }
-
-      let combined = (final + interim).trim();
-
-      // Clean out leading wake words if present
-      combined = combined.replace(/^(hey|ok|okay|yo|hi|hello)?\s*(jarvis|javis|jarv|jervis)\s*/i, '').trim();
-
-      // Filter out self speech in active command mode
-      const cleanCombined = combined.toLowerCase();
-      if (this.lastSpokenText && cleanCombined.length > 5 && (
-        this.lastSpokenText.includes(cleanCombined) ||
-        cleanCombined.includes(this.lastSpokenText.slice(0, 30))
-      )) {
-        voiceLog("SELF_SPEECH_COMMAND_SUPPRESSED", { combined });
-        return;
-      }
-
-      if (combined) {
-        this.accumulatedCommandText = combined;
-        this.liveInterimTranscript = combined;
-        this.lastDetectedTranscript = combined;
-        this.lastActivityAt = Date.now();
-
-        // Reset no speech fallback timer
-        if (this.noSpeechTimer) {
-          clearTimeout(this.noSpeechTimer);
-          this.noSpeechTimer = null;
-        }
-
-        // Reset silence countdown timer
-        if (this.silenceTimer) {
-          clearTimeout(this.silenceTimer);
-          this.silenceTimer = null;
-        }
-
-        // Start silence countdown
-        this.silenceTimer = setTimeout(() => {
-          if (this.phase === 'LISTENING_FOR_COMMAND' && this.accumulatedCommandText.trim()) {
-            voiceLog("SILENCE_FINALIZED_COMMAND", { command: this.accumulatedCommandText });
-            this.commitCommand(this.accumulatedCommandText.trim());
-          }
-        }, VOICE_CONFIG.commandSilenceTimeoutMs);
-
-        this.notifyTelemetry();
-      }
-    }
-  }
-
-  // --- 1. Wake-Word Detection Mode ---
-  public startWakeWordDetection(): void {
-    if (typeof window === 'undefined') return;
-    if (!this.isWakeWordEnabled) {
-      this.desiredRecognitionMode = 'NONE';
-      this.transitionTo('IDLE', 'Hotword disabled in settings');
-      return;
-    }
-
-    // Do not disrupt active command, processing, tool execution, or speech
-    if (
-      this.phase === 'LISTENING_FOR_COMMAND' ||
-      this.phase === 'PROCESSING_COMMAND' ||
-      this.phase === 'EXECUTING_TOOL' ||
-      this.phase === 'SPEAKING_RESPONSE'
-    ) {
-      voiceLog("WAKE_WORD_PAUSED_FOR_ACTIVE_PHASE", { activePhase: this.phase });
-      return;
-    }
-
-    this.desiredRecognitionMode = 'WAKE_WORD';
-    this.clearVoiceTimers();
-    this.transitionTo('WAKE_WORD_LISTENING', 'Wake-word detector active');
-    this.ensureRecognitionLoop();
-  }
-
-  public stopWakeWordDetection(): void {
-    if (this.desiredRecognitionMode === 'WAKE_WORD') {
-      this.desiredRecognitionMode = 'NONE';
-    }
-    if (this.phase === 'WAKE_WORD_LISTENING') {
-      this.transitionTo('IDLE', 'Wake-word detection stopped');
-    }
-  }
-
-  public setHighSensitivity(enabled: boolean): void {
-    this.isHighSensitivityMode = enabled;
-    voiceLog("HIGH_SENSITIVITY_MODE", { enabled });
-  }
-
-  // --- 2. Wake-Word Detected Transition ---
-  private triggerWakeWord(rawUtterance: string, trailingCommand?: string): void {
-    if (this.isCooldownActive) return;
-    this.isCooldownActive = true;
-
-    if (this.wakeWordCooldownTimer) clearTimeout(this.wakeWordCooldownTimer);
-    this.wakeWordCooldownTimer = setTimeout(() => {
-      this.isCooldownActive = false;
-      this.wakeWordCooldownTimer = null;
-    }, VOICE_CONFIG.wakeWordCooldownMs);
-
-    const sessionId = this.generateSessionId();
-    this.currentSessionId = sessionId;
-
-    this.transitionTo('WAKE_WORD_DETECTED', `Wake word matched: "${rawUtterance}"`);
-    jarvisAudio.playActivate();
-
-    const cleanTrailing = (trailingCommand || '').trim();
-
-    if (typeof window !== 'undefined') {
-      window.dispatchEvent(new CustomEvent('jarvis-hotword-triggered', {
-        detail: { rawUtterance, trailingCommand: cleanTrailing, sessionId }
-      }));
-    }
-
-    // If user spoke the entire command in one breath with the wake word
-    if (cleanTrailing.length > 2) {
-      voiceLog("ONE_BREATH_COMMAND_DETECTED", { trailing: cleanTrailing });
-      this.startCommandListening(cleanTrailing, sessionId);
-    } else {
-      this.startCommandListening('', sessionId);
-    }
-  }
-
-  // --- 3. Active Command-Listening Mode ---
-  public startCommandListening(initialBuffer?: string, existingSessionId?: string): void {
-    if (typeof window === 'undefined') return;
-
-    this.clearVoiceTimers();
-    this.desiredRecognitionMode = 'COMMAND';
-    this.duckAudio();
-
-    const sessionId = existingSessionId || this.generateSessionId();
-    this.currentSessionId = sessionId;
-
-    const cleanInitial = (initialBuffer || '')
-      .replace(/^(hey|ok|okay|yo|hi|hello)?\s*(jarvis|javis|jarv|jervis)\s*/i, '')
-      .trim();
-
-    this.accumulatedCommandText = cleanInitial;
-    this.liveInterimTranscript = cleanInitial;
-    this.commandStartedAt = Date.now();
-    this.lastError = null;
-
-    this.transitionTo('LISTENING_FOR_COMMAND', 'Started active command listening session');
-    this.notifyTelemetry();
-    this.ensureRecognitionLoop();
-
-    // If initial buffer has words (e.g. from single-breath speech), set a short finalize timer
-    if (cleanInitial.length > 3) {
-      this.silenceTimer = setTimeout(() => {
-        if (this.phase === 'LISTENING_FOR_COMMAND' && this.accumulatedCommandText.trim()) {
-          voiceLog("INITIAL_BUFFER_SILENCE_FINALIZED", { command: this.accumulatedCommandText });
-          this.commitCommand(this.accumulatedCommandText.trim());
-        }
-      }, VOICE_CONFIG.commandSilenceTimeoutMs);
-    }
-
-    // Fallback timeout if user triggers wake word and says nothing for 8 seconds
-    this.noSpeechTimer = setTimeout(() => {
-      if (this.phase === 'LISTENING_FOR_COMMAND') {
-        if (!this.accumulatedCommandText.trim()) {
-          voiceLog("NO_SPEECH_TIMEOUT_STANDBY");
-          this.resetVoiceSession();
-        }
-      }
-    }, 8000);
-
-    // Max command duration safety limit
-    this.maxDurationTimer = setTimeout(() => {
-      if (this.phase === 'LISTENING_FOR_COMMAND') {
-        if (this.accumulatedCommandText.trim()) {
-          voiceLog("MAX_DURATION_EXCEEDED_FINALIZED");
-          this.commitCommand(this.accumulatedCommandText.trim());
-        } else {
-          this.resetVoiceSession();
-        }
-      }
-    }, VOICE_CONFIG.maxCommandDurationMs);
-  }
-
-  public stopCommandListening(): void {
-    this.clearVoiceTimers();
-    this.unduckAudio();
-    if (this.desiredRecognitionMode === 'COMMAND') {
-      this.desiredRecognitionMode = this.isWakeWordEnabled ? 'WAKE_WORD' : 'NONE';
-    }
-  }
-
-  // --- 4. Command Commit & Processing ---
-  public commitCommand(textOverride?: string): void {
-    const textToProcess = (textOverride || this.accumulatedCommandText).trim();
-    if (!textToProcess) {
-      this.resetVoiceSession();
-      return;
-    }
-
-    const sessionId = this.currentSessionId;
-    this.clearVoiceTimers();
-    this.desiredRecognitionMode = 'NONE';
-
-    if (!this.transitionTo('PROCESSING_COMMAND', `Processing: "${textToProcess}"`)) {
-      return;
-    }
-
-    if (this.commandHandler) {
-      this.commandHandler(textToProcess, sessionId).catch((err) => {
-        voiceLog("COMMAND_HANDLER_ERROR", { error: err?.message });
-        this.lastError = err?.message || 'Command processing failed';
-        this.transitionTo('ERROR', 'Command handler failed');
-      });
-    }
-  }
-
-  // --- 5. Speaking Response State ---
-  public speakResponse(text: string, onComplete?: () => void): void {
-    if (typeof window === 'undefined' || !('speechSynthesis' in window)) {
-      this.unduckAudio();
-      this.transitionTo('WAKE_WORD_LISTENING', 'TTS unavailable');
-      this.startWakeWordDetection();
-      return;
-    }
-
-    const sessionId = this.currentSessionId;
-    this.desiredRecognitionMode = 'NONE';
-    this.clearVoiceTimers();
-
-    // Explicitly abort recognition instance to prevent buffer collection during speech
-    this.cleanupAudioResources();
-    this.isSpeakingTTS = true;
-    this.duckAudio();
-
-    this.transitionTo('SPEAKING_RESPONSE', `Speaking: "${text.slice(0, 40)}..."`);
+  private startCommandRecognition(): void {
+    const SpeechRecognition = this.getSpeechRecognitionAPI();
+    if (!SpeechRecognition) return;
 
     try {
-      window.speechSynthesis.cancel();
-
-      // Defensive cleaning to ensure TTS never speaks role tags, delimiters, or internal tokens
-      let cleanText = cleanJarvisOutput(text);
-      cleanText = cleanText
-        .replace(/\[ACTION:[\s\S]*?\]/g, '')
-        .replace(/\*\*(.*?)\*\*/g, '$1')
-        .replace(/\*(.*?)\*/g, '$1')
-        .replace(/`([^`]+)`/g, '$1')
-        .replace(/#+\s/g, '')
-        .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
-        .replace(/[\u{1F600}-\u{1F6FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}]/gu, '')
-        .trim();
-
-      if (!cleanText) {
-        this.isSpeakingTTS = false;
-        this.unduckAudio();
-        this.transitionTo('WAKE_WORD_LISTENING', 'Empty speech text');
-        if (onComplete) onComplete();
-        this.startWakeWordDetection();
-        return;
+      if (this.recognitionInstance) {
+        try {
+          this.recognitionInstance.abort();
+        } catch (e) {}
       }
 
-      this.lastSpokenText = cleanText.toLowerCase();
-      this.lastSpokenTimestamp = Date.now();
+      const recognition = new SpeechRecognition();
+      recognition.continuous = true;
+      recognition.interimResults = true;
+      recognition.lang = 'en-US';
+      recognition.maxAlternatives = 1;
 
-      const utterance = new SpeechSynthesisUtterance(cleanText);
-      utterance.rate = 1.05;
-      utterance.pitch = 1.0;
-
-      const voices = window.speechSynthesis.getVoices();
-      const preferred = voices.find((v) =>
-        v.lang.startsWith('en') && (
-          v.name.includes('UK English Male') ||
-          v.name.includes('Daniel') ||
-          v.name.includes('George') ||
-          v.name.includes('Oliver') ||
-          v.name.includes('Natural') ||
-          v.name.includes('Google UK English')
-        )
-      ) || voices.find((v) => v.lang.startsWith('en-GB')) || voices.find((v) => v.lang.startsWith('en'));
-
-      if (preferred) utterance.voice = preferred;
-
-      utterance.onstart = () => {
-        this.isSpeakingTTS = true;
+      recognition.onstart = () => {
+        this.isRecognitionRunning = true;
+        this.notifyTelemetry();
       };
 
-      utterance.onend = () => {
-        this.isSpeakingTTS = false;
-        this.lastSpokenTimestamp = Date.now();
-        this.unduckAudio();
+      recognition.onresult = (event: any) => {
+        if (this.state !== 'listening_for_command' && this.state !== 'transcribing_command') return;
 
-        if (this.isSessionActive(sessionId)) {
-          voiceLog("TTS_PLAYBACK_FINISHED");
-          this.activeUtterance = null;
-          if (onComplete) onComplete();
+        let interim = '';
+        let final = '';
 
-          // Auto-minimize full screen to dynamic island after responding so user workspace is visible
-          try {
-            if (typeof window !== 'undefined') {
-              window.dispatchEvent(new CustomEvent('jarvis-auto-minimize'));
-            }
-          } catch (e) {}
+        for (let i = event.resultIndex; i < event.results.length; i++) {
+          const res = event.results[i];
+          const textPiece = res[0]?.transcript || '';
+          if (res.isFinal) {
+            final += ' ' + textPiece;
+          } else {
+            interim += ' ' + textPiece;
+          }
+        }
 
-          // Conversational Follow-Up:
-          // Wait for reverberation drain before resuming recognition
-          setTimeout(() => {
-            if (this.isSessionActive(sessionId)) {
-              this.startCommandListening();
-            } else if (this.isWakeWordEnabled) {
-              this.startWakeWordDetection();
-            }
-          }, VOICE_CONFIG.acknowledgementGuardMs);
+        const cleanInterim = interim.trim();
+        const cleanFinal = final.trim();
+
+        if (cleanInterim || cleanFinal) {
+          this.currentInterimTranscript = cleanInterim;
+          if (cleanFinal) {
+            this.currentFinalTranscript = (this.currentFinalTranscript + ' ' + cleanFinal).trim();
+          }
+
+          // User started speaking -> transition to transcribing_command
+          if (this.state === 'listening_for_command') {
+            this.transitionTo('transcribing_command', 'Speech utterance detected');
+          }
+
+          // Check for Immediate Cancellation ("cancel", "never mind")
+          const currentText = (this.currentFinalTranscript + ' ' + this.currentInterimTranscript).toLowerCase().trim();
+          if (currentText === 'cancel' || currentText === 'never mind' || currentText === 'nevermind' || currentText === 'stop') {
+            this.cleanupAllTimers();
+            this.transitionTo('standby', 'User cancelled command verbally');
+            return;
+          }
+
+          // Reset silence debounce timer
+          this.resetSilenceDebounce();
         }
       };
 
-      utterance.onerror = (e) => {
-        this.isSpeakingTTS = false;
-        this.lastSpokenTimestamp = Date.now();
-        this.unduckAudio();
+      recognition.onerror = (event: any) => {
+        const err = event?.error || 'recognition_error';
+        if (err === 'no-speech') return;
+        this.handleTransientRecognitionError(err);
+      };
 
-        voiceLog("TTS_PLAYBACK_NOTE", { error: e });
-        if (this.isSessionActive(sessionId)) {
-          this.activeUtterance = null;
-          if (onComplete) onComplete();
-          try {
-            if (typeof window !== 'undefined') {
-              window.dispatchEvent(new CustomEvent('jarvis-auto-minimize'));
-            }
-          } catch (err) {}
-          setTimeout(() => {
-            if (this.isWakeWordEnabled) {
-              this.startWakeWordDetection();
-            }
-          }, VOICE_CONFIG.acknowledgementGuardMs);
+      recognition.onend = () => {
+        this.isRecognitionRunning = false;
+        // If recognition ends while in transcribing with final text, finalize it
+        if (this.state === 'transcribing_command' && this.currentFinalTranscript.trim()) {
+          this.finalizeCommand();
+        } else if (this.state === 'listening_for_command') {
+          this.transitionTo('standby', 'Speech recognition ended during listen phase');
         }
       };
 
-      this.activeUtterance = utterance;
-      (window as any)._jarvisActiveUtterance = utterance;
-
-      if (window.speechSynthesis.paused) {
-        window.speechSynthesis.resume();
-      }
-
-      window.speechSynthesis.speak(utterance);
+      this.recognitionInstance = recognition;
+      recognition.start();
     } catch (e: any) {
-      this.isSpeakingTTS = false;
-      this.unduckAudio();
-      voiceLog("TTS_SYNTHESIS_ERROR", { error: e?.message });
-      this.transitionTo('WAKE_WORD_LISTENING', 'TTS execution error');
-      this.startWakeWordDetection();
+      this.handleTransientRecognitionError(e?.message || 'Command recognition start error');
     }
   }
 
-  // --- Reset & Cleanup Helpers ---
-  public resetVoiceSession(): void {
-    voiceLog("RESET_VOICE_SESSION");
-    this.clearVoiceTimers();
-    this.isSpeakingTTS = false;
-    this.unduckAudio();
-    this.accumulatedCommandText = '';
-    this.liveInterimTranscript = '';
-    this.activeTool = null;
-    this.lastError = null;
-    this.desiredRecognitionMode = this.isWakeWordEnabled ? 'WAKE_WORD' : 'NONE';
-    this.transitionTo('WAKE_WORD_LISTENING', 'Voice session reset');
-    if (this.isWakeWordEnabled) {
-      this.startWakeWordDetection();
-    }
-  }
-
-  public cancelCurrentAction(): void {
-    if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
-      window.speechSynthesis.cancel();
-    }
-    this.resetVoiceSession();
-  }
-
-  public cleanupAudioResources(): void {
-    this.clearVoiceTimers();
-    this.desiredRecognitionMode = 'NONE';
+  private stopSpeechRecognition(): void {
     if (this.recognitionInstance) {
       try {
         this.recognitionInstance.onend = null;
@@ -1017,52 +484,384 @@ class JarvisVoiceEngine {
       } catch (e) {}
       this.recognitionInstance = null;
     }
-    this.isRecognitionActive = false;
-    this.isStartingRecognition = false;
+    this.isRecognitionRunning = false;
   }
 
-  public clearVoiceTimers(): void {
-    if (this.silenceTimer) {
-      clearTimeout(this.silenceTimer);
-      this.silenceTimer = null;
+  private resetSilenceDebounce(): void {
+    if (this.silenceDebounceTimer) {
+      clearTimeout(this.silenceDebounceTimer);
     }
-    if (this.noSpeechTimer) {
-      clearTimeout(this.noSpeechTimer);
-      this.noSpeechTimer = null;
+
+    this.silenceDebounceTimer = setTimeout(() => {
+      if (this.state === 'transcribing_command') {
+        const fullUtterance = (this.currentFinalTranscript || this.currentInterimTranscript).trim();
+        if (fullUtterance.length > 0) {
+          this.currentFinalTranscript = fullUtterance;
+          this.finalizeCommand();
+        }
+      }
+    }, voiceConfig.silenceDebounceMs);
+  }
+
+  private finalizeCommand(): void {
+    this.cleanupAllTimers();
+    let text = this.currentFinalTranscript.trim();
+
+    // Strip wake word from beginning of utterance only
+    text = text.replace(/^(?:hey|ok|okay|yo|hi|hello)?\s*(?:jarvis|javis)\s*[,:\-–]?\s*/i, '').trim();
+
+    if (!text) {
+      this.transitionTo('standby', 'Empty command after wake word stripping');
+      return;
     }
-    if (this.maxDurationTimer) {
-      clearTimeout(this.maxDurationTimer);
-      this.maxDurationTimer = null;
+
+    this.currentFinalTranscript = text;
+    this.currentInterimTranscript = '';
+    this.transitionTo('processing_command', `Final command ready: "${text}"`, {
+      commandTranscript: text
+    });
+  }
+
+  // ---------------------------------------------------------------------------
+  // COMMAND EXECUTION PIPELINE & STRUCTURED INTENT VALIDATION
+  // ---------------------------------------------------------------------------
+  private async executeCommandPipeline(commandText: string): Promise<void> {
+    const sessionId = this.currentSessionId;
+
+    try {
+      if (this.commandHandler) {
+        await this.commandHandler(commandText, sessionId);
+      }
+    } catch (err: any) {
+      this.errorMessage = err?.message || 'Command execution encountered an error.';
+      this.transitionTo('error', 'Execution error', { error: err?.message });
     }
-    if (this.restartTimer) {
-      clearTimeout(this.restartTimer);
-      this.restartTimer = null;
+  }
+
+  // ---------------------------------------------------------------------------
+  // CONFIRMATION CONTROLLER (Destructive / Write Actions)
+  // ---------------------------------------------------------------------------
+  public requestConfirmation(
+    prompt: string, 
+    action: () => Promise<void>
+  ): void {
+    this.pendingConfirmationPrompt = prompt;
+    this.pendingConfirmationAction = action;
+    this.transitionTo('confirmation_required', `Confirmation required for action: "${prompt}"`);
+    this.speakResponse(prompt);
+  }
+
+  public async confirmPendingAction(): Promise<void> {
+    if (this.pendingConfirmationAction) {
+      const act = this.pendingConfirmationAction;
+      this.pendingConfirmationAction = null;
+      this.pendingConfirmationPrompt = null;
+      this.cleanupAllTimers();
+      await act();
+      this.transitionTo('standby', 'Confirmed action executed');
     }
+  }
+
+  public cancelPendingAction(): void {
+    this.pendingConfirmationAction = null;
+    this.pendingConfirmationPrompt = null;
+    this.cleanupAllTimers();
+    this.speakResponse("Action cancelled, sir.");
+    this.transitionTo('standby', 'User cancelled pending action');
+  }
+
+  private startConfirmationTimer(): void {
+    if (this.confirmationTimeoutTimer) clearTimeout(this.confirmationTimeoutTimer);
+    this.confirmationTimeoutTimer = setTimeout(() => {
+      if (this.state === 'confirmation_required') {
+        this.cancelPendingAction();
+      }
+    }, 10000);
+  }
+
+  // ---------------------------------------------------------------------------
+  // TEXT-TO-SPEECH (TTS) & SELF-FEEDBACK GATING
+  // ---------------------------------------------------------------------------
+  public speakResponse(text: string, onComplete?: () => void): void {
+    if (typeof window === 'undefined' || !('speechSynthesis' in window)) {
+      this.unduckAudio();
+      this.transitionTo('standby', 'TTS unavailable in environment');
+      return;
+    }
+
+    this.stopSpeechRecognition();
+    this.isSpeakingTTS = true;
+    this.duckAudio();
+
+    this.transitionTo('speaking_response', `TTS speaking: "${text.slice(0, 35)}..."`);
+
+    try {
+      window.speechSynthesis.cancel();
+      const cleaned = cleanJarvisOutput(text).replace(/\[ACTION:[\s\S]*?\]/g, '').trim();
+      if (!cleaned) {
+        this.isSpeakingTTS = false;
+        this.unduckAudio();
+        this.transitionTo('standby', 'Empty TTS text');
+        return;
+      }
+
+      const utterance = new SpeechSynthesisUtterance(cleaned);
+      utterance.rate = 1.05;
+      utterance.pitch = 0.96;
+      utterance.volume = 1.0;
+
+      // Select optimal voice
+      const voices = window.speechSynthesis.getVoices();
+      const premiumVoice = voices.find(v => 
+        (v.name.includes('Daniel') || v.name.includes('George') || v.name.includes('Google UK English Male') || v.name.includes('Natural')) &&
+        v.lang.startsWith('en')
+      ) || voices.find(v => v.lang.startsWith('en'));
+
+      if (premiumVoice) utterance.voice = premiumVoice;
+
+      utterance.onend = () => {
+        this.isSpeakingTTS = false;
+        this.speechSynthesisUtterance = null;
+        this.unduckAudio();
+        if (onComplete) onComplete();
+        // Safe acoustic buffer before resuming standby listening
+        setTimeout(() => {
+          if (this.state === 'speaking_response') {
+            this.transitionTo('standby', 'TTS completed');
+          }
+        }, 500);
+      };
+
+      utterance.onerror = () => {
+        this.isSpeakingTTS = false;
+        this.speechSynthesisUtterance = null;
+        this.unduckAudio();
+        if (onComplete) onComplete();
+        this.transitionTo('standby', 'TTS playback error');
+      };
+
+      this.speechSynthesisUtterance = utterance;
+      window.speechSynthesis.speak(utterance);
+    } catch (e) {
+      this.isSpeakingTTS = false;
+      this.unduckAudio();
+      this.transitionTo('standby', 'TTS exception');
+    }
+  }
+
+  public stopSpeaking(): void {
+    if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
+      window.speechSynthesis.cancel();
+    }
+    this.isSpeakingTTS = false;
+    this.speechSynthesisUtterance = null;
+    this.unduckAudio();
+    this.transitionTo('standby', 'TTS stopped by user');
+  }
+
+  // ---------------------------------------------------------------------------
+  // AUDIO DUCKING & RECOVERY
+  // ---------------------------------------------------------------------------
+  private duckAudio(): void {
+    try {
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('jarvis-audio-duck', { detail: { volume: 0.2 } }));
+      }
+    } catch (e) {}
+  }
+
+  private unduckAudio(): void {
+    try {
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('jarvis-audio-unduck', { detail: { volume: 1.0 } }));
+      }
+    } catch (e) {}
+  }
+
+  // ---------------------------------------------------------------------------
+  // ERROR & RECOVERY CONTROLLER
+  // ---------------------------------------------------------------------------
+  private handleTransientRecognitionError(errorDetail: string): void {
+    this.recognitionRestartAttempts++;
+    if (this.recognitionRestartAttempts > this.maxRestartAttempts) {
+      this.errorMessage = `Speech service failed after ${this.maxRestartAttempts} attempts: ${errorDetail}`;
+      this.errorRecoveryHint = 'Click "Retry Voice" or enter commands via the keyboard.';
+      this.transitionTo('error', `Max restarts exceeded: ${errorDetail}`);
+      return;
+    }
+
+    this.scheduleRecognitionRestart();
+  }
+
+  private scheduleRecognitionRestart(): void {
+    if (this.restartDebounceTimer) clearTimeout(this.restartDebounceTimer);
+    const delay = Math.min(1000 * Math.pow(1.5, this.recognitionRestartAttempts), 4000);
+    this.restartDebounceTimer = setTimeout(() => {
+      if (this.state === 'standby' && !this.isSpeakingTTS) {
+        this.startWakeWordRecognition();
+      }
+    }, delay);
+  }
+
+  public retryVoice(): void {
+    this.recognitionRestartAttempts = 0;
+    this.errorMessage = null;
+    this.errorRecoveryHint = null;
+    this.transitionTo('standby', 'Manual retry initiated');
+  }
+
+  public cancelCurrentAction(): void {
+    this.stopSpeaking();
+    this.cleanupAllTimers();
+    this.transitionTo('standby', 'User cancelled current action');
+  }
+
+  public enableVoice(enabled: boolean): void {
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('jarvis-always-listening', String(enabled));
+    }
+    if (enabled) {
+      this.transitionTo('standby', 'Voice explicitly enabled');
+    } else {
+      this.transitionTo('disabled', 'Voice explicitly disabled');
+    }
+  }
+
+  public startManualPushToTalk(): void {
+    this.transitionTo('activated', 'Manual push-to-talk button triggered');
+  }
+
+  private cleanupAllTimers(): void {
+    if (this.commandTimeoutTimer) clearTimeout(this.commandTimeoutTimer);
+    if (this.silenceDebounceTimer) clearTimeout(this.silenceDebounceTimer);
+    if (this.confirmationTimeoutTimer) clearTimeout(this.confirmationTimeoutTimer);
+    if (this.restartDebounceTimer) clearTimeout(this.restartDebounceTimer);
+    if (this.wakeVerificationTimer) clearTimeout(this.wakeVerificationTimer);
+  }
+
+  // ---------------------------------------------------------------------------
+  // TELEMETRY & SUBSCRIPTIONS
+  // ---------------------------------------------------------------------------
+  public subscribe(listener: VoiceStateListener): () => void {
+    this.listeners.add(listener);
+    listener(this.getTelemetry());
+    return () => this.listeners.delete(listener);
   }
 
   private notifyTelemetry(): void {
-    const stateData = this.getStateData();
+    const data = this.getTelemetry();
     this.listeners.forEach((listener) => {
       try {
-        listener(stateData);
+        listener(data);
       } catch (e) {}
     });
   }
 
-  public setWakeWordEnabled(enabled: boolean): void {
-    this.isWakeWordEnabled = enabled;
-    if (typeof window !== 'undefined') {
-      localStorage.setItem('jarvis-hotword-enabled', String(enabled));
+  public getTelemetry(): VoiceEngineTelemetry {
+    return {
+      state: this.state,
+      previousState: this.previousState,
+      microphoneStatus: this.state === 'disabled' ? 'idle' : this.state === 'error' ? 'error' : this.isRecognitionRunning ? 'listening' : 'granted',
+      isMicrophoneActive: this.isRecognitionRunning,
+      wakeWordDetected: this.state === 'activated' || this.state === 'listening_for_command',
+      wakeConfidence: this.lastWakeConfidence,
+      lastWakeCandidateText: this.lastWakeCandidate,
+      interimTranscript: this.currentInterimTranscript,
+      finalCommandTranscript: this.currentFinalTranscript,
+      intentConfidence: this.lastIntentConfidence,
+      lastParsedIntent: this.lastParsedIntent,
+      pendingConfirmationPrompt: this.pendingConfirmationPrompt,
+      hasPendingConfirmation: this.state === 'confirmation_required',
+      errorMessage: this.errorMessage,
+      errorRecoveryHint: this.errorRecoveryHint,
+      isTTSPlaying: this.isSpeakingTTS,
+      audioUploaded: false,
+      lastTransitionTimestamp: this.stateEntryTimestamp,
+      stateHistory: [...this.diagnosticHistory],
+
+      // Compatibility aliases
+      phase: this.state,
+      transcript: this.currentFinalTranscript || this.currentInterimTranscript,
+      activeTool: this.lastParsedIntent || null,
+      geminiStatus: 'idle',
+      sessionId: this.currentSessionId,
+      wakeWordEnabled: this.state !== 'disabled',
+      audioSampleRate: 44100,
+      activeListenerCount: this.listeners.size,
+      activeTimers: 0,
+      lastTransition: this.state,
+      error: this.errorMessage
+    };
+  }
+
+  public setCommandHandler(handler: CommandHandler): void {
+    this.commandHandler = handler;
+  }
+
+  public getState(): VoiceState {
+    return this.state;
+  }
+
+  // Backwards compatibility helpers
+  public getStateData(): VoiceEngineTelemetry {
+    return this.getTelemetry();
+  }
+
+  public startCommandListening(): void {
+    this.startManualPushToTalk();
+  }
+
+  public stopCommandListening(): void {
+    this.cancelCurrentAction();
+  }
+
+  public commitCommand(customText?: string): void {
+    if (customText) {
+      this.currentFinalTranscript = customText;
     }
-    if (enabled) {
-      this.startWakeWordDetection();
+    this.finalizeCommand();
+  }
+
+  public async warmupMicrophone(): Promise<boolean> {
+    return true;
+  }
+
+  public setWakeWordEnabled(enabled: boolean): void {
+    this.enableVoice(enabled);
+  }
+
+  public setHighSensitivity(enabled: boolean): void {
+    // No-op or dynamic threshold adjust
+  }
+
+  public loadTrainedWakeWord(...args: any[]): void {
+    // Custom wake word training compatibility stub
+  }
+
+  public startWakeWordDetection(): void {
+    if (this.state === 'disabled') {
+      this.enableVoice(true);
     } else {
-      this.stopWakeWordDetection();
+      this.transitionTo('standby', 'Wake word detection started');
     }
   }
 
-  public getState(): VoicePhase {
-    return this.phase;
+  public stopWakeWordDetection(): void {
+    this.enableVoice(false);
+  }
+
+  public setIntentTelemetry(intent: string, confidence: number): void {
+    this.lastParsedIntent = intent;
+    this.lastIntentConfidence = confidence;
+    this.notifyTelemetry();
+  }
+
+  public setGeminiStatus(status: any): void {
+    // Backwards compatibility stub
+  }
+
+  public setActiveTool(tool: string): void {
+    this.lastParsedIntent = tool;
   }
 }
 

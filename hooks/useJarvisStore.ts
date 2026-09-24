@@ -2,7 +2,7 @@
 
 import { create } from 'zustand';
 import { jarvisAudio } from '../lib/jarvisAudio';
-import { VoicePhase, VoiceStateData, jarvisVoiceEngine } from '../lib/jarvisVoiceEngine';
+import { VoiceState, VoiceEngineTelemetry, jarvisVoiceEngine } from '../lib/jarvisVoiceEngine';
 import { LivePhase, LiveTelemetry, jarvisLiveEngine } from '../lib/jarvisLiveEngine';
 import '../lib/jarvisCommandDispatcher';
 
@@ -77,11 +77,14 @@ interface JarvisStore {
   closeJarvis: () => void;
   toggleJarvis: () => void;
 
-  // Single Source of Truth for Voice State Machine
-  phase: VoicePhase;
-  voiceState: VoicePhase; // backwards compatibility alias
-  telemetry: VoiceStateData;
-  setVoiceStateData: (data: VoiceStateData) => void;
+  // Single Source of Truth for Voice State Machine (10-state FSM)
+  phase: VoiceState;
+  voiceState: VoiceState; // backwards compatibility alias
+  telemetry: VoiceEngineTelemetry;
+  setVoiceStateData: (data: VoiceEngineTelemetry) => void;
+  confirmPendingAction: () => Promise<void>;
+  cancelPendingAction: () => void;
+  retryVoice: () => void;
 
   // Live Conversation Mode State Machine
   livePhase: LivePhase;
@@ -215,14 +218,23 @@ export const useJarvisStore = create<JarvisStore>((set, get) => ({
     }
   },
 
-  phase: 'IDLE',
-  voiceState: 'IDLE',
-  telemetry: jarvisVoiceEngine.getStateData(),
+  phase: 'standby',
+  voiceState: 'standby',
+  telemetry: jarvisVoiceEngine.getTelemetry(),
   setVoiceStateData: (telemetry) => set({ 
-    phase: telemetry.phase, 
-    voiceState: telemetry.phase, 
+    phase: telemetry.state, 
+    voiceState: telemetry.state, 
     telemetry 
   }),
+  confirmPendingAction: async () => {
+    await jarvisVoiceEngine.confirmPendingAction();
+  },
+  cancelPendingAction: () => {
+    jarvisVoiceEngine.cancelPendingAction();
+  },
+  retryVoice: () => {
+    jarvisVoiceEngine.retryVoice();
+  },
 
   // Live Mode State & Methods
   livePhase: 'IDLE',
@@ -383,46 +395,49 @@ export const useJarvisStore = create<JarvisStore>((set, get) => ({
 
 // Sync global store with engine state changes
 if (typeof window !== 'undefined') {
-  jarvisVoiceEngine.subscribe((stateData: VoiceStateData) => {
-    const { phase } = stateData;
+  jarvisVoiceEngine.subscribe((telemetry: VoiceEngineTelemetry) => {
+    const state = telemetry.state;
 
-    // Map VoicePhase to legacy aiState & flags for backwards compatibility
+    // Map VoiceState to legacy aiState & flags for backwards compatibility
     let aiState: JarvisAiState = 'idle';
     let isListening = false;
     let isSpeaking = false;
 
-    switch (phase) {
-      case 'WAKE_WORD_LISTENING':
+    switch (state) {
+      case 'disabled':
+      case 'standby':
         aiState = 'idle';
         break;
-      case 'WAKE_WORD_DETECTED':
-      case 'LISTENING_FOR_COMMAND':
+      case 'wake_candidate':
+      case 'activated':
+      case 'listening_for_command':
+      case 'transcribing_command':
         aiState = 'listening';
         isListening = true;
         break;
-      case 'PROCESSING_COMMAND':
+      case 'processing_command':
         aiState = 'thinking';
         break;
-      case 'EXECUTING_TOOL':
-        aiState = 'executing';
-        break;
-      case 'SPEAKING_RESPONSE':
+      case 'speaking_response':
         aiState = 'speaking';
         isSpeaking = true;
         break;
-      case 'ERROR':
+      case 'confirmation_required':
+        aiState = 'thinking';
+        break;
+      case 'error':
         aiState = 'idle';
         break;
     }
 
     useJarvisStore.setState({
-      phase,
-      voiceState: phase,
-      telemetry: stateData,
+      phase: state,
+      voiceState: state,
+      telemetry,
       aiState,
       isListening,
       isSpeaking,
-      isHotwordActive: phase === 'WAKE_WORD_LISTENING'
+      isHotwordActive: state === 'standby' || state === 'wake_candidate'
     });
   });
 

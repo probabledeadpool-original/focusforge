@@ -5,7 +5,8 @@ import { useAppStore } from '../hooks/useAppStore';
 import { useFrequencyStore } from '../hooks/useFrequencyStore';
 import { useBatmanStore } from '../hooks/useBatmanStore';
 import { jarvisAudio } from './jarvisAudio';
-import { jarvisVoiceEngine, voiceLog } from './jarvisVoiceEngine';
+import { jarvisVoiceEngine, voiceLog, StructuredIntentResult } from './jarvisVoiceEngine';
+import { voiceConfig } from './voiceConfig';
 import { parseYouTubeUrl, fetchYouTubeMeta } from '../app/components/SonicVaultUtils';
 import { 
   resolvePlaylist, 
@@ -1339,6 +1340,42 @@ export async function executeLocalCommand(rawText: string): Promise<boolean> {
     }
   }
 
+  // 7.5. START FOCUS MUSIC (The Batman OST / Focus Suite https://youtu.be/YKLKoHORjYI)
+  if (
+    text === 'start focus music' ||
+    text === 'play focus music' ||
+    text === 'focus music' ||
+    text === 'start focus track' ||
+    text === 'play focus track' ||
+    text === 'play the focus music' ||
+    text === 'play the focus track' ||
+    text === 'batman music' ||
+    text === 'play batman music' ||
+    text === 'batman theme' ||
+    text === 'lock in music' ||
+    text.includes('start focus music') ||
+    text.includes('play focus music')
+  ) {
+    const focusTrack = {
+      id: `focus-suite-yt-YKLKoHORjYI`,
+      videoId: 'YKLKoHORjYI',
+      title: 'The Batman - Atmospheric Focus Suite',
+      artist: 'Michael Giacchino',
+      thumbnail: 'https://img.youtube.com/vi/YKLKoHORjYI/hqdefault.jpg',
+      dominantColor: 'rgb(20, 20, 20)',
+      addedAt: Date.now(),
+      sourceUrl: 'https://youtu.be/YKLKoHORjYI?si=OmDfuKAhECyDMOxb',
+    };
+    frequencyStore.addTrack(focusTrack);
+    frequencyStore.playTrack(focusTrack.id);
+    window.dispatchEvent(new CustomEvent('start-theatre', { detail: { url: focusTrack.sourceUrl, isFocusMusic: true } }));
+    window.dispatchEvent(new CustomEvent('batman-focus-music', { detail: { url: focusTrack.sourceUrl } }));
+    const reply = "Streaming tactical focus soundtrack in the background, sir. All neural channels focused.";
+    jarvisStore.addMessage({ role: 'assistant', text: reply, actionSummary: 'Playing Focus Soundtrack' });
+    jarvisVoiceEngine.speakResponse(reply);
+    return true;
+  }
+
   // 8. NATURAL PLAYLIST & SONG INTENT RESOLUTION
   // Examples: "play my workout playlist", "play the playlist called late night", "play the playlist with the purple cover", "play the playlist I made for studying", "play the playlist that has Blinding Lights in it"
   const playIntentMatch = text.match(/^(?:jarvis\s*,?\s*)?(?:play|stream|listen to|put on|start|queue)\s+(.+)$/i);
@@ -1809,17 +1846,211 @@ export async function processWithGemini(userPrompt: string): Promise<void> {
   }
 }
 
+/**
+ * Structured Intent Parser with Strict Confidence Thresholds and Confirmation Gating
+ */
+export async function parseStructuredIntent(rawText: string): Promise<StructuredIntentResult> {
+  const text = rawText.trim().toLowerCase();
+  
+  if (!text) {
+    return {
+      intent: 'EMPTY_INPUT',
+      confidence: 0,
+      entities: {},
+      response: 'I did not catch that, sir.',
+      requiresConfirmation: false,
+      action: null
+    };
+  }
+
+  // 1. Check for Ambiguous / Vague Commands ("do that thing", "fix it", "make it work", "whatever")
+  const ambiguousPhrases = [
+    'do that thing', 'do that', 'fix it', 'make it work', 'do something', 
+    'run that', 'whatever', 'handle it', 'you know what to do', 'make it happen'
+  ];
+  if (ambiguousPhrases.includes(text) || text.length < 3) {
+    return {
+      intent: 'AMBIGUOUS_COMMAND',
+      confidence: 0.45,
+      entities: { rawText },
+      response: "Could you please specify which protocol or action you would like me to execute, sir?",
+      requiresConfirmation: false,
+      action: null
+    };
+  }
+
+  // 2. Destructive & Session Reset Commands (Require Confirmation)
+  if (text.includes('delete task') || text.includes('remove task') || text.includes('clear tasks') || text.includes('delete all tasks')) {
+    const isAll = text.includes('all') || text.includes('clear');
+    const queryMatch = text.replace(/^(?:delete|remove|clear)\s+(?:task|tasks|all tasks)?\s*/i, '').trim();
+    return {
+      intent: 'DELETE_TASK',
+      confidence: 0.95,
+      entities: { query: queryMatch, all: isAll },
+      response: isAll ? "Are you sure you want to delete all tasks in the matrix, sir?" : `Confirm deletion of task matching "${queryMatch || 'selected'}", sir?`,
+      requiresConfirmation: true,
+      action: 'DELETE_TASK',
+      rawAction: { type: 'DELETE_TASK', title: queryMatch }
+    };
+  }
+
+  if (text.includes('reset timer') || text.includes('cancel timer') || text.includes('abort timer')) {
+    return {
+      intent: 'RESET_TIMER',
+      confidence: 0.95,
+      entities: {},
+      response: "Are you sure you want to reset the current focus timer to zero, sir?",
+      requiresConfirmation: true,
+      action: 'RESET_TIMER',
+      rawAction: { type: 'RESET_TIMER' }
+    };
+  }
+
+  // 3. High Confidence Deterministic Local Commands
+  if (
+    text.includes('timer') || 
+    text.includes('pomodoro') || 
+    text.includes('sprint') || 
+    text.includes('start focus') || 
+    text.includes('focus block') ||
+    text.includes('focus session')
+  ) {
+    let durationMinutes = 25;
+    let timerName = 'Deep Focus Block';
+    const minMatch = text.match(/(\d+)\s*(?:minute|min|m\b)/);
+    if (minMatch && minMatch[1]) {
+      durationMinutes = parseInt(minMatch[1], 10);
+      timerName = `${durationMinutes}m Focus Block`;
+    } else if (text.includes('short') || text.includes('quick')) {
+      durationMinutes = 15;
+      timerName = 'Quick Sprint';
+    } else if (text.includes('deep') || text.includes('hour')) {
+      durationMinutes = 60;
+      timerName = 'Ultradian Deep Work';
+    }
+    return {
+      intent: 'START_TIMER',
+      confidence: 0.98,
+      entities: { minutes: durationMinutes, name: timerName },
+      response: `Starting ${durationMinutes}-minute focus block: ${timerName}.`,
+      requiresConfirmation: false,
+      action: 'START_TIMER',
+      rawAction: { type: 'START_TIMER', minutes: durationMinutes, name: timerName }
+    };
+  }
+
+  if (text.includes('pause timer') || text.includes('hold timer')) {
+    return {
+      intent: 'PAUSE_TIMER',
+      confidence: 0.98,
+      entities: {},
+      response: "Timer protocol held, sir.",
+      requiresConfirmation: false,
+      action: 'PAUSE_TIMER',
+      rawAction: { type: 'PAUSE_TIMER' }
+    };
+  }
+
+  if (text.includes('resume timer') || text.includes('continue timer') || text.includes('unpause timer')) {
+    return {
+      intent: 'RESUME_TIMER',
+      confidence: 0.98,
+      entities: {},
+      response: "Resuming countdown. Locked in.",
+      requiresConfirmation: false,
+      action: 'RESUME_TIMER',
+      rawAction: { type: 'RESUME_TIMER' }
+    };
+  }
+
+  if (text.startsWith('add task') || text.startsWith('create task') || text.startsWith('new task') || text.startsWith('remind me to')) {
+    const taskTitle = text.replace(/^(?:add task|create task|new task|remind me to|schedule task)\s*(?::|to|-)?\s*/i, '').trim() || 'Deep Work Priority Sprint';
+    return {
+      intent: 'CREATE_TASK',
+      confidence: 0.96,
+      entities: { title: taskTitle, priority: text.includes('urgent') ? 'urgent' : 'high' },
+      response: `Logged objective: "${taskTitle}". Synchronized to your task matrix.`,
+      requiresConfirmation: false,
+      action: 'CREATE_TASK',
+      rawAction: { type: 'CREATE_TASK', title: taskTitle, priority: text.includes('urgent') ? 'urgent' : 'high' }
+    };
+  }
+
+  if (text.includes('complete task') || text.includes('finish task') || text.includes('check off task') || text.includes('done with task')) {
+    const query = text.replace(/^(?:complete task|finish task|check off task|done with task|done with)\s*(?::|to|-)?\s*/i, '').trim();
+    return {
+      intent: 'COMPLETE_TASK',
+      confidence: 0.95,
+      entities: { query },
+      response: query ? `Objective matching "${query}" marked complete.` : "Current focus objective completed.",
+      requiresConfirmation: false,
+      action: 'COMPLETE_TASK',
+      rawAction: { type: 'COMPLETE_TASK', title: query }
+    };
+  }
+
+  // Default intent for fallback/Gemini
+  return {
+    intent: 'GENERAL_QUERY',
+    confidence: 0.85,
+    entities: { rawText },
+    response: '',
+    requiresConfirmation: false,
+    action: null
+  };
+}
+
 export async function handleGlobalJarvisCommand(rawText: string, sessionId?: string): Promise<void> {
   const text = rawText.trim();
   if (!text) return;
 
   const jarvisStore = useJarvisStore.getState();
+  const telemetry = jarvisVoiceEngine.getTelemetry();
+
+  // 1. Check if we are in confirmation_required state
+  if (telemetry.state === 'confirmation_required' || telemetry.hasPendingConfirmation) {
+    const cleanLower = text.toLowerCase();
+    if (cleanLower === 'yes' || cleanLower === 'confirm' || cleanLower === 'do it' || cleanLower === 'proceed' || cleanLower === 'yeah' || cleanLower === 'sure') {
+      await jarvisVoiceEngine.confirmPendingAction();
+      return;
+    }
+    if (cleanLower === 'no' || cleanLower === 'cancel' || cleanLower === 'stop' || cleanLower === 'never mind' || cleanLower === 'nevermind' || cleanLower === 'abort') {
+      jarvisVoiceEngine.cancelPendingAction();
+      return;
+    }
+  }
+
   jarvisStore.addMessage({ role: 'user', text });
 
-  // 1. Try local command first
+  // 2. Parse Structured Intent
+  const structuredIntent = await parseStructuredIntent(text);
+  jarvisVoiceEngine.setIntentTelemetry(structuredIntent.intent, structuredIntent.confidence);
+
+  // 3. Check Intent Confidence Threshold
+  const minConfidence = 0.80; // Configurable threshold
+  if (structuredIntent.confidence < minConfidence) {
+    const clarification = structuredIntent.response || "Could you please rephrase that command, sir?";
+    jarvisStore.addMessage({ role: 'assistant', text: clarification });
+    jarvisVoiceEngine.speakResponse(clarification);
+    return;
+  }
+
+  // 4. Check Confirmation Requirement for Destructive / Write Actions
+  if (structuredIntent.requiresConfirmation && structuredIntent.rawAction) {
+    const actionObj = structuredIntent.rawAction;
+    jarvisVoiceEngine.requestConfirmation(structuredIntent.response, async () => {
+      validateAndExecuteTool(actionObj);
+      const doneReply = `Action executed: ${actionObj.type.replace(/_/g, ' ')}.`;
+      jarvisStore.addMessage({ role: 'assistant', text: doneReply, actionSummary: actionObj.type });
+      jarvisVoiceEngine.speakResponse(doneReply);
+    });
+    return;
+  }
+
+  // 5. Try deterministic local command first
   const isHandled = await executeLocalCommand(text);
 
-  // 2. If not handled, invoke Gemini LLM
+  // 6. If not handled locally, invoke Gemini reasoning
   if (!isHandled) {
     await processWithGemini(text);
   }
@@ -1837,3 +2068,4 @@ if (typeof window !== 'undefined') {
     }
   }) as EventListener);
 }
+
