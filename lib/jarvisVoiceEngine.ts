@@ -214,6 +214,12 @@ export class JarvisVoiceEngine {
         this.cleanupAllTimers();
         this.duckAudio();
 
+        if (typeof window !== 'undefined') {
+          window.dispatchEvent(new CustomEvent('jarvis-hotword-triggered', {
+            detail: { trailingCommand: this.currentFinalTranscript }
+          }));
+        }
+
         if (voiceConfig.soundFeedbackEnabled) {
           jarvisAudio.playWake();
         }
@@ -468,15 +474,23 @@ export class JarvisVoiceEngine {
       clearTimeout(this.silenceDebounceTimer);
     }
 
+    const fullUtterance = (this.currentFinalTranscript || this.currentInterimTranscript).trim();
+    const wordCount = fullUtterance.split(/\s+/).filter(Boolean).length;
+    
+    // Adaptive silence debounce:
+    // Short phrases (1-2 words): give 1500ms to allow user to finish their thought naturally.
+    // Full phrases (3+ words): finalize in 700ms for fast, snappy execution.
+    const dynamicDebounceMs = wordCount <= 2 ? 1500 : 700;
+
     this.silenceDebounceTimer = setTimeout(() => {
       if (this.state === 'transcribing_command') {
-        const fullUtterance = (this.currentFinalTranscript || this.currentInterimTranscript).trim();
-        if (fullUtterance.length > 0) {
-          this.currentFinalTranscript = fullUtterance;
+        const text = (this.currentFinalTranscript || this.currentInterimTranscript).trim();
+        if (text.length > 0) {
+          this.currentFinalTranscript = text;
           this.finalizeCommand();
         }
       }
-    }, voiceConfig.silenceDebounceMs);
+    }, dynamicDebounceMs);
   }
 
   private finalizeCommand(): void {

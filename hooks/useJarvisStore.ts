@@ -430,6 +430,9 @@ if (typeof window !== 'undefined') {
         break;
     }
 
+    const currentStore = useJarvisStore.getState();
+    const shouldOpen = (state === 'activated' || state === 'listening_for_command' || state === 'transcribing_command') && !currentStore.isOpen && currentStore.jarvisMode !== 'LIVE';
+
     useJarvisStore.setState({
       phase: state,
       voiceState: state,
@@ -437,6 +440,7 @@ if (typeof window !== 'undefined') {
       aiState,
       isListening,
       isSpeaking,
+      isOpen: shouldOpen ? true : currentStore.isOpen,
       isHotwordActive: state === 'standby' || state === 'wake_candidate'
     });
   });
