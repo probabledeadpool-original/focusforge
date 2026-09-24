@@ -1256,7 +1256,7 @@ export default function JarvisVoiceHUD() {
             <div className="relative z-10 w-9 h-9 rounded-full flex items-center justify-center pointer-events-none">
               <ThinkingOrb 
                 state={resolveOrbState(voiceState, aiState, telemetry?.activeTool, telemetry?.geminiStatus)} 
-                size={34} 
+                size={32} 
                 theme="dark" 
               />
             </div>

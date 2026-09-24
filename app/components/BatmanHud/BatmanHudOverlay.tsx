@@ -132,7 +132,7 @@ function BatmanSpotWeatherWidget({ weather }: { weather: WeatherData }) {
             METEOROLOGICAL SENSOR: {weather.city.toUpperCase()}
           </span>
         </div>
-        <span className="text-[9px] text-white/50 font-mono">{weather.condition.toUpperCase()}</span>
+        <span className="text-[9px] text-white/50 font-mono">{(weather.conditionText || 'CLEAR').toUpperCase()}</span>
       </div>
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         <div className="bg-black/60 border border-white/10 p-2.5">
@@ -197,6 +197,17 @@ export default function BatmanHudOverlay() {
   const frequencyStore = useFrequencyStore();
   const jarvisStore = useJarvisStore();
   const appStore = useAppStore();
+
+  const [missionTasks, setMissionTasks] = useState<{ id: string; text: string; completed: boolean }[]>([
+    { id: '1', text: 'Execute high-frequency cognitive session', completed: true },
+    { id: '2', text: 'Audit neural telemetry & system logs', completed: false },
+    { id: '3', text: 'Deploy production build to Vercel', completed: true },
+    { id: '4', text: 'Calibrate binaural focus audio stream', completed: false },
+  ]);
+
+  const toggleTask = (id: string) => {
+    setMissionTasks(prev => prev.map(t => t.id === id ? { ...t, completed: !t.completed } : t));
+  };
 
   const [inputCommand, setInputCommand] = useState('');
   const [fps, setFps] = useState(60);
@@ -442,20 +453,20 @@ export default function BatmanHudOverlay() {
                         MISSION OBJECTIVES
                       </span>
                     </div>
-                    <span className="text-[9px] text-white/50">{appStore.todos.filter(t => t.completed).length}/{appStore.todos.length}</span>
+                    <span className="text-[9px] text-white/50">{missionTasks.filter(t => t.completed).length}/{missionTasks.length}</span>
                   </div>
 
                   {/* Task List */}
                   <div className="space-y-1.5 max-h-[35vh] overflow-y-auto pr-1 no-scrollbar">
-                    {appStore.todos.length === 0 ? (
+                    {missionTasks.length === 0 ? (
                       <div className="text-[10px] text-white/40 italic p-2 border border-dashed border-white/10">
                         No active mission directives. Say &ldquo;Add task ...&rdquo;
                       </div>
                     ) : (
-                      appStore.todos.slice(0, 6).map((task) => (
+                      missionTasks.map((task) => (
                         <div
                           key={task.id}
-                          onClick={() => appStore.toggleTodo(task.id)}
+                          onClick={() => toggleTask(task.id)}
                           className={`p-2 border transition-all cursor-pointer flex items-center justify-between ${
                             task.completed 
                               ? 'bg-white/[0.02] border-white/10 text-white/40 line-through' 
@@ -484,7 +495,7 @@ export default function BatmanHudOverlay() {
                   </div>
                   <div className="flex items-center justify-between text-[8px] text-white/40">
                     <span>FOCUS MATRIX ALPHA</span>
-                    <span>STREAK: {appStore.streak} DAYS</span>
+                    <span>TOTAL FOCUSED: {appStore.totalMinutesFocused} MINS</span>
                   </div>
                 </div>
               </motion.aside>
@@ -556,7 +567,7 @@ export default function BatmanHudOverlay() {
 
                       {/* Thinking Orb Component */}
                       <div className="relative z-10 scale-125">
-                        <ThinkingOrb state={orbState} size={70} theme="dark" />
+                        <ThinkingOrb state={orbState} size={64} theme="dark" />
                       </div>
                     </div>
 
