@@ -3,6 +3,7 @@
 import { useJarvisStore } from '../hooks/useJarvisStore';
 import { useAppStore } from '../hooks/useAppStore';
 import { useFrequencyStore } from '../hooks/useFrequencyStore';
+import { useBatmanStore } from '../hooks/useBatmanStore';
 import { jarvisAudio } from './jarvisAudio';
 import { jarvisVoiceEngine, voiceLog } from './jarvisVoiceEngine';
 import { parseYouTubeUrl, fetchYouTubeMeta } from '../app/components/SonicVaultUtils';
@@ -433,6 +434,20 @@ export function validateAndExecuteTool(action: { type: string; [key: string]: an
         jarvisAudio.playExecute();
         return true;
       }
+      case 'LOCK_IN':
+      case 'ENTER_BATMAN_MODE': {
+        useBatmanStore.getState().setBatmanMode(true);
+        jarvisStore.setLastAction('BATMAN LOCK-IN ACTIVATED');
+        jarvisAudio.playExecute();
+        return true;
+      }
+      case 'DISENGAGE_LOCK_IN':
+      case 'EXIT_BATMAN_MODE': {
+        useBatmanStore.getState().setBatmanMode(false);
+        jarvisStore.setLastAction('LOCK-IN PROTOCOL DISENGAGED');
+        jarvisAudio.playExecute();
+        return true;
+      }
       default:
         return false;
     }
@@ -510,8 +525,56 @@ export async function executeLocalCommand(rawText: string): Promise<boolean> {
   const jarvisStore = useJarvisStore.getState();
   const frequencyStore = useFrequencyStore.getState();
   const appStore = useAppStore.getState();
+  const batmanStore = useBatmanStore.getState();
 
-  // 0. CHECK MULTI-TURN PENDING CLARIFICATION
+  // 0A. BATMAN LOCK-IN PROTOCOL ("let's lock in", "lock in", "enter batman mode", "batman mode", "activate hud", "lock in protocol")
+  if (
+    text.includes("let's lock in") ||
+    text.includes("lets lock in") ||
+    text.includes("lock in") ||
+    text.includes("batman mode") ||
+    text.includes("iron man mode") ||
+    text.includes("hud mode") ||
+    text.includes("activate hud") ||
+    text.includes("engage hud") ||
+    text === "lock in" ||
+    text === "lockin" ||
+    text === "batman"
+  ) {
+    batmanStore.setBatmanMode(true);
+    const spoken = "Lock-In protocol engaged. Initializing tactical HUD interface.";
+    jarvisStore.addMessage({
+      role: 'assistant',
+      text: "Lock-In Protocol engaged. Systems locked into OLED tactical HUD.",
+      actionSummary: "BATMAN LOCK-IN ACTIVATED"
+    });
+    jarvisVoiceEngine.speakResponse(spoken);
+    return true;
+  }
+
+  // 0B. BATMAN DISENGAGE / UNLOCK ("unlock", "exit batman mode", "exit lock in", "disengage", "stand down", "return to normal")
+  if (
+    text === 'unlock' ||
+    text === 'disengage' ||
+    text === 'stand down' ||
+    text.includes("exit batman mode") ||
+    text.includes("exit lock in") ||
+    text.includes("disengage lock in") ||
+    text.includes("exit hud") ||
+    text.includes("return to normal")
+  ) {
+    batmanStore.setBatmanMode(false);
+    const spoken = "Lock-In protocol disengaged. Returning to primary console.";
+    jarvisStore.addMessage({
+      role: 'assistant',
+      text: "Lock-In Protocol disengaged. Returning to standard interface.",
+      actionSummary: "LOCK-IN DISENGAGED"
+    });
+    jarvisVoiceEngine.speakResponse(spoken);
+    return true;
+  }
+
+  // 0C. CHECK MULTI-TURN PENDING CLARIFICATION
   if (handlePendingClarification(text)) {
     return true;
   }

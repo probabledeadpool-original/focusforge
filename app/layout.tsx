@@ -5,6 +5,7 @@ import EverythingIsland from './components/EverythingIsland';
 import ScreenEdgeLighting from './components/TheFrequency/ScreenEdgeLighting';
 import AudioStudioModal from './components/TheFrequency/AudioStudioModal';
 import JarvisVoiceHUD from './components/JarvisVoiceHUD';
+import BatmanHudOverlay from './components/BatmanHud/BatmanHudOverlay';
 
 export const metadata: Metadata = {
   title: 'Focus Forge',
@@ -48,6 +49,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           <AudioStudioModal />
           <EverythingIsland />
           <JarvisVoiceHUD />
+          <BatmanHudOverlay />
           {children}
         </LayoutGroup>
       </body>

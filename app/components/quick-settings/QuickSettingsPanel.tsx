@@ -5,11 +5,12 @@ import { motion, AnimatePresence } from 'motion/react';
 import { 
   Sun, SunDim, Volume2, VolumeX, Volume1, Maximize2, Minimize2, 
   Mic, MicOff, Sparkles, Shield, Moon, Zap, Radio, CloudFog, 
-  RotateCcw, SlidersHorizontal, Eye, Flame, Bot, Music, Monitor, X
+  RotateCcw, SlidersHorizontal, Eye, Flame, Bot, Music, Monitor, X, Crosshair
 } from 'lucide-react';
 import { useFrequencyStore, EdgeLightingMode, AudioEnhancementPreset } from '@/hooks/useFrequencyStore';
 import { useJarvisStore } from '@/hooks/useJarvisStore';
 import { useAppStore } from '@/hooks/useAppStore';
+import { useBatmanStore } from '@/hooks/useBatmanStore';
 import { jarvisVoiceEngine } from '@/lib/jarvisVoiceEngine';
 import { getSelectedTextModel, setSelectedTextModel } from '@/lib/aiModelConfig';
 
@@ -347,6 +348,19 @@ export const QuickSettingsPanel: React.FC<QuickSettingsPanelProps> = ({
       activeColor: 'cyan',
       onClick: handleCycleAiModel,
       ariaLabel: 'Cycle AI Reasoning Engine Model'
+    },
+    {
+      id: 'batman-lock-in',
+      icon: Crosshair,
+      label: 'Lock-In HUD',
+      isActive: useBatmanStore.getState().isBatmanMode,
+      activeColor: 'white',
+      onClick: () => {
+        useBatmanStore.getState().toggleBatmanMode();
+        onClose();
+      },
+      ariaLabel: 'Activate Iron Man / Batman Tactical Lock-In HUD',
+      badge: useBatmanStore.getState().isBatmanMode ? 'ACTIVE' : undefined
     },
     {
       id: 'jarvis-hud',
