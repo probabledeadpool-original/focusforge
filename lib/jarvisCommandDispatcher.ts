@@ -574,7 +574,67 @@ export async function executeLocalCommand(rawText: string): Promise<boolean> {
     return true;
   }
 
-  // 0C. CHECK MULTI-TURN PENDING CLARIFICATION
+  // 0C. BATMAN HUD MODULE SWITCHING (When in Batman mode or requested by voice)
+  if (batmanStore.isBatmanMode) {
+    if (text.includes('show spot') || text.includes('the place') || text.includes('virtual spot') || text.includes('co-focus') || text.includes('study room')) {
+      batmanStore.setActiveModule('spot');
+      const reply = "Switching tactical HUD to The Place virtual co-focus network.";
+      jarvisStore.addMessage({ role: 'assistant', text: reply, actionSummary: 'HUD: THE PLACE' });
+      jarvisVoiceEngine.speakResponse(reply);
+      return true;
+    }
+    if (text.includes('show media') || text.includes('show music') || text.includes('show video') || text.includes('frequency player')) {
+      batmanStore.setActiveModule('media');
+      const reply = "Surfacing acoustic frequency and video stream monitor.";
+      jarvisStore.addMessage({ role: 'assistant', text: reply, actionSummary: 'HUD: MEDIA' });
+      jarvisVoiceEngine.speakResponse(reply);
+      return true;
+    }
+    if (text.includes('show task') || text.includes('mission backlog') || text.includes('my tasks') || text.includes('todo list')) {
+      batmanStore.setActiveModule('tasks');
+      const reply = "Displaying mission task backlog.";
+      jarvisStore.addMessage({ role: 'assistant', text: reply, actionSummary: 'HUD: TASKS' });
+      jarvisVoiceEngine.speakResponse(reply);
+      return true;
+    }
+    if (text.includes('show timer') || text.includes('focus clock') || text.includes('countdown') || text.includes('pomodoro')) {
+      batmanStore.setActiveModule('timer');
+      const reply = "Focus chronometer and deep work cycles active.";
+      jarvisStore.addMessage({ role: 'assistant', text: reply, actionSummary: 'HUD: TIMER' });
+      jarvisVoiceEngine.speakResponse(reply);
+      return true;
+    }
+    if (text.includes('show intel') || text.includes('intelligence') || text.includes('satellite') || text.includes('sensor feed')) {
+      batmanStore.setActiveModule('intel');
+      const reply = "Surfacing planetary telemetry and intelligence feeds.";
+      jarvisStore.addMessage({ role: 'assistant', text: reply, actionSummary: 'HUD: INTEL' });
+      jarvisVoiceEngine.speakResponse(reply);
+      return true;
+    }
+    if (text.includes('show ledger') || text.includes('maybach coins') || text.includes('economy') || text.includes('my stats')) {
+      batmanStore.setActiveModule('ledger');
+      const reply = "Accessing Maybach economy ledger and cognitive statistics.";
+      jarvisStore.addMessage({ role: 'assistant', text: reply, actionSummary: 'HUD: LEDGER' });
+      jarvisVoiceEngine.speakResponse(reply);
+      return true;
+    }
+    if (text.includes('show note') || text.includes('scratchpad') || text.includes('tactical notes')) {
+      batmanStore.setActiveModule('notes');
+      const reply = "Tactical scratchpad ready.";
+      jarvisStore.addMessage({ role: 'assistant', text: reply, actionSummary: 'HUD: NOTES' });
+      jarvisVoiceEngine.speakResponse(reply);
+      return true;
+    }
+    if (text.includes('voice core') || text.includes('center radar') || text.includes('main hud') || text.includes('overview')) {
+      batmanStore.setActiveModule('voice_core');
+      const reply = "Centering tactical neural core and voice targeting.";
+      jarvisStore.addMessage({ role: 'assistant', text: reply, actionSummary: 'HUD: NEURAL CORE' });
+      jarvisVoiceEngine.speakResponse(reply);
+      return true;
+    }
+  }
+
+  // 0D. CHECK MULTI-TURN PENDING CLARIFICATION
   if (handlePendingClarification(text)) {
     return true;
   }

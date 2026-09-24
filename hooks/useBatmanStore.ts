@@ -1,22 +1,55 @@
 import { create } from 'zustand';
 
-export type HudStatus = 'STANDBY' | 'ACQUIRING' | 'LOCKED_IN' | 'AI_ANALYZING' | 'EXECUTING' | 'STREAMING_AUDIO';
+export type HudStatus = 
+  | 'STANDBY' 
+  | 'ACQUIRING' 
+  | 'LOCKED_IN' 
+  | 'AI_ANALYZING' 
+  | 'EXECUTING' 
+  | 'STREAMING_AUDIO' 
+  | 'SPOT_SYNCED';
 
-export type HudContextCard = 
-  | 'none' 
-  | 'voice' 
-  | 'frequency' 
+export type BatmanIntroPhase = 
+  | 'idle' 
+  | 'blurring' 
+  | 'blank_delay' 
+  | 'animating_intro' 
+  | 'active';
+
+export type BatmanActiveModule = 
+  | 'voice_core' 
   | 'tasks' 
-  | 'intel' 
+  | 'media' 
+  | 'spot' 
   | 'timer' 
-  | 'system' 
+  | 'intel' 
+  | 'ledger' 
   | 'notes' 
-  | 'shelf';
+  | 'terminal';
+
+export interface SpotRoom {
+  id: string;
+  name: string;
+  location: string;
+  ambiance: string;
+  activeUsers: number;
+  frequency: string;
+  videoBg?: string;
+}
+
+export const SPOT_ROOMS: SpotRoom[] = [
+  { id: 'tokyo-cyberpunk', name: 'Shinjuku Neon Tower', location: 'Tokyo, Japan', ambiance: 'Midnight Rain & Cyber Synth', activeUsers: 48, frequency: '432Hz Binaural' },
+  { id: 'kyoto-zen', name: 'Arashiyama Bamboo Forest', location: 'Kyoto, Japan', ambiance: 'Rain on Stone & Warm Wind', activeUsers: 29, frequency: '528Hz Miracle DNA' },
+  { id: 'manhattan-loft', name: 'Hudson Yards High-Rise', location: 'New York, USA', ambiance: 'Deep Work Storm & Lo-Fi Jazz', activeUsers: 63, frequency: 'ALPHA Wave 10Hz' },
+  { id: 'orbital-iss', name: 'Cupola Observation Module', location: 'Low Earth Orbit (418km)', ambiance: 'Cosmic White Noise & Earth Drone', activeUsers: 14, frequency: 'Deep Space THETA' },
+  { id: 'maybach-atelier', name: 'Maybach Sovereign Lounge', location: 'Geneva, Switzerland', ambiance: 'Analog Master Audio & Silence', activeUsers: 37, frequency: 'Analog Master Flat' },
+];
 
 interface BatmanStore {
   isBatmanMode: boolean;
+  introPhase: BatmanIntroPhase;
   hudStatus: HudStatus;
-  activeContextCard: HudContextCard;
+  activeModule: BatmanActiveModule;
   targetFocus: string;
   lockInStartTime: number | null;
   voiceTranscript: string;
@@ -24,13 +57,20 @@ interface BatmanStore {
   isListening: boolean;
   isSpeaking: boolean;
   audioLevel: number;
+  activeSpotId: string;
+  isPiPEnabled: boolean;
+  tacticalSearchQuery: string;
   
   // Actions
   setBatmanMode: (active: boolean) => void;
   toggleBatmanMode: (active?: boolean) => void;
+  setIntroPhase: (phase: BatmanIntroPhase) => void;
   setHudStatus: (status: HudStatus) => void;
-  setActiveContextCard: (card: HudContextCard) => void;
+  setActiveModule: (module: BatmanActiveModule) => void;
   setTargetFocus: (target: string) => void;
+  setActiveSpotId: (spotId: string) => void;
+  setIsPiPEnabled: (enabled: boolean) => void;
+  setTacticalSearchQuery: (query: string) => void;
   setVoiceTelemetry: (data: {
     transcript?: string;
     aiResponse?: string;
@@ -43,8 +83,9 @@ interface BatmanStore {
 
 export const useBatmanStore = create<BatmanStore>((set, get) => ({
   isBatmanMode: false,
+  introPhase: 'idle',
   hudStatus: 'STANDBY',
-  activeContextCard: 'voice',
+  activeModule: 'voice_core',
   targetFocus: 'DEEP WORK FOCUS DIRECTIVE // ALPHA',
   lockInStartTime: null,
   voiceTranscript: '',
@@ -52,27 +93,40 @@ export const useBatmanStore = create<BatmanStore>((set, get) => ({
   isListening: false,
   isSpeaking: false,
   audioLevel: 0,
+  activeSpotId: 'tokyo-cyberpunk',
+  isPiPEnabled: false,
+  tacticalSearchQuery: '',
 
   setBatmanMode: (active: boolean) => {
-    set({
-      isBatmanMode: active,
-      lockInStartTime: active ? (get().lockInStartTime || Date.now()) : null,
-      hudStatus: active ? 'LOCKED_IN' : 'STANDBY',
-    });
+    if (active) {
+      // Begin 3-stage cinematic transition: Blurring -> Blank 2s -> Intro Animation -> Active
+      set({
+        isBatmanMode: true,
+        introPhase: 'blurring',
+        lockInStartTime: get().lockInStartTime || Date.now(),
+        hudStatus: 'LOCKED_IN',
+      });
+    } else {
+      set({
+        isBatmanMode: false,
+        introPhase: 'idle',
+        hudStatus: 'STANDBY',
+      });
+    }
   },
 
   toggleBatmanMode: (active?: boolean) => {
     const next = active !== undefined ? active : !get().isBatmanMode;
-    set({
-      isBatmanMode: next,
-      lockInStartTime: next ? (get().lockInStartTime || Date.now()) : null,
-      hudStatus: next ? 'LOCKED_IN' : 'STANDBY',
-    });
+    get().setBatmanMode(next);
   },
 
+  setIntroPhase: (phase: BatmanIntroPhase) => set({ introPhase: phase }),
   setHudStatus: (status: HudStatus) => set({ hudStatus: status }),
-  setActiveContextCard: (card: HudContextCard) => set({ activeContextCard: card }),
+  setActiveModule: (module: BatmanActiveModule) => set({ activeModule: module }),
   setTargetFocus: (target: string) => set({ targetFocus: target }),
+  setActiveSpotId: (spotId: string) => set({ activeSpotId: spotId }),
+  setIsPiPEnabled: (enabled: boolean) => set({ isPiPEnabled: enabled }),
+  setTacticalSearchQuery: (query: string) => set({ tacticalSearchQuery: query }),
   
   setVoiceTelemetry: (data) => set((state) => ({
     ...state,
