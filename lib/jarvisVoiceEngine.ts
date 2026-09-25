@@ -430,9 +430,8 @@ export class JarvisVoiceEngine {
         }
 
         if (err === 'network') {
-          this.errorMessage = 'Speech recognition network connection interrupted.';
-          this.errorRecoveryHint = 'Check your internet connection or use text input.';
-          this.transitionTo('error', 'Network error');
+          // Network errors in WebSpeech are transient socket disconnects; auto-recover without bricking the engine
+          this.handleTransientRecognitionError('Speech service connection reset (network)');
           return;
         }
 
