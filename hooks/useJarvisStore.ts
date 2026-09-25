@@ -431,7 +431,7 @@ if (typeof window !== 'undefined') {
     }
 
     const currentStore = useJarvisStore.getState();
-    const shouldOpen = (state === 'activated' || state === 'listening_for_command' || state === 'transcribing_command') && !currentStore.isOpen && currentStore.jarvisMode !== 'LIVE';
+    const isWakeActivation = (state === 'activated' || state === 'listening_for_command' || state === 'transcribing_command') && currentStore.jarvisMode !== 'LIVE';
 
     useJarvisStore.setState({
       phase: state,
@@ -440,7 +440,9 @@ if (typeof window !== 'undefined') {
       aiState,
       isListening,
       isSpeaking,
-      isOpen: shouldOpen ? true : currentStore.isOpen,
+      isOpen: isWakeActivation ? true : currentStore.isOpen,
+      displayMode: isWakeActivation ? 'fullscreen' : currentStore.displayMode,
+      isMinimized: isWakeActivation ? false : currentStore.isMinimized,
       isHotwordActive: state === 'standby' || state === 'wake_candidate'
     });
   });

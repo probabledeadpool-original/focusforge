@@ -12,25 +12,82 @@ import {
   Flame, Award, CheckCircle2, Trash2, Plus, Volume1,
   TrendingUp, ExternalLink, Check, Sun, Cloud, Droplets,
   Wind, DollarSign, ArrowUpRight, ArrowDownRight, Youtube,
-  Maximize2, Power
+  Maximize2, Power, RotateCcw, Sliders, Headphones,
+  Tv, Monitor, Shuffle, Repeat, ArrowRight, CornerDownLeft
 } from 'lucide-react';
-import { ThinkingOrb, OrbState } from 'thinking-orbs';
+import { ThinkingOrb } from 'thinking-orbs';
 import { TargetingUI, HudFrame } from '@/components/ui/animated-hud-targeting-ui';
-import { useBatmanStore, SPOT_ROOMS, BatmanActiveModule, SpotRoom } from '@/hooks/useBatmanStore';
+import { useBatmanStore, BatmanActiveModule } from '@/hooks/useBatmanStore';
 import { useFrequencyStore } from '@/hooks/useFrequencyStore';
 import { useJarvisStore } from '@/hooks/useJarvisStore';
 import { useAppStore } from '@/hooks/useAppStore';
 import { jarvisVoiceEngine } from '@/lib/jarvisVoiceEngine';
-import { executeLocalCommand, handleGlobalJarvisCommand } from '@/lib/jarvisCommandDispatcher';
+import { handleGlobalJarvisCommand } from '@/lib/jarvisCommandDispatcher';
 import { resolveOrbState } from '../JarvisOrbVisualizer';
 import { jarvisAudio } from '@/lib/jarvisAudio';
-import type { YouTubeSearchResult } from '@/lib/youtubeSearch';
+import { searchYouTube, YouTubeSearchResult } from '@/lib/youtubeSearch';
 import type { 
-  WeatherData, NewsData, EarthquakeData, 
-  IssData, NasaApodData, CryptoData, 
-  FxData, WatchlistData, PortfolioData 
+  WeatherData, CryptoData
 } from '@/lib/intelligence/types';
 import type { StockSpotData } from '@/hooks/useJarvisStore';
+
+// =========================================================================
+// DATA STRUCTURES & DEFAULT "THE PLACE" CURATED PLAYLISTS FOR BATMAN HUD
+// =========================================================================
+
+interface TacticalVideoItem {
+  id: string;
+  title: string;
+  thumbnail: string;
+  category: string;
+  channel?: string;
+}
+
+const DEFAULT_THE_PLACE_VAULT: { name: string; category: string; items: TacticalVideoItem[] }[] = [
+  {
+    name: "Neo-Tokyo Cyberpunk Ambient",
+    category: "Ambient",
+    items: [
+      { id: 'TIqsKXQHvFI', title: 'High Stakes Ambient Nocturne', thumbnail: 'https://img.youtube.com/vi/TIqsKXQHvFI/maxresdefault.jpg', category: 'Cyberpunk', channel: 'Focus Forge' },
+      { id: 'Ui7Hb4cvamY', title: 'Solving the Unsolvable (Focus Core)', thumbnail: 'https://img.youtube.com/vi/Ui7Hb4cvamY/maxresdefault.jpg', category: 'Synthwave', channel: 'Wayne Enterprises' },
+      { id: 'df4p7bP_MaY', title: 'Discipline Over Motivation (Rain Suite)', thumbnail: 'https://img.youtube.com/vi/df4p7bP_MaY/maxresdefault.jpg', category: 'Rain', channel: 'Shadow Ops' },
+    ]
+  },
+  {
+    name: "Alpha & Gamma Wave Siphon",
+    category: "Binaural",
+    items: [
+      { id: '8ObcKYvrCpY', title: 'Symbol of Focus & Execution (40Hz Gamma)', thumbnail: 'https://img.youtube.com/vi/8ObcKYvrCpY/maxresdefault.jpg', category: '40Hz Gamma', channel: 'Neural Forge' },
+      { id: 'on40ISrPmIk', title: 'Pressure Makes Diamonds (10Hz Alpha)', thumbnail: 'https://img.youtube.com/vi/on40ISrPmIk/maxresdefault.jpg', category: '10Hz Alpha', channel: 'Neural Forge' },
+    ]
+  },
+  {
+    name: "Lofi Study Vault",
+    category: "Music",
+    items: [
+      { id: 'NrMjwLKhGg4', title: 'Winning in Silence (Analog Lofi)', thumbnail: 'https://img.youtube.com/vi/NrMjwLKhGg4/maxresdefault.jpg', category: 'Lofi', channel: 'Chill Beats' },
+      { id: 'jfKfPfyJRdk', title: 'Lofi Girl - Beats to Relax/Study to', thumbnail: 'https://img.youtube.com/vi/jfKfPfyJRdk/maxresdefault.jpg', category: 'Live Lofi', channel: 'Lofi Girl' },
+      { id: 'YKLKoHORjYI', title: 'The Batman Atmospheric Focus Suite', thumbnail: 'https://img.youtube.com/vi/YKLKoHORjYI/maxresdefault.jpg', category: 'OST', channel: 'WaterTower Music' },
+    ]
+  }
+];
+
+interface TacticalDirective {
+  id: string;
+  text: string;
+  priority: 'CRITICAL' | 'HIGH' | 'TACTICAL';
+  completed: boolean;
+  createdAt: number;
+}
+
+interface PomodoroState {
+  mode: 'pomodoro' | 'stopwatch';
+  durationSeconds: number;
+  remainingSeconds: number;
+  isRunning: boolean;
+  preset: 25 | 50 | 90 | 5 | 'custom';
+  laps: string[];
+}
 
 // =========================================================================
 // MONOCHROME TACTICAL SPOT UI COMPONENTS FOR BATMAN HUD
@@ -199,23 +256,60 @@ export default function BatmanHudOverlay() {
   const jarvisStore = useJarvisStore();
   const appStore = useAppStore();
 
-  const [missionTasks, setMissionTasks] = useState<{ id: string; text: string; completed: boolean }[]>([
-    { id: '1', text: 'Execute high-frequency cognitive session', completed: true },
-    { id: '2', text: 'Audit neural telemetry & system logs', completed: false },
-    { id: '3', text: 'Deploy production build to Vercel', completed: true },
-    { id: '4', text: 'Calibrate binaural focus audio stream', completed: false },
+  // -------------------------------------------------------------------------
+  // MODULE 1: THE PLACE & VIDEO STREAM STATE
+  // -------------------------------------------------------------------------
+  const [activeVideoId, setActiveVideoId] = useState<string>('TIqsKXQHvFI');
+  const [activeVideoTitle, setActiveVideoTitle] = useState<string>('High Stakes Ambient Nocturne');
+  const [isVideoPlaying, setIsVideoPlaying] = useState<boolean>(true);
+  const [isCrtFilterActive, setIsCrtFilterActive] = useState<boolean>(false);
+  const [videoSearchQuery, setVideoSearchQuery] = useState<string>('');
+  const [videoSearchResults, setVideoSearchResults] = useState<YouTubeSearchResult[]>([]);
+  const [isSearchingVideos, setIsSearchingVideos] = useState<boolean>(false);
+  const [customVideoUrlInput, setCustomVideoUrlInput] = useState<string>('');
+
+  // -------------------------------------------------------------------------
+  // MODULE 2: MISSION CHRONOMETER & POMODORO STATE
+  // -------------------------------------------------------------------------
+  const [pomodoro, setPomodoro] = useState<PomodoroState>({
+    mode: 'pomodoro',
+    durationSeconds: 25 * 60,
+    remainingSeconds: 25 * 60,
+    isRunning: false,
+    preset: 25,
+    laps: []
+  });
+
+  // -------------------------------------------------------------------------
+  // MODULE 3: TACTICAL DIRECTIVES / TASKS STATE
+  // -------------------------------------------------------------------------
+  const [directives, setDirectives] = useState<TacticalDirective[]>([
+    { id: '1', text: 'Execute high-frequency cognitive session', priority: 'CRITICAL', completed: true, createdAt: Date.now() - 3600000 },
+    { id: '2', text: 'Audit neural telemetry & system logs', priority: 'HIGH', completed: false, createdAt: Date.now() - 1800000 },
+    { id: '3', text: 'Calibrate binaural focus audio stream', priority: 'TACTICAL', completed: false, createdAt: Date.now() - 900000 },
+    { id: '4', text: 'Finalize architectural sprint deliverables', priority: 'HIGH', completed: false, createdAt: Date.now() }
+  ]);
+  const [newDirectiveText, setNewDirectiveText] = useState<string>('');
+  const [newDirectivePriority, setNewDirectivePriority] = useState<'CRITICAL' | 'HIGH' | 'TACTICAL'>('HIGH');
+  const [directiveFilter, setDirectiveFilter] = useState<'ALL' | 'ACTIVE' | 'COMPLETED'>('ALL');
+
+  // -------------------------------------------------------------------------
+  // MODULE 4: ACOUSTIC SYNTHESIZER & AMBIENT SOUNDBOARD
+  // -------------------------------------------------------------------------
+  const [ambientLayers, setAmbientLayers] = useState<{ id: string; name: string; volume: number; active: boolean; hz?: string }[]>([
+    { id: 'rain', name: 'Heavy Gotham Rain', volume: 60, active: true, hz: 'Pink Noise' },
+    { id: 'cyber', name: 'Nocturnal Cyber Hum', volume: 45, active: false, hz: '432Hz' },
+    { id: 'gamma', name: '40Hz Gamma Siphon', volume: 70, active: true, hz: '40Hz' },
+    { id: 'wind', name: 'Tower High Wind', volume: 30, active: false, hz: 'Brown Noise' },
+    { id: 'white', name: 'Cosmic White Noise', volume: 50, active: false, hz: 'White Noise' },
   ]);
 
-  const toggleTask = (id: string) => {
-    setMissionTasks(prev => prev.map(t => t.id === id ? { ...t, completed: !t.completed } : t));
-  };
-
+  // System metrics & Inputs
   const [inputCommand, setInputCommand] = useState('');
   const [fps, setFps] = useState(60);
   const [elapsedTime, setElapsedTime] = useState('00:00:00');
   const [activeSpotDismissed, setActiveSpotDismissed] = useState(false);
   const [currentTimeStr, setCurrentTimeStr] = useState('');
-
   const animRef = useRef<number | null>(null);
 
   // -------------------------------------------------------------------------
@@ -297,6 +391,34 @@ export default function BatmanHudOverlay() {
     };
   }, [batmanStore.isBatmanMode, batmanStore.lockInStartTime]);
 
+  // Pomodoro Countdown Timer Interval
+  useEffect(() => {
+    if (!pomodoro.isRunning) return;
+
+    const interval = setInterval(() => {
+      setPomodoro(prev => {
+        if (prev.mode === 'pomodoro') {
+          if (prev.remainingSeconds <= 1) {
+            jarvisAudio.playExecute();
+            appStore.setTotalMinutesFocused((mins: number) => mins + Math.round(prev.durationSeconds / 60));
+            appStore.setMaybachCoins((c: number) => c + 50);
+            return {
+              ...prev,
+              remainingSeconds: prev.durationSeconds,
+              isRunning: false
+            };
+          }
+          return { ...prev, remainingSeconds: prev.remainingSeconds - 1 };
+        } else {
+          // Stopwatch mode counts upwards
+          return { ...prev, remainingSeconds: prev.remainingSeconds + 1 };
+        }
+      });
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, [pomodoro.isRunning, pomodoro.mode, appStore]);
+
   // Keyboard shortcut listener (Escape to disengage)
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -308,7 +430,7 @@ export default function BatmanHudOverlay() {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [batmanStore.isBatmanMode]);
 
-  // Spot UI payload
+  // Spot UI payload detection
   const latestMessage = jarvisStore.messages.length > 0 ? jarvisStore.messages[jarvisStore.messages.length - 1] : null;
   const spotType = useMemo(() => {
     if (activeSpotDismissed || !latestMessage) return null;
@@ -328,6 +450,112 @@ export default function BatmanHudOverlay() {
     );
   }, [jarvisStore.voiceState, jarvisStore.aiState, jarvisStore.telemetry]);
 
+  // Directives handlers
+  const toggleDirective = (id: string) => {
+    setDirectives(prev => prev.map(d => {
+      if (d.id === id) {
+        const next = !d.completed;
+        if (next) {
+          appStore.setMaybachCoins((c: number) => c + 25);
+          jarvisAudio.playExecute();
+        }
+        return { ...d, completed: next };
+      }
+      return d;
+    }));
+  };
+
+  const addDirective = () => {
+    if (!newDirectiveText.trim()) return;
+    setDirectives(prev => [
+      {
+        id: Date.now().toString(),
+        text: newDirectiveText.trim(),
+        priority: newDirectivePriority,
+        completed: false,
+        createdAt: Date.now()
+      },
+      ...prev
+    ]);
+    setNewDirectiveText('');
+    jarvisAudio.playExecute();
+  };
+
+  const deleteDirective = (id: string) => {
+    setDirectives(prev => prev.filter(d => d.id !== id));
+  };
+
+  const clearCompletedDirectives = () => {
+    setDirectives(prev => prev.filter(d => !d.completed));
+  };
+
+  // Video Streaming search handler
+  const handlePerformVideoSearch = async () => {
+    if (!videoSearchQuery.trim()) return;
+    setIsSearchingVideos(true);
+    try {
+      const response = await searchYouTube(videoSearchQuery.trim(), 6);
+      setVideoSearchResults(response?.results || []);
+    } catch (e) {
+      console.warn("YouTube search in Batman HUD failed:", e);
+    } finally {
+      setIsSearchingVideos(false);
+    }
+  };
+
+  const handleStreamCustomUrl = () => {
+    const url = customVideoUrlInput.trim();
+    if (!url) return;
+    const match = url.match(/^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|&v=)([^#&?]*).*/);
+    const vidId = (match && match[2].length === 11) ? match[2] : url;
+    setActiveVideoId(vidId);
+    setActiveVideoTitle(`Tactical Stream [${vidId}]`);
+    setCustomVideoUrlInput('');
+    setIsVideoPlaying(true);
+  };
+
+  const selectPomodoroPreset = (preset: 25 | 50 | 90 | 5) => {
+    setPomodoro({
+      mode: 'pomodoro',
+      preset,
+      durationSeconds: preset * 60,
+      remainingSeconds: preset * 60,
+      isRunning: false,
+      laps: []
+    });
+  };
+
+  const togglePomodoroPlay = () => {
+    setPomodoro(prev => ({ ...prev, isRunning: !prev.isRunning }));
+  };
+
+  const resetPomodoro = () => {
+    setPomodoro(prev => ({
+      ...prev,
+      remainingSeconds: prev.mode === 'pomodoro' ? prev.durationSeconds : 0,
+      isRunning: false,
+      laps: []
+    }));
+  };
+
+  const recordLap = () => {
+    const formatTime = (secs: number) => {
+      const m = Math.floor(secs / 60).toString().padStart(2, '0');
+      const s = (secs % 60).toString().padStart(2, '0');
+      return `${m}:${s}`;
+    };
+    setPomodoro(prev => ({
+      ...prev,
+      laps: [formatTime(prev.remainingSeconds), ...prev.laps]
+    }));
+  };
+
+  const formatTimerDigits = (secs: number) => {
+    const m = Math.floor(secs / 60).toString().padStart(2, '0');
+    const s = (secs % 60).toString().padStart(2, '0');
+    return `${m}:${s}`;
+  };
+
   if (!batmanStore.isBatmanMode && !batmanStore.isDisengaging) return null;
 
   return (
@@ -344,14 +572,6 @@ export default function BatmanHudOverlay() {
         transition={{ duration: 0.7, ease: [0.16, 1, 0.3, 1] }}
         className="fixed inset-0 z-[999] bg-black text-white font-mono overflow-hidden select-none"
       >
-        {/* Hidden Background YouTube Focus Music Runner */}
-        <iframe
-          src={`https://www.youtube.com/embed/YKLKoHORjYI?autoplay=1&controls=0&loop=1&playlist=YKLKoHORjYI&enablejsapi=1`}
-          allow="autoplay; encrypted-media"
-          className="hidden pointer-events-none w-0 h-0 opacity-0 absolute"
-          title="Background Focus Soundtrack"
-        />
-
         {/* ========================================================================= */}
         {/* PHASE 1, 2 & 3: CINEMATIC BLUR, BLACKOUT & TARGETING RETICLE ANIMATION    */}
         {/* ========================================================================= */}
@@ -389,161 +609,116 @@ export default function BatmanHudOverlay() {
         )}
 
         {/* ========================================================================= */}
-        {/* PHASE 4: GLORIOUS TACTICAL HUD INTERFACE WITH HUDFRAME                    */}
+        {/* PHASE 4: GLORIOUS TACTICAL HUD INTERFACE WITH ALL CO-FOCUS MODULES        */}
         {/* ========================================================================= */}
         {batmanStore.introPhase === 'active' && (
-          <HudFrame className="w-full h-full p-4 md:p-6 flex flex-col justify-between relative z-20">
-            <div className="w-full h-full flex flex-col justify-between">
-            {/* 1. TOP TACTICAL SYSTEM BAR */}
-            <motion.header 
-              initial={{ y: -30, opacity: 0 }}
-              animate={{ y: 0, opacity: 1 }}
-              transition={{ duration: 0.4, delay: 0.1 }}
-              className="flex items-center justify-between border-b border-white/20 pb-3"
-            >
-              {/* Left Telemetry */}
-              <div className="flex items-center gap-3">
-                <div className="flex items-center gap-1.5 bg-white text-black px-2.5 py-1 text-[10px] font-extrabold tracking-widest uppercase">
-                  <Shield size={12} />
-                  <span>B.A.T.M.A.N. // HUD</span>
-                </div>
-                <div className="hidden sm:flex items-center gap-2 text-[10px] text-white/60">
-                  <span className="text-white font-bold">SYS_ACTIVE</span>
-                  <span className="text-white/20">•</span>
-                  <span>FPS: {fps}</span>
-                  <span className="text-white/20">•</span>
-                  <span>LAT: 28.6139° N, LON: 77.2090° E</span>
-                </div>
-              </div>
-
-              {/* Center Lock-In Chronometer */}
-              <div className="flex items-center gap-2 bg-white/[0.04] border border-white/20 px-3 py-1">
-                <Clock size={12} className="text-white animate-pulse" />
-                <span className="text-[10px] font-bold tracking-widest text-white">T+ {elapsedTime}</span>
-              </div>
-
-              {/* Right System Controls & Disengage */}
-              <div className="flex items-center gap-2">
-                <div className="hidden md:flex items-center gap-1 text-[10px] text-white/50 border border-white/15 px-2.5 py-1">
-                  <span>{currentTimeStr || 'UTC ACTIVE'}</span>
-                </div>
-
-                {/* Disengage Button */}
-                <button
-                  onClick={() => batmanStore.disengageBatmanMode()}
-                  className="flex items-center gap-1.5 px-3 py-1 bg-white hover:bg-zinc-200 text-black text-[10px] font-bold uppercase tracking-wider transition-all cursor-pointer shadow-sm hover:scale-105 active:scale-95"
-                  title="Disengage Batman Mode (Esc)"
-                >
-                  <Power size={11} />
-                  <span>Disengage</span>
-                  <span className="text-[8px] opacity-60">Esc</span>
-                </button>
-              </div>
-            </motion.header>
-
-            {/* 2. CENTRAL THREE-COLUMN TACTICAL VIEWPORT */}
-            <div className="flex-1 grid grid-cols-1 lg:grid-cols-12 gap-4 my-4 min-h-0">
+          <HudFrame className="w-full h-full p-3 sm:p-5 flex flex-col justify-between relative z-20">
+            <div className="w-full h-full flex flex-col justify-between overflow-hidden">
               
-              {/* LEFT WING: MISSION MATRIX & COGNITIVE ECONOMY (Col 3) */}
-              <motion.aside 
-                initial={{ x: -30, opacity: 0 }}
-                animate={{ x: 0, opacity: 1 }}
-                transition={{ duration: 0.4, delay: 0.2 }}
-                className="hidden lg:flex lg:col-span-3 flex-col justify-between border border-white/20 bg-white/[0.02] p-4 space-y-4"
+              {/* 1. TOP TACTICAL SYSTEM BAR & MODULE NAV DECK */}
+              <motion.header 
+                initial={{ y: -30, opacity: 0 }}
+                animate={{ y: 0, opacity: 1 }}
+                transition={{ duration: 0.4, delay: 0.1 }}
+                className="flex flex-col md:flex-row items-stretch md:items-center justify-between border-b border-white/20 pb-3 gap-3"
               >
-                <div className="space-y-3">
-                  <div className="flex items-center justify-between border-b border-white/20 pb-2">
-                    <div className="flex items-center gap-2">
-                      <ListTodo size={14} className="text-white" />
-                      <span className="text-[10px] font-bold uppercase tracking-widest text-white">
-                        MISSION OBJECTIVES
-                      </span>
-                    </div>
-                    <span className="text-[9px] text-white/50">{missionTasks.filter(t => t.completed).length}/{missionTasks.length}</span>
+                {/* Left System Telemetry */}
+                <div className="flex items-center gap-3">
+                  <div className="flex items-center gap-1.5 bg-white text-black px-2.5 py-1 text-[10px] font-extrabold tracking-widest uppercase">
+                    <Shield size={12} />
+                    <span>B.A.T.M.A.N. // HUD</span>
                   </div>
-
-                  {/* Task List */}
-                  <div className="space-y-1.5 max-h-[35vh] overflow-y-auto pr-1 no-scrollbar">
-                    {missionTasks.length === 0 ? (
-                      <div className="text-[10px] text-white/40 italic p-2 border border-dashed border-white/10">
-                        No active mission directives. Say &ldquo;Add task ...&rdquo;
-                      </div>
-                    ) : (
-                      missionTasks.map((task) => (
-                        <div
-                          key={task.id}
-                          onClick={() => toggleTask(task.id)}
-                          className={`p-2 border transition-all cursor-pointer flex items-center justify-between ${
-                            task.completed 
-                              ? 'bg-white/[0.02] border-white/10 text-white/40 line-through' 
-                              : 'bg-white/[0.05] border-white/20 text-white hover:border-white'
-                          }`}
-                        >
-                          <span className="text-[10px] font-mono truncate">{task.text}</span>
-                          <CheckCircle2 size={12} className={task.completed ? 'text-white/40' : 'text-white'} />
-                        </div>
-                      ))
-                    )}
+                  <div className="hidden sm:flex items-center gap-2 text-[10px] text-white/60">
+                    <span className="text-white font-bold">LOCKED_IN</span>
+                    <span className="text-white/20">•</span>
+                    <span>FPS: {fps}</span>
+                    <span className="text-white/20">•</span>
+                    <span>COINS: {appStore.maybachCoins}</span>
                   </div>
                 </div>
 
-                {/* Cognitive Economy & Focus Metrics */}
-                <div className="space-y-2 border-t border-white/20 pt-3">
-                  <div className="flex items-center justify-between text-[9px] text-white/60">
-                    <span>MAYBACH COINS</span>
-                    <span className="font-bold text-white">{appStore.maybachCoins} COINS</span>
-                  </div>
-                  <div className="w-full bg-white/10 h-1.5">
-                    <div 
-                      className="bg-white h-full transition-all"
-                      style={{ width: `${Math.min(100, (appStore.maybachCoins % 500) / 5)}%` }}
-                    />
-                  </div>
-                  <div className="flex items-center justify-between text-[8px] text-white/40">
-                    <span>FOCUS MATRIX ALPHA</span>
-                    <span>TOTAL FOCUSED: {appStore.totalMinutesFocused} MINS</span>
-                  </div>
+                {/* Central Tactical Module Switcher */}
+                <div className="flex items-center justify-center gap-1 bg-white/[0.04] border border-white/20 p-1 overflow-x-auto no-scrollbar">
+                  {[
+                    { id: 'voice_core', label: '01_CORE', icon: Radio },
+                    { id: 'media', label: '02_THE_PLACE', icon: Tv },
+                    { id: 'timer', label: '03_CHRONO', icon: Clock },
+                    { id: 'tasks', label: '04_DIRECTIVES', icon: ListTodo },
+                    { id: 'ledger', label: '05_FREQUENCY', icon: Headphones },
+                    { id: 'intel', label: '06_INTEL', icon: Globe },
+                  ].map((tab) => {
+                    const isActive = batmanStore.activeModule === tab.id || (tab.id === 'media' && batmanStore.activeModule === 'spot');
+                    return (
+                      <button
+                        key={tab.id}
+                        onClick={() => batmanStore.setActiveModule(tab.id as BatmanActiveModule)}
+                        className={`flex items-center gap-1 px-2.5 py-1 text-[9px] font-mono uppercase tracking-wider transition-all whitespace-nowrap ${
+                          isActive 
+                            ? 'bg-white text-black font-extrabold shadow-sm' 
+                            : 'text-white/60 hover:text-white hover:bg-white/10'
+                        }`}
+                      >
+                        <tab.icon size={11} />
+                        <span>{tab.label}</span>
+                      </button>
+                    );
+                  })}
                 </div>
-              </motion.aside>
 
-              {/* CENTER STAGE: NEURAL CORE & CONTEXTUAL SPOT VISOR (Col 6) */}
-              <motion.main 
-                initial={{ scale: 0.9, opacity: 0 }}
-                animate={{ scale: 1, opacity: 1 }}
-                transition={{ duration: 0.5, delay: 0.25 }}
-                className="lg:col-span-6 flex flex-col items-center justify-center border border-white/20 bg-white/[0.02] p-4 relative overflow-hidden"
-              >
-                {/* Tactical Reticle Crosshairs */}
-                <div className="absolute top-2 left-2 text-[8px] text-white/30 font-mono">+ 01_NEURAL_CORE</div>
-                <div className="absolute top-2 right-2 text-[8px] text-white/30 font-mono">RETICLE // 4K +</div>
-                <div className="absolute bottom-2 left-2 text-[8px] text-white/30 font-mono">STATUS // LOCKED</div>
-                <div className="absolute bottom-2 right-2 text-[8px] text-white/30 font-mono">FOCUS // ACTIVE</div>
+                {/* Right Chronometer & Disengage */}
+                <div className="flex items-center justify-end gap-2">
+                  <div className="flex items-center gap-1.5 bg-white/[0.04] border border-white/20 px-2.5 py-1">
+                    <Clock size={11} className="text-white animate-pulse" />
+                    <span className="text-[10px] font-bold text-white tracking-wider">T+ {elapsedTime}</span>
+                  </div>
 
-                {/* Contextual Spot UI Viewport OR Central Neural Core */}
-                {spotType && latestMessage ? (
-                  <div className="w-full h-full flex flex-col justify-between relative z-20 space-y-3">
+                  <button
+                    onClick={() => batmanStore.disengageBatmanMode()}
+                    className="flex items-center gap-1.5 px-3 py-1 bg-white hover:bg-zinc-200 text-black text-[10px] font-bold uppercase tracking-wider transition-all cursor-pointer shadow-sm hover:scale-105 active:scale-95"
+                    title="Disengage Batman Mode (Esc)"
+                  >
+                    <Power size={11} />
+                    <span>Disengage</span>
+                    <span className="text-[8px] opacity-60">Esc</span>
+                  </button>
+                </div>
+              </motion.header>
+
+              {/* 2. CENTRAL VIEWPORT ROUTER (ROUTED BY ACTIVE MODULE OR SPOT INTERCEPTOR) */}
+              <div className="flex-1 my-3 min-h-0 relative overflow-hidden">
+                
+                {/* SPOT UI INTERCEPTOR MODAL (If triggered by voice command) */}
+                {spotType && latestMessage && (
+                  <motion.div 
+                    initial={{ opacity: 0, scale: 0.95 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    exit={{ opacity: 0, scale: 0.95 }}
+                    className="absolute inset-0 z-40 bg-black/95 border border-white/30 p-4 flex flex-col justify-between backdrop-blur-xl"
+                  >
                     <div className="flex items-center justify-between border-b border-white/20 pb-2">
                       <div className="flex items-center gap-2">
                         <Crosshair size={14} className="text-white" />
                         <span className="text-[11px] font-bold tracking-widest uppercase text-white">
-                          TACTICAL VISOR SPOT OUTPUT
+                          TACTICAL VISOR INTERCEPT: SPOT INTELLIGENCE
                         </span>
                       </div>
                       <button
                         onClick={() => setActiveSpotDismissed(true)}
-                        className="px-2 py-0.5 border border-white/20 hover:border-white text-white/60 hover:text-white text-[9px] font-mono uppercase transition-colors"
-                        title="Dismiss to Core"
+                        className="px-2.5 py-1 bg-white text-black hover:bg-zinc-200 text-[9px] font-mono font-bold uppercase transition-colors"
                       >
-                        [ CLOSE SPOT X ]
+                        [ CLOSE SPOT INTERCEPT X ]
                       </button>
                     </div>
 
-                    <div className="flex-1 flex items-center justify-center">
+                    <div className="flex-1 flex items-center justify-center my-3 overflow-y-auto no-scrollbar">
                       {spotType === 'video' && latestMessage.mediaResults && (
                         <BatmanSpotVideoWidget 
                           videos={latestMessage.mediaResults} 
                           onWatch={(v) => {
-                            window.dispatchEvent(new CustomEvent('start-theatre', { detail: { url: v.url } }));
+                            setActiveVideoId(v.id);
+                            setActiveVideoTitle(v.title);
+                            batmanStore.setActiveModule('media');
+                            setActiveSpotDismissed(true);
                           }} 
                         />
                       )}
@@ -559,165 +734,791 @@ export default function BatmanHudOverlay() {
                     </div>
 
                     <div className="text-[9px] text-white/50 text-center font-mono">
-                      Say &ldquo;close&rdquo; or click [ CLOSE SPOT X ] to return to Neural Core.
+                      Say &ldquo;close spot&rdquo; or click [ CLOSE SPOT INTERCEPT ] to return to active tactical module.
                     </div>
-                  </div>
-                ) : (
-                  /* Central Neural Core Thinking Orb */
-                  <div className="flex flex-col items-center justify-center space-y-6 text-center my-auto">
-                    {/* Concentric Gyroscope HUD Rings */}
-                    <div className="relative flex items-center justify-center w-52 h-52">
-                      <div className="absolute inset-0 rounded-full border border-dashed border-white/20 animate-[spin_30s_linear_infinite]" />
-                      <div className="absolute inset-3 rounded-full border border-white/10 animate-[spin_20s_linear_infinite_reverse]" />
-                      <div className="absolute inset-8 rounded-full border border-white/20" />
+                  </motion.div>
+                )}
 
-                      {/* Thinking Orb Component */}
-                      <div className="relative z-10 scale-125">
-                        <ThinkingOrb state={orbState} size={64} theme="dark" />
+                {/* ------------------------------------------------------------------------- */}
+                {/* MODULE 01: NEURAL CORE (Voice, AI Intent, Orb, Overview)                  */}
+                {/* ------------------------------------------------------------------------- */}
+                {batmanStore.activeModule === 'voice_core' && (
+                  <div className="h-full grid grid-cols-1 lg:grid-cols-12 gap-4">
+                    {/* Left Wing: Mission Objectives Snapshot */}
+                    <div className="hidden lg:flex lg:col-span-3 flex-col justify-between border border-white/20 bg-white/[0.02] p-3.5 space-y-3">
+                      <div className="space-y-2.5">
+                        <div className="flex items-center justify-between border-b border-white/20 pb-1.5">
+                          <div className="flex items-center gap-1.5">
+                            <ListTodo size={13} className="text-white" />
+                            <span className="text-[10px] font-bold uppercase tracking-widest text-white">DIRECTIVES</span>
+                          </div>
+                          <span className="text-[9px] text-white/50">{directives.filter(d => d.completed).length}/{directives.length}</span>
+                        </div>
+                        <div className="space-y-1.5 max-h-[30vh] overflow-y-auto no-scrollbar">
+                          {directives.slice(0, 5).map(d => (
+                            <div 
+                              key={d.id} 
+                              onClick={() => toggleDirective(d.id)}
+                              className={`p-2 border text-[9px] cursor-pointer transition-all flex items-center justify-between ${
+                                d.completed ? 'bg-white/[0.02] border-white/10 text-white/40 line-through' : 'bg-white/[0.05] border-white/20 text-white hover:border-white'
+                              }`}
+                            >
+                              <span className="truncate">{d.text}</span>
+                              <CheckCircle2 size={11} className={d.completed ? 'text-white/40' : 'text-white'} />
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+
+                      <div className="space-y-1.5 border-t border-white/20 pt-2 text-[9px] text-white/60">
+                        <div className="flex justify-between">
+                          <span>FOCUS MINUTES</span>
+                          <span className="font-bold text-white">{appStore.totalMinutesFocused} MIN</span>
+                        </div>
+                        <div className="w-full bg-white/10 h-1">
+                          <div className="bg-white h-full" style={{ width: `${Math.min(100, (appStore.maybachCoins % 500) / 5)}%` }} />
+                        </div>
                       </div>
                     </div>
 
-                    {/* Telemetry Status Readout */}
-                    <div className="space-y-1.5">
-                      <div className="text-xs font-extrabold tracking-widest uppercase text-white">
-                        {jarvisStore.voiceState === 'listening_for_command' || jarvisStore.voiceState === 'transcribing_command'
-                          ? 'LISTENING TO VOICE DIRECTIVE...'
-                          : jarvisStore.voiceState === 'speaking_response'
-                          ? 'TRANSMITTING NEURAL AUDIO...'
-                          : jarvisStore.voiceState === 'processing_command'
-                          ? 'PROCESSING INTENT SYNTHESIS...'
-                          : 'NEURAL CORE IN STANDBY • SAY "JARVIS"'}
+                    {/* Center Stage: Neural Core Gyroscope */}
+                    <div className="lg:col-span-6 flex flex-col items-center justify-center border border-white/20 bg-white/[0.02] p-4 relative overflow-hidden">
+                      <div className="absolute top-2 left-2 text-[8px] text-white/30 font-mono">+ 01_NEURAL_CORE</div>
+                      <div className="absolute top-2 right-2 text-[8px] text-white/30 font-mono">SYSTEM // LOCKED +</div>
+                      
+                      <div className="relative flex items-center justify-center w-48 h-48 sm:w-56 sm:h-56 my-auto">
+                        <div className="absolute inset-0 rounded-full border border-dashed border-white/20 animate-[spin_30s_linear_infinite]" />
+                        <div className="absolute inset-3 rounded-full border border-white/10 animate-[spin_20s_linear_infinite_reverse]" />
+                        <div className="absolute inset-8 rounded-full border border-white/20" />
+                        <div className="relative z-10 scale-125">
+                          <ThinkingOrb state={orbState} size={64} theme="dark" />
+                        </div>
                       </div>
-                      <div className="text-[10px] text-white/50 max-w-sm font-mono truncate">
-                        {jarvisStore.telemetry?.interimTranscript || jarvisStore.telemetry?.finalCommandTranscript || 'Voice pipeline locked to tactical frequency.'}
+
+                      <div className="space-y-1 text-center mt-2">
+                        <div className="text-xs font-extrabold tracking-widest uppercase text-white">
+                          {jarvisStore.voiceState === 'listening_for_command' || jarvisStore.voiceState === 'transcribing_command'
+                            ? 'LISTENING TO DIRECTIVE...'
+                            : jarvisStore.voiceState === 'speaking_response'
+                            ? 'TRANSMITTING NEURAL AUDIO...'
+                            : 'NEURAL CORE ACTIVE • SAY "JARVIS"'}
+                        </div>
+                        <div className="text-[10px] text-white/50 max-w-sm font-mono truncate">
+                          {jarvisStore.telemetry?.interimTranscript || jarvisStore.telemetry?.finalCommandTranscript || 'Voice pipeline engaged to tactical frequency.'}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Right Wing: Frequency & Quick Radars */}
+                    <div className="hidden lg:flex lg:col-span-3 flex-col justify-between border border-white/20 bg-white/[0.02] p-3.5 space-y-3">
+                      <div className="space-y-2">
+                        <div className="flex items-center justify-between border-b border-white/20 pb-1.5">
+                          <div className="flex items-center gap-1.5">
+                            <Headphones size={13} className="text-white" />
+                            <span className="text-[10px] font-bold uppercase tracking-widest text-white">FREQUENCY</span>
+                          </div>
+                          <span className="text-[9px] text-white/50">{frequencyStore.isPlaying ? 'STREAMING' : 'PAUSED'}</span>
+                        </div>
+                        <div className="p-2.5 bg-black/60 border border-white/10 space-y-1.5">
+                          <span className="text-[8px] text-white/40 uppercase block">ACTIVE SOUNDSCAPE</span>
+                          <div className="text-[11px] font-bold text-white truncate">
+                            {frequencyStore.getCurrentTrack()?.title || 'The Batman - Atmospheric Suite'}
+                          </div>
+                          <button 
+                            onClick={() => frequencyStore.togglePlay()}
+                            className="mt-1 w-full py-1 bg-white text-black text-[9px] font-bold uppercase flex items-center justify-center gap-1"
+                          >
+                            {frequencyStore.isPlaying ? <Pause size={10} /> : <Play size={10} />}
+                            <span>{frequencyStore.isPlaying ? 'Pause' : 'Play Stream'}</span>
+                          </button>
+                        </div>
+                      </div>
+
+                      <div className="space-y-1.5 border-t border-white/20 pt-2">
+                        <span className="text-[8px] text-white/50 uppercase font-bold block">TACTICAL VOICE RADAR</span>
+                        <div className="grid grid-cols-2 gap-1">
+                          {[
+                            { label: "Open Video", cmd: "open the place" },
+                            { label: "Start 25m", cmd: "start 25 minute timer" },
+                            { label: "Tokyo Weather", cmd: "weather in tokyo" },
+                            { label: "Crypto Pulse", cmd: "crypto prices" }
+                          ].map((item, idx) => (
+                            <button
+                              key={idx}
+                              onClick={() => handleGlobalJarvisCommand(item.cmd)}
+                              className="p-1 bg-white/[0.04] hover:bg-white text-white hover:text-black border border-white/15 text-[8px] font-mono text-left truncate transition-all"
+                            >
+                              {item.label}
+                            </button>
+                          ))}
+                        </div>
                       </div>
                     </div>
                   </div>
                 )}
-              </motion.main>
 
-              {/* RIGHT WING: ACOUSTIC STREAM & TACTICAL RADAR (Col 3) */}
-              <motion.aside 
-                initial={{ x: 30, opacity: 0 }}
-                animate={{ x: 0, opacity: 1 }}
-                transition={{ duration: 0.4, delay: 0.2 }}
-                className="hidden lg:flex lg:col-span-3 flex-col justify-between border border-white/20 bg-white/[0.02] p-4 space-y-4"
-              >
-                {/* Acoustic Monitor */}
-                <div className="space-y-3">
-                  <div className="flex items-center justify-between border-b border-white/20 pb-2">
-                    <div className="flex items-center gap-2">
-                      <Music size={14} className="text-white" />
-                      <span className="text-[10px] font-bold uppercase tracking-widest text-white">
-                        ACOUSTIC FREQUENCY
-                      </span>
+                {/* ------------------------------------------------------------------------- */}
+                {/* MODULE 02: THE PLACE (TACTICAL VIDEO STREAMER & AMBIENT VISUALS)          */}
+                {/* ------------------------------------------------------------------------- */}
+                {(batmanStore.activeModule === 'media' || batmanStore.activeModule === 'spot') && (
+                  <div className="h-full grid grid-cols-1 lg:grid-cols-12 gap-4">
+                    {/* Left 8 Cols: Main Video Stream Viewport */}
+                    <div className="lg:col-span-8 flex flex-col border border-white/20 bg-white/[0.02] p-3 space-y-2">
+                      <div className="flex items-center justify-between border-b border-white/20 pb-2">
+                        <div className="flex items-center gap-2">
+                          <Tv size={14} className="text-white" />
+                          <span className="text-[11px] font-bold uppercase tracking-widest text-white truncate max-w-md">
+                            TACTICAL FEED: {activeVideoTitle}
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <button 
+                            onClick={() => setIsCrtFilterActive(!isCrtFilterActive)}
+                            className={`px-2 py-0.5 text-[8px] font-mono border transition-all ${
+                              isCrtFilterActive ? 'bg-white text-black font-bold' : 'border-white/20 text-white/60 hover:text-white'
+                            }`}
+                          >
+                            [ CRT SCANLINES {isCrtFilterActive ? 'ON' : 'OFF'} ]
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* Embedded Video Player */}
+                      <div className={`relative flex-1 bg-black border border-white/20 overflow-hidden min-h-[260px] ${
+                        isCrtFilterActive ? 'after:absolute after:inset-0 after:bg-[linear-gradient(rgba(18,16,16,0)_50%,rgba(0,0,0,0.4)_50%)] after:bg-[length:100%_4px] after:pointer-events-none' : ''
+                      }`}>
+                        <iframe
+                          src={`https://www.youtube.com/embed/${activeVideoId}?autoplay=1&controls=1&loop=1&playlist=${activeVideoId}&enablejsapi=1`}
+                          title="Batman Tactical Stream"
+                          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                          allowFullScreen
+                          className="w-full h-full border-0 absolute inset-0"
+                        />
+                      </div>
+
+                      {/* Video Stream Controls & URL input */}
+                      <div className="flex flex-col sm:flex-row items-center gap-2 pt-1">
+                        <div className="flex items-center gap-1.5 w-full sm:w-auto">
+                          <button
+                            onClick={() => setIsVideoPlaying(!isVideoPlaying)}
+                            className="px-3 py-1 bg-white text-black text-[9px] font-bold uppercase flex items-center gap-1"
+                          >
+                            {isVideoPlaying ? <Pause size={10} /> : <Play size={10} />}
+                            <span>{isVideoPlaying ? 'Pause' : 'Play'}</span>
+                          </button>
+                        </div>
+                        <div className="flex-1 flex items-center gap-1 bg-black/60 border border-white/20 px-2 py-1 w-full">
+                          <ExternalLink size={11} className="text-white/40" />
+                          <input
+                            type="text"
+                            value={customVideoUrlInput}
+                            onChange={(e) => setCustomVideoUrlInput(e.target.value)}
+                            onKeyDown={(e) => e.key === 'Enter' && handleStreamCustomUrl()}
+                            placeholder="Paste YouTube Video URL or ID..."
+                            className="bg-transparent text-[10px] text-white placeholder:text-white/30 font-mono focus:outline-none flex-1"
+                          />
+                          <button
+                            onClick={handleStreamCustomUrl}
+                            className="px-2 py-0.5 bg-white text-black text-[8px] font-bold uppercase"
+                          >
+                            STREAM
+                          </button>
+                        </div>
+                      </div>
                     </div>
-                    <span className="text-[9px] text-white/50">{frequencyStore.isPlaying ? 'STREAMING' : 'PAUSED'}</span>
+
+                    {/* Right 4 Cols: Curated "The Place" Vault & Search */}
+                    <div className="lg:col-span-4 flex flex-col border border-white/20 bg-white/[0.02] p-3 space-y-3">
+                      {/* Search Bar */}
+                      <div className="flex items-center gap-1 bg-black/60 border border-white/20 px-2 py-1">
+                        <Search size={11} className="text-white/40" />
+                        <input
+                          type="text"
+                          value={videoSearchQuery}
+                          onChange={(e) => setVideoSearchQuery(e.target.value)}
+                          onKeyDown={(e) => e.key === 'Enter' && handlePerformVideoSearch()}
+                          placeholder="Search tactical video nodes..."
+                          className="bg-transparent text-[10px] text-white placeholder:text-white/30 font-mono focus:outline-none flex-1"
+                        />
+                        <button
+                          onClick={handlePerformVideoSearch}
+                          disabled={isSearchingVideos}
+                          className="px-2 py-0.5 bg-white text-black text-[8px] font-bold uppercase"
+                        >
+                          {isSearchingVideos ? '...' : 'FIND'}
+                        </button>
+                      </div>
+
+                      {/* Video List: Search Results OR Curated Playlist */}
+                      <div className="flex-1 overflow-y-auto pr-1 no-scrollbar space-y-2.5">
+                        {videoSearchResults.length > 0 ? (
+                          <div className="space-y-1.5">
+                            <span className="text-[9px] text-white/50 uppercase font-bold block">SEARCH RESULTS</span>
+                            {videoSearchResults.map((vid) => (
+                              <div
+                                key={vid.id}
+                                onClick={() => {
+                                  setActiveVideoId(vid.id);
+                                  setActiveVideoTitle(vid.title);
+                                }}
+                                className="p-1.5 bg-white/[0.04] hover:bg-white/[0.12] border border-white/20 hover:border-white cursor-pointer transition-all flex items-center gap-2"
+                              >
+                                <img src={vid.thumbnail} alt="" className="w-12 aspect-video object-cover grayscale" />
+                                <div className="truncate">
+                                  <h6 className="text-[9px] font-bold text-white truncate">{vid.title}</h6>
+                                  <span className="text-[8px] text-white/50">{vid.channelTitle}</span>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        ) : (
+                          DEFAULT_THE_PLACE_VAULT.map((pl) => (
+                            <div key={pl.name} className="space-y-1.5">
+                              <span className="text-[8px] text-white/50 uppercase font-bold tracking-wider block border-b border-white/10 pb-0.5">
+                                {pl.name}
+                              </span>
+                              {pl.items.map((item) => (
+                                <div
+                                  key={item.id}
+                                  onClick={() => {
+                                    setActiveVideoId(item.id);
+                                    setActiveVideoTitle(item.title);
+                                  }}
+                                  className={`p-1.5 border cursor-pointer transition-all flex items-center gap-2 ${
+                                    activeVideoId === item.id 
+                                      ? 'bg-white text-black border-white font-bold' 
+                                      : 'bg-white/[0.03] hover:bg-white/[0.08] border-white/15 text-white'
+                                  }`}
+                                >
+                                  <img src={item.thumbnail} alt="" className="w-10 aspect-video object-cover grayscale" />
+                                  <div className="truncate flex-1">
+                                    <h6 className="text-[9px] truncate">{item.title}</h6>
+                                    <span className="text-[7px] opacity-60 uppercase">{item.category}</span>
+                                  </div>
+                                  <Play size={10} fill="currentColor" />
+                                </div>
+                              ))}
+                            </div>
+                          ))
+                        )}
+                      </div>
+                    </div>
                   </div>
+                )}
 
-                  <div className="p-3 bg-black/60 border border-white/10 space-y-2">
-                    <span className="text-[8px] text-white/50 block uppercase font-mono">CURRENT TRACK</span>
-                    <div className="text-xs font-bold text-white truncate font-mono">
-                      {frequencyStore.getCurrentTrack()?.title || 'The Batman - Atmospheric Focus Suite'}
+                {/* ------------------------------------------------------------------------- */}
+                {/* MODULE 03: MISSION CHRONOMETER & POMODORO                                 */}
+                {/* ------------------------------------------------------------------------- */}
+                {batmanStore.activeModule === 'timer' && (
+                  <div className="h-full grid grid-cols-1 lg:grid-cols-12 gap-4">
+                    {/* Left 8 Cols: Giant Tactical Digital Chronometer */}
+                    <div className="lg:col-span-8 flex flex-col justify-between border border-white/20 bg-white/[0.02] p-6 space-y-4">
+                      {/* Mode & Preset Selector */}
+                      <div className="flex flex-wrap items-center justify-between border-b border-white/20 pb-3 gap-2">
+                        <div className="flex items-center gap-1.5 bg-black/60 border border-white/20 p-1">
+                          <button
+                            onClick={() => setPomodoro(prev => ({ ...prev, mode: 'pomodoro', remainingSeconds: prev.durationSeconds }))}
+                            className={`px-3 py-1 text-[9px] font-mono uppercase font-bold transition-all ${
+                              pomodoro.mode === 'pomodoro' ? 'bg-white text-black' : 'text-white/60 hover:text-white'
+                            }`}
+                          >
+                            POMODORO
+                          </button>
+                          <button
+                            onClick={() => setPomodoro(prev => ({ ...prev, mode: 'stopwatch', remainingSeconds: 0 }))}
+                            className={`px-3 py-1 text-[9px] font-mono uppercase font-bold transition-all ${
+                              pomodoro.mode === 'stopwatch' ? 'bg-white text-black' : 'text-white/60 hover:text-white'
+                            }`}
+                          >
+                            STOPWATCH
+                          </button>
+                        </div>
+
+                        {pomodoro.mode === 'pomodoro' && (
+                          <div className="flex items-center gap-1">
+                            {[25, 50, 90, 5].map((preset) => (
+                              <button
+                                key={preset}
+                                onClick={() => selectPomodoroPreset(preset as any)}
+                                className={`px-2.5 py-1 text-[9px] font-mono border uppercase transition-all ${
+                                  pomodoro.preset === preset 
+                                    ? 'bg-white text-black font-extrabold border-white' 
+                                    : 'border-white/20 text-white/60 hover:text-white'
+                                }`}
+                              >
+                                {preset}M
+                              </button>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Giant Digital Readout */}
+                      <div className="flex flex-col items-center justify-center py-6 text-center">
+                        <div className="text-[9px] text-white/40 tracking-[0.4em] uppercase mb-2">
+                          {pomodoro.mode === 'pomodoro' ? 'FOCUS INTERVAL COUNTDOWN' : 'TACTICAL STOPWATCH ELAPSED'}
+                        </div>
+                        <div className="text-6xl sm:text-8xl font-black font-mono tracking-tighter text-white select-all">
+                          {formatTimerDigits(pomodoro.remainingSeconds)}
+                        </div>
+                        {/* High-contrast Tactical Bar */}
+                        <div className="w-full max-w-md bg-white/10 h-2 mt-4">
+                          <div 
+                            className="bg-white h-full transition-all duration-300"
+                            style={{ 
+                              width: pomodoro.mode === 'pomodoro' 
+                                ? `${Math.max(0, Math.min(100, (1 - pomodoro.remainingSeconds / pomodoro.durationSeconds) * 100))}%`
+                                : `${(pomodoro.remainingSeconds % 60) * 1.66}%`
+                            }}
+                          />
+                        </div>
+                      </div>
+
+                      {/* Chronometer Actions */}
+                      <div className="flex items-center justify-center gap-3 pt-2">
+                        <button
+                          onClick={togglePomodoroPlay}
+                          className="px-6 py-2 bg-white text-black font-mono text-xs font-black uppercase tracking-wider hover:bg-zinc-200 transition-all flex items-center gap-2"
+                        >
+                          {pomodoro.isRunning ? <Pause size={14} /> : <Play size={14} />}
+                          <span>{pomodoro.isRunning ? 'PAUSE TIMER' : 'START FOCUS'}</span>
+                        </button>
+                        <button
+                          onClick={resetPomodoro}
+                          className="px-4 py-2 border border-white/20 hover:border-white text-white font-mono text-xs uppercase transition-all flex items-center gap-1.5"
+                        >
+                          <RotateCcw size={13} />
+                          <span>RESET</span>
+                        </button>
+                        {pomodoro.mode === 'stopwatch' && (
+                          <button
+                            onClick={recordLap}
+                            className="px-4 py-2 border border-white/20 hover:border-white text-white font-mono text-xs uppercase transition-all"
+                          >
+                            SPLIT LAP
+                          </button>
+                        )}
+                      </div>
                     </div>
-                    <div className="text-[9px] text-white/60 truncate font-mono">
-                      {frequencyStore.getCurrentTrack()?.artist || 'Michael Giacchino'}
-                    </div>
-                    <div className="flex items-center gap-2 pt-1">
-                      <button 
-                        onClick={() => frequencyStore.togglePlay()}
-                        className="p-1.5 bg-white text-black text-[9px] font-bold uppercase flex items-center gap-1"
-                      >
-                        {frequencyStore.isPlaying ? <Pause size={10} /> : <Play size={10} />}
-                        <span>{frequencyStore.isPlaying ? 'Pause' : 'Play'}</span>
-                      </button>
-                      <button 
-                        onClick={() => frequencyStore.next()}
-                        className="p-1.5 border border-white/20 hover:border-white text-white text-[9px]"
-                      >
-                        <SkipForward size={10} />
-                      </button>
+
+                    {/* Right 4 Cols: Laps & History */}
+                    <div className="lg:col-span-4 flex flex-col border border-white/20 bg-white/[0.02] p-4 space-y-3">
+                      <div className="flex items-center justify-between border-b border-white/20 pb-2">
+                        <div className="flex items-center gap-1.5">
+                          <Activity size={13} className="text-white" />
+                          <span className="text-[10px] font-bold uppercase tracking-widest text-white">CYCLE LOGS</span>
+                        </div>
+                        <span className="text-[9px] text-white/50">STREAK: {Math.max(1, Math.floor(appStore.totalMinutesFocused / 60))} DAYS</span>
+                      </div>
+
+                      <div className="flex-1 overflow-y-auto space-y-2 no-scrollbar">
+                        {pomodoro.laps.length === 0 ? (
+                          <div className="text-[9px] text-white/40 italic p-3 border border-dashed border-white/10 text-center">
+                            No split intervals recorded in this session.
+                          </div>
+                        ) : (
+                          pomodoro.laps.map((lap, idx) => (
+                            <div key={idx} className="p-2 bg-white/[0.04] border border-white/10 flex justify-between text-[10px]">
+                              <span className="text-white/60 font-mono">LAP #{pomodoro.laps.length - idx}</span>
+                              <span className="font-bold text-white font-mono">{lap}</span>
+                            </div>
+                          ))
+                        )}
+                      </div>
+
+                      <div className="p-3 bg-black/60 border border-white/10 text-[9px] space-y-1">
+                        <div className="flex justify-between text-white/60">
+                          <span>COMPLETED CYCLES</span>
+                          <span className="text-white font-bold">{Math.floor(appStore.totalMinutesFocused / 25)} CYCLES</span>
+                        </div>
+                        <div className="flex justify-between text-white/60">
+                          <span>FOCUS REWARD</span>
+                          <span className="text-white font-bold">+50 COINS / CYCLE</span>
+                        </div>
+                      </div>
                     </div>
                   </div>
-                </div>
+                )}
 
-                {/* Quick Tactical Voice Directives */}
-                <div className="space-y-2 border-t border-white/20 pt-3">
-                  <span className="text-[9px] text-white/50 uppercase font-bold block">TACTICAL VOICE RADAR</span>
-                  <div className="grid grid-cols-2 gap-1.5">
-                    {[
-                      { label: "Start Focus Music", cmd: "start focus music" },
-                      { label: "Tokyo Weather", cmd: "weather in tokyo" },
-                      { label: "Crypto Pulse", cmd: "crypto prices" },
-                      { label: "My Tasks", cmd: "what are my tasks" }
-                    ].map((item, idx) => (
+                {/* ------------------------------------------------------------------------- */}
+                {/* MODULE 04: TACTICAL MISSION DIRECTIVES (TASKS & HABITS)                   */}
+                {/* ------------------------------------------------------------------------- */}
+                {batmanStore.activeModule === 'tasks' && (
+                  <div className="h-full grid grid-cols-1 lg:grid-cols-12 gap-4">
+                    {/* Left 8 Cols: Interactive Directives Matrix */}
+                    <div className="lg:col-span-8 flex flex-col justify-between border border-white/20 bg-white/[0.02] p-4 space-y-3">
+                      {/* Header & Filter Deck */}
+                      <div className="flex flex-wrap items-center justify-between border-b border-white/20 pb-2 gap-2">
+                        <div className="flex items-center gap-2">
+                          <ListTodo size={14} className="text-white" />
+                          <span className="text-[11px] font-bold uppercase tracking-widest text-white">
+                            MISSION DIRECTIVES ({directives.filter(d => d.completed).length}/{directives.length})
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-1">
+                          {(['ALL', 'ACTIVE', 'COMPLETED'] as const).map((f) => (
+                            <button
+                              key={f}
+                              onClick={() => setDirectiveFilter(f)}
+                              className={`px-2 py-0.5 text-[8px] font-mono uppercase border transition-all ${
+                                directiveFilter === f 
+                                  ? 'bg-white text-black font-bold border-white' 
+                                  : 'border-white/20 text-white/60 hover:text-white'
+                              }`}
+                            >
+                              {f}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+
+                      {/* Directives List */}
+                      <div className="flex-1 overflow-y-auto space-y-1.5 pr-1 no-scrollbar">
+                        {directives
+                          .filter(d => {
+                            if (directiveFilter === 'ACTIVE') return !d.completed;
+                            if (directiveFilter === 'COMPLETED') return d.completed;
+                            return true;
+                          })
+                          .map((directive) => (
+                            <div
+                              key={directive.id}
+                              className={`p-2.5 border transition-all flex items-center justify-between gap-3 ${
+                                directive.completed
+                                  ? 'bg-white/[0.02] border-white/10 text-white/40'
+                                  : 'bg-white/[0.04] border-white/20 text-white hover:border-white'
+                              }`}
+                            >
+                              <div 
+                                onClick={() => toggleDirective(directive.id)}
+                                className="flex items-center gap-2.5 cursor-pointer flex-1 truncate"
+                              >
+                                <CheckCircle2 
+                                  size={14} 
+                                  className={directive.completed ? 'text-white/40' : 'text-white'} 
+                                />
+                                <span className={`text-[10px] font-mono truncate ${directive.completed ? 'line-through' : ''}`}>
+                                  {directive.text}
+                                </span>
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <span className={`text-[8px] px-1.5 py-0.5 border uppercase font-mono ${
+                                  directive.priority === 'CRITICAL' 
+                                    ? 'bg-white text-black font-black border-white' 
+                                    : 'border-white/20 text-white/60'
+                                }`}>
+                                  {directive.priority}
+                                </span>
+                                <button
+                                  onClick={() => deleteDirective(directive.id)}
+                                  className="text-white/30 hover:text-white p-1"
+                                >
+                                  <Trash2 size={11} />
+                                </button>
+                              </div>
+                            </div>
+                          ))}
+                      </div>
+
+                      {/* Add Directive Input Console */}
+                      <div className="flex items-center gap-2 bg-black/60 border border-white/20 p-1.5">
+                        <select
+                          value={newDirectivePriority}
+                          onChange={(e) => setNewDirectivePriority(e.target.value as any)}
+                          className="bg-black text-white text-[9px] font-mono border border-white/20 px-2 py-1 focus:outline-none"
+                        >
+                          <option value="CRITICAL">CRITICAL</option>
+                          <option value="HIGH">HIGH</option>
+                          <option value="TACTICAL">TACTICAL</option>
+                        </select>
+                        <input
+                          type="text"
+                          value={newDirectiveText}
+                          onChange={(e) => setNewDirectiveText(e.target.value)}
+                          onKeyDown={(e) => e.key === 'Enter' && addDirective()}
+                          placeholder="Initialize new tactical mission objective..."
+                          className="bg-transparent text-[10px] text-white placeholder:text-white/30 font-mono focus:outline-none flex-1"
+                        />
+                        <button
+                          onClick={addDirective}
+                          className="px-3 py-1 bg-white text-black text-[9px] font-bold uppercase flex items-center gap-1"
+                        >
+                          <Plus size={11} />
+                          <span>ADD</span>
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Right 4 Cols: Focus Economy Ledger */}
+                    <div className="lg:col-span-4 flex flex-col justify-between border border-white/20 bg-white/[0.02] p-4 space-y-3">
+                      <div className="space-y-3">
+                        <div className="flex items-center justify-between border-b border-white/20 pb-2">
+                          <div className="flex items-center gap-1.5">
+                            <Coins size={13} className="text-white" />
+                            <span className="text-[10px] font-bold uppercase tracking-widest text-white">COGNITIVE ECONOMY</span>
+                          </div>
+                          <span className="text-[9px] text-white/50">TIER // V</span>
+                        </div>
+
+                        <div className="p-3 bg-black/60 border border-white/10 space-y-2">
+                          <span className="text-[8px] text-white/50 block font-mono uppercase">MAYBACH REWARDS BALANCE</span>
+                          <div className="text-2xl font-black text-white font-mono">{appStore.maybachCoins} COINS</div>
+                          <span className="text-[8px] text-white/40 block font-mono">+25 COINS EARNED PER DIRECTIVE COMPLETED</span>
+                        </div>
+
+                        <div className="space-y-1 text-[9px] text-white/60">
+                          <div className="flex justify-between">
+                            <span>TACTICAL RANK</span>
+                            <span className="text-white font-bold">SHADOW OPERATIVE</span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span>TOTAL FOCUS LOGGED</span>
+                            <span className="text-white font-bold">{appStore.totalMinutesFocused} MINUTES</span>
+                          </div>
+                        </div>
+                      </div>
+
                       <button
-                        key={idx}
-                        onClick={() => handleGlobalJarvisCommand(item.cmd)}
-                        className="p-1.5 bg-white/[0.04] hover:bg-white text-white hover:text-black border border-white/15 text-[9px] font-mono text-left truncate transition-all"
+                        onClick={clearCompletedDirectives}
+                        className="w-full py-1.5 border border-white/20 hover:border-white text-white text-[9px] font-mono uppercase transition-colors"
                       >
-                        {item.label}
+                        [ PURGE COMPLETED DIRECTIVES ]
                       </button>
-                    ))}
+                    </div>
                   </div>
+                )}
+
+                {/* ------------------------------------------------------------------------- */}
+                {/* MODULE 05: ACOUSTIC SYNTHESIZER & BINAURAL FREQUENCY                       */}
+                {/* ------------------------------------------------------------------------- */}
+                {batmanStore.activeModule === 'ledger' && (
+                  <div className="h-full grid grid-cols-1 lg:grid-cols-12 gap-4">
+                    {/* Left 6 Cols: Master Audio Stream & Player */}
+                    <div className="lg:col-span-6 flex flex-col justify-between border border-white/20 bg-white/[0.02] p-4 space-y-4">
+                      <div className="space-y-3">
+                        <div className="flex items-center justify-between border-b border-white/20 pb-2">
+                          <div className="flex items-center gap-2">
+                            <Headphones size={14} className="text-white" />
+                            <span className="text-[11px] font-bold uppercase tracking-widest text-white">
+                              MASTER AUDIO SYNTHESIZER
+                            </span>
+                          </div>
+                          <span className="text-[9px] text-white/50">{frequencyStore.isPlaying ? 'ACTIVE' : 'MUTED'}</span>
+                        </div>
+
+                        <div className="p-4 bg-black/60 border border-white/10 space-y-2.5">
+                          <span className="text-[8px] text-white/40 uppercase block">STREAMING AUDIO CORE</span>
+                          <div className="text-sm font-bold text-white truncate font-mono">
+                            {frequencyStore.getCurrentTrack()?.title || 'The Batman - Atmospheric Suite'}
+                          </div>
+                          <div className="text-[10px] text-white/60 font-mono">
+                            {frequencyStore.getCurrentTrack()?.artist || 'Michael Giacchino'}
+                          </div>
+                          
+                          <div className="flex items-center gap-2 pt-2">
+                            <button
+                              onClick={() => frequencyStore.togglePlay()}
+                              className="px-4 py-1.5 bg-white text-black text-[10px] font-bold uppercase flex items-center gap-1.5"
+                            >
+                              {frequencyStore.isPlaying ? <Pause size={12} /> : <Play size={12} />}
+                              <span>{frequencyStore.isPlaying ? 'PAUSE' : 'PLAY'}</span>
+                            </button>
+                            <button
+                              onClick={() => frequencyStore.next()}
+                              className="p-1.5 border border-white/20 hover:border-white text-white text-[10px]"
+                            >
+                              <SkipForward size={12} />
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="space-y-2 border-t border-white/20 pt-3">
+                        <div className="flex items-center justify-between text-[9px] text-white/60">
+                          <span>MASTER GAIN VOLUME</span>
+                          <span>{frequencyStore.volume}%</span>
+                        </div>
+                        <input
+                          type="range"
+                          min={0}
+                          max={100}
+                          value={frequencyStore.volume}
+                          onChange={(e) => frequencyStore.setVolume(Number(e.target.value))}
+                          className="w-full accent-white bg-white/20 cursor-pointer h-1"
+                        />
+                      </div>
+                    </div>
+
+                    {/* Right 6 Cols: Ambient Soundboard Layers */}
+                    <div className="lg:col-span-6 flex flex-col border border-white/20 bg-white/[0.02] p-4 space-y-3">
+                      <div className="flex items-center justify-between border-b border-white/20 pb-2">
+                        <div className="flex items-center gap-2">
+                          <Sliders size={14} className="text-white" />
+                          <span className="text-[11px] font-bold uppercase tracking-widest text-white">
+                            BINAURAL & AMBIENT LAYERS
+                          </span>
+                        </div>
+                        <span className="text-[9px] text-white/50">MULTI-CHANNEL MIX</span>
+                      </div>
+
+                      <div className="flex-1 overflow-y-auto space-y-2 pr-1 no-scrollbar">
+                        {ambientLayers.map((layer) => (
+                          <div key={layer.id} className="p-2.5 bg-black/60 border border-white/10 space-y-2">
+                            <div className="flex items-center justify-between">
+                              <div className="flex items-center gap-2">
+                                <button
+                                  onClick={() => setAmbientLayers(prev => prev.map(l => l.id === layer.id ? { ...l, active: !l.active } : l))}
+                                  className={`px-2 py-0.5 text-[8px] font-mono uppercase border ${
+                                    layer.active ? 'bg-white text-black font-bold border-white' : 'border-white/20 text-white/40'
+                                  }`}
+                                >
+                                  {layer.active ? 'ACTIVE' : 'OFF'}
+                                </button>
+                                <span className="text-[10px] font-bold text-white font-mono">{layer.name}</span>
+                              </div>
+                              <span className="text-[8px] text-white/50 font-mono">{layer.hz}</span>
+                            </div>
+                            <input
+                              type="range"
+                              min={0}
+                              max={100}
+                              value={layer.volume}
+                              onChange={(e) => {
+                                const vol = Number(e.target.value);
+                                setAmbientLayers(prev => prev.map(l => l.id === layer.id ? { ...l, volume: vol } : l));
+                              }}
+                              className="w-full accent-white bg-white/20 cursor-pointer h-1"
+                            />
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* ------------------------------------------------------------------------- */}
+                {/* MODULE 06: INTEL (MARKETS, STOCKS, CRYPTO, WEATHER)                       */}
+                {/* ------------------------------------------------------------------------- */}
+                {batmanStore.activeModule === 'intel' && (
+                  <div className="h-full flex flex-col border border-white/20 bg-white/[0.02] p-4 space-y-3">
+                    <div className="flex items-center justify-between border-b border-white/20 pb-2">
+                      <div className="flex items-center gap-2">
+                        <Globe size={14} className="text-white" />
+                        <span className="text-[11px] font-bold uppercase tracking-widest text-white">
+                          PLANETARY TELEMETRY & INTELLIGENCE RADAR
+                        </span>
+                      </div>
+                      <span className="text-[9px] text-white/50">LIVE NODES CONNECTED</span>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3 flex-1 overflow-y-auto no-scrollbar">
+                      <div className="bg-black/60 border border-white/10 p-3 space-y-2">
+                        <div className="flex items-center justify-between text-[8px] text-white/50 uppercase">
+                          <span>MARKET COMPOSITE</span>
+                          <TrendingUp size={12} className="text-white" />
+                        </div>
+                        <div className="text-xl font-bold font-mono text-white">NASDAQ: 18,340</div>
+                        <span className="text-[9px] text-white/60 block font-mono">+1.24% // BULLISH SYNCHRONIZATION</span>
+                      </div>
+
+                      <div className="bg-black/60 border border-white/10 p-3 space-y-2">
+                        <div className="flex items-center justify-between text-[8px] text-white/50 uppercase">
+                          <span>BITCOIN ORBIT</span>
+                          <Coins size={12} className="text-white" />
+                        </div>
+                        <div className="text-xl font-bold font-mono text-white">$67,420</div>
+                        <span className="text-[9px] text-white/60 block font-mono">+2.85% // 24H DELTA</span>
+                      </div>
+
+                      <div className="bg-black/60 border border-white/10 p-3 space-y-2">
+                        <div className="flex items-center justify-between text-[8px] text-white/50 uppercase">
+                          <span>GOTHAM METEOROLOGY</span>
+                          <Cloud size={12} className="text-white" />
+                        </div>
+                        <div className="text-xl font-bold font-mono text-white">14°C // RAIN</div>
+                        <span className="text-[9px] text-white/60 block font-mono">HUMIDITY: 92% • BAROMETER 1012hPa</span>
+                      </div>
+
+                      <div className="bg-black/60 border border-white/10 p-3 space-y-2">
+                        <div className="flex items-center justify-between text-[8px] text-white/50 uppercase">
+                          <span>NEURAL LATENCY</span>
+                          <Zap size={12} className="text-white" />
+                        </div>
+                        <div className="text-xl font-bold font-mono text-white">18 MS</div>
+                        <span className="text-[9px] text-white/60 block font-mono">ZERO PACKET LOSS DETECTED</span>
+                      </div>
+                    </div>
+
+                    <div className="p-2.5 bg-black/60 border border-white/20 flex items-center justify-between">
+                      <span className="text-[9px] text-white/60 font-mono">
+                        Ask JARVIS: &ldquo;What is the weather in Tokyo?&rdquo; or &ldquo;Show Tesla stock&rdquo; or &ldquo;Crypto prices&rdquo;
+                      </span>
+                      <button 
+                        onClick={() => handleGlobalJarvisCommand("crypto prices")}
+                        className="px-2.5 py-1 bg-white text-black text-[8px] font-bold uppercase font-mono"
+                      >
+                        PULL CRYPTO SPOT
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+              </div>
+
+              {/* 3. BOTTOM COMMAND DECK & VOICE WAVEFORM */}
+              <motion.footer 
+                initial={{ y: 30, opacity: 0 }}
+                animate={{ y: 0, opacity: 1 }}
+                transition={{ duration: 0.4, delay: 0.3 }}
+                className="flex flex-col sm:flex-row items-center justify-between border-t border-white/20 pt-2.5 gap-2.5"
+              >
+                {/* Voice Trigger Input Console */}
+                <div className="w-full sm:w-auto flex-1 flex items-center gap-2 bg-white/[0.04] border border-white/20 px-3 py-1.5">
+                  <button
+                    onClick={() => {
+                      if (jarvisStore.voiceState === 'listening_for_command' || jarvisStore.voiceState === 'transcribing_command') {
+                        jarvisVoiceEngine.commitCommand();
+                      } else {
+                        jarvisAudio.playActivate();
+                        jarvisVoiceEngine.startCommandListening();
+                      }
+                    }}
+                    className={`p-1.5 rounded-none transition-all cursor-pointer ${
+                      jarvisStore.voiceState === 'listening_for_command' || jarvisStore.voiceState === 'transcribing_command'
+                        ? 'bg-white text-black animate-pulse'
+                        : 'bg-white/10 hover:bg-white text-white hover:text-black'
+                    }`}
+                    title="Push to Talk"
+                  >
+                    <Mic size={14} />
+                  </button>
+
+                  <input
+                    type="text"
+                    value={inputCommand}
+                    onChange={(e) => setInputCommand(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' && inputCommand.trim()) {
+                        handleGlobalJarvisCommand(inputCommand.trim());
+                        setInputCommand('');
+                      }
+                    }}
+                    placeholder="Type or speak tactical directive to JARVIS..."
+                    className="bg-transparent text-xs text-white placeholder:text-white/30 font-mono focus:outline-none flex-1"
+                  />
+
+                  <span className="text-[9px] text-white/40 hidden md:inline font-mono">
+                    SAY &ldquo;JARVIS&rdquo; OR &ldquo;OPEN THE PLACE&rdquo; OR &ldquo;START 25M TIMER&rdquo;
+                  </span>
                 </div>
-              </motion.aside>
 
-            </div>
+                {/* Status Pill */}
+                <div className="flex items-center gap-2 text-[10px] text-white/60">
+                  <div className="w-2 h-2 rounded-full bg-white animate-ping" />
+                  <span className="uppercase font-bold">BATMAN TACTICAL HUD ACTIVE</span>
+                </div>
+              </motion.footer>
 
-            {/* 3. BOTTOM COMMAND DECK & VOICE WAVEFORM */}
-            <motion.footer 
-              initial={{ y: 30, opacity: 0 }}
-              animate={{ y: 0, opacity: 1 }}
-              transition={{ duration: 0.4, delay: 0.3 }}
-              className="flex flex-col sm:flex-row items-center justify-between border-t border-white/20 pt-3 gap-3"
-            >
-              {/* Voice Trigger Input Console */}
-              <div className="w-full sm:w-auto flex-1 flex items-center gap-2 bg-white/[0.04] border border-white/20 px-3 py-1.5">
-                <button
-                  onClick={() => {
-                    if (jarvisStore.voiceState === 'listening_for_command' || jarvisStore.voiceState === 'transcribing_command') {
-                      jarvisVoiceEngine.commitCommand();
-                    } else {
-                      jarvisAudio.playActivate();
-                      jarvisVoiceEngine.startCommandListening();
-                    }
-                  }}
-                  className={`p-1.5 rounded-none transition-all cursor-pointer ${
-                    jarvisStore.voiceState === 'listening_for_command' || jarvisStore.voiceState === 'transcribing_command'
-                      ? 'bg-white text-black animate-pulse'
-                      : 'bg-white/10 hover:bg-white text-white hover:text-black'
-                  }`}
-                  title="Push to Talk"
-                >
-                  <Mic size={14} />
-                </button>
-
-                <input
-                  type="text"
-                  value={inputCommand}
-                  onChange={(e) => setInputCommand(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter' && inputCommand.trim()) {
-                      handleGlobalJarvisCommand(inputCommand.trim());
-                      setInputCommand('');
-                    }
-                  }}
-                  placeholder="Type or speak tactical command to JARVIS..."
-                  className="bg-transparent text-xs text-white placeholder:text-white/30 font-mono focus:outline-none flex-1"
-                />
-
-                <span className="text-[9px] text-white/40 hidden md:inline font-mono">
-                  SAY &ldquo;JARVIS&rdquo; OR &ldquo;LET&rsquo;S LOCK IN&rdquo;
-                </span>
-              </div>
-
-              {/* Status Pill */}
-              <div className="flex items-center gap-2 text-[10px] text-white/60">
-                <div className="w-2 h-2 rounded-full bg-white animate-ping" />
-                <span className="uppercase font-bold">OLED LOCK-IN PROTOCOL ACTIVE</span>
-              </div>
-            </motion.footer>
             </div>
           </HudFrame>
         )}

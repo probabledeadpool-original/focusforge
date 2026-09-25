@@ -202,6 +202,7 @@ export class JarvisVoiceEngine {
         this.pendingConfirmationAction = null;
         this.pendingConfirmationPrompt = null;
         this.isSpeakingTTS = false;
+        this.recognitionRestartAttempts = 0;
         this.unduckAudio();
         this.ensureRecognitionRunning();
         break;
@@ -224,16 +225,22 @@ export class JarvisVoiceEngine {
           jarvisAudio.playWake();
         }
 
-        // Check if pre-roll command was already provided in candidate phrase
+        // If trailing command words were present in the single utterance, transition to transcribing and debounce
+        // without prematurely cutting off remaining speech!
         if (this.currentFinalTranscript.trim().length > 0) {
           setTimeout(() => {
-            this.transitionTo('processing_command', 'Executing pre-roll trailing command from single utterance');
-          }, 120);
+            if (this.state === 'activated') {
+              this.transitionTo('transcribing_command', 'Pre-roll trailing command captured; listening for complete thought');
+              this.resetSilenceDebounce();
+            }
+          }, 80);
         } else {
-          // Transition immediately to listening for command without destroying stream
+          // Transition immediately to listening for command
           setTimeout(() => {
-            this.transitionTo('listening_for_command', 'Waiting for command utterance');
-          }, 150);
+            if (this.state === 'activated') {
+              this.transitionTo('listening_for_command', 'Waiting for user command utterance');
+            }
+          }, 80);
         }
         break;
 
@@ -242,12 +249,12 @@ export class JarvisVoiceEngine {
         this.currentFinalTranscript = '';
         this.ensureRecognitionRunning();
         
-        // Command Timeout (6 seconds of silence -> returns quietly to standby)
+        // Command Timeout (8 seconds of silence -> returns quietly to standby)
         this.commandTimeoutTimer = setTimeout(() => {
           if (this.state === 'listening_for_command' && !this.currentInterimTranscript && !this.currentFinalTranscript) {
             this.transitionTo('standby', `Command timeout reached (${voiceConfig.commandTimeoutMs}ms silence)`);
           }
-        }, voiceConfig.commandTimeoutMs);
+        }, 8000);
         break;
 
       case 'transcribing_command':
@@ -298,11 +305,7 @@ export class JarvisVoiceEngine {
     }
 
     try {
-      if (this.recognitionInstance) {
-        try {
-          this.recognitionInstance.abort();
-        } catch (e) {}
-      }
+      this.stopSpeechRecognition();
 
       const recognition = new SpeechRecognition();
       recognition.continuous = true;
@@ -318,7 +321,7 @@ export class JarvisVoiceEngine {
 
       recognition.onresult = (event: any) => {
         // Self-echo protection: ignore microphone while Jarvis is speaking or immediately after
-        if (this.isSpeakingTTS || Date.now() - this.lastTtsEndTime < 300) {
+        if (this.isSpeakingTTS || Date.now() - this.lastTtsEndTime < 250) {
           return;
         }
 
@@ -326,7 +329,7 @@ export class JarvisVoiceEngine {
         let finalCombined = '';
         const alternativeTexts: string[] = [];
 
-        for (let i = event.resultIndex; i < event.results.length; i++) {
+        for (let i = 0; i < event.results.length; i++) {
           const res = event.results[i];
           const primaryPiece = res[0]?.transcript || '';
 
@@ -336,7 +339,7 @@ export class JarvisVoiceEngine {
             interimCombined += ' ' + primaryPiece;
           }
 
-          // Gather all alternatives across confidence brackets
+          // Gather all alternatives
           for (let j = 0; j < Math.min(res.length, 3); j++) {
             if (res[j]?.transcript) {
               alternativeTexts.push(res[j].transcript.trim());
@@ -387,25 +390,24 @@ export class JarvisVoiceEngine {
         }
 
         // ---------------------------------------------------------------------
-        // 2. LISTENING / TRANSCRIBING COMMAND STATE: COMMAND CAPTURE
+        // 2. LISTENING / TRANSCRIBING COMMAND STATE: MULTI-WORD COMMAND CAPTURE
         // ---------------------------------------------------------------------
         if (this.state === 'listening_for_command' || this.state === 'transcribing_command') {
-          const cleanInterim = interimCombined.trim();
-          const cleanFinal = finalCombined.trim();
+          // Strip leading wake-word from captured phrase if still present
+          let cleanUtterance = (finalCombined || interimCombined).trim();
+          cleanUtterance = cleanUtterance.replace(/^(?:hey|ok|okay|yo|hi|hello|sup)?\s*(?:jarvis|javis|jarves|jervis|travis)\s*[,:\-–]?\s*/i, '').trim();
 
-          if (cleanInterim || cleanFinal) {
-            this.currentInterimTranscript = cleanInterim;
-            if (cleanFinal) {
-              this.currentFinalTranscript = (this.currentFinalTranscript + ' ' + cleanFinal).trim();
-            }
+          if (cleanUtterance.length > 0) {
+            this.currentFinalTranscript = cleanUtterance;
+            this.currentInterimTranscript = interimCombined.trim();
 
             if (this.state === 'listening_for_command') {
               this.transitionTo('transcribing_command', 'Speech utterance detected');
             }
 
             // Check Verbal Cancellation
-            const currentFull = (this.currentFinalTranscript + ' ' + this.currentInterimTranscript).toLowerCase().trim();
-            if (currentFull === 'cancel' || currentFull === 'never mind' || currentFull === 'nevermind' || currentFull === 'stop') {
+            const lower = cleanUtterance.toLowerCase();
+            if (lower === 'cancel' || lower === 'never mind' || lower === 'nevermind' || lower === 'stop') {
               this.cleanupAllTimers();
               this.transitionTo('standby', 'User cancelled command verbally');
               return;
@@ -441,11 +443,22 @@ export class JarvisVoiceEngine {
         this.isRecognitionRunning = false;
         
         // If in command mode with finalized text, complete execution
-        if (this.state === 'transcribing_command' && this.currentFinalTranscript.trim()) {
-          this.finalizeCommand();
-        } else if (this.state === 'standby' && !this.isSpeakingTTS) {
-          // Zero-delay immediate restart for uninterrupted standby listening
-          this.ensureRecognitionRunning();
+        if (this.state === 'transcribing_command') {
+          const text = (this.currentFinalTranscript || this.currentInterimTranscript).trim();
+          if (text.length > 0) {
+            this.currentFinalTranscript = text;
+            this.finalizeCommand();
+            return;
+          }
+        }
+        
+        // If in standby, immediately and seamlessly restart recognition
+        if (this.state === 'standby' && !this.isSpeakingTTS) {
+          setTimeout(() => {
+            if (this.state === 'standby' && !this.isSpeakingTTS) {
+              this.ensureRecognitionRunning();
+            }
+          }, 100);
         }
       };
 
@@ -459,6 +472,7 @@ export class JarvisVoiceEngine {
   private stopSpeechRecognition(): void {
     if (this.recognitionInstance) {
       try {
+        this.recognitionInstance.onstart = null;
         this.recognitionInstance.onend = null;
         this.recognitionInstance.onerror = null;
         this.recognitionInstance.onresult = null;
@@ -475,18 +489,18 @@ export class JarvisVoiceEngine {
     }
 
     const fullUtterance = (this.currentFinalTranscript || this.currentInterimTranscript).trim();
-    const wordCount = fullUtterance.split(/\s+/).filter(Boolean).length;
-    
-    // Adaptive silence debounce:
-    // Short phrases (1-2 words): give 1500ms to allow user to finish their thought naturally.
-    // Full phrases (3+ words): finalize in 700ms for fast, snappy execution.
-    const dynamicDebounceMs = wordCount <= 2 ? 1500 : 700;
+    if (!fullUtterance) return;
+
+    // Generous adaptive debounce (1800ms) allows complete sentences, complex commands,
+    // and natural breathing pauses without prematurely cutting off the user!
+    const dynamicDebounceMs = 1800;
 
     this.silenceDebounceTimer = setTimeout(() => {
       if (this.state === 'transcribing_command') {
         const text = (this.currentFinalTranscript || this.currentInterimTranscript).trim();
         if (text.length > 0) {
           this.currentFinalTranscript = text;
+          this.currentInterimTranscript = '';
           this.finalizeCommand();
         }
       }
@@ -615,9 +629,18 @@ export class JarvisVoiceEngine {
         if (onComplete) onComplete();
         setTimeout(() => {
           if (this.state === 'speaking_response') {
-            this.transitionTo('standby', 'TTS completed');
+            this.recognitionRestartAttempts = 0;
+            this.transitionTo('standby', 'TTS completed - resuming continuous listener');
+            this.ensureRecognitionRunning();
           }
-        }, 300);
+        }, 150);
+
+        // Auto-minimize after 2.5s grace period if no Spot UI elements are active on screen
+        setTimeout(() => {
+          if (typeof window !== 'undefined') {
+            window.dispatchEvent(new CustomEvent('jarvis-auto-minimize'));
+          }
+        }, 2500);
       };
 
       utterance.onend = finishSpeech;
