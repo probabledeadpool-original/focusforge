@@ -499,7 +499,7 @@ export default function BatmanHudOverlay() {
   // -------------------------------------------------------------------------
   useEffect(() => {
     if (batmanStore.isBatmanMode) {
-      setActiveSpotDismissed(false);
+      setDismissedSpotId(null);
       loadTasksFromStorage();
       
       // Stage 1: Blurring
@@ -939,7 +939,7 @@ export default function BatmanHudOverlay() {
                         {spotType === 'fx' && activeSpotMsg.fxData && (
                           <div className="bg-black border border-white/20 p-4 w-full">
                             <span className="text-[11px] font-bold text-white mb-2 block">FX RATES</span>
-                            <div className="text-[10px] text-white/70">Pair: {activeSpotMsg.fxData.pair} @ {activeSpotMsg.fxData.rate}</div>
+                            <div className="text-[10px] text-white/70">Pair: {activeSpotMsg.fxData.base}/{activeSpotMsg.fxData.target || 'N/A'} @ {activeSpotMsg.fxData.rate}</div>
                           </div>
                         )}
                       </div>
