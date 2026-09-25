@@ -6,7 +6,7 @@ import {
   Radio, CheckCircle2, AlertTriangle, 
   RefreshCw, Eye, EyeOff, Check, ExternalLink, Sparkles
 } from 'lucide-react';
-import { useSpotifyStore } from '../../../hooks/useSpotifyStore';
+import { useSpotifyStore } from '../../hooks/useSpotifyStore';
 
 export default function SpotifyApiConfig() {
   const store = useSpotifyStore();
