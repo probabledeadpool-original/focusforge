@@ -409,6 +409,7 @@ class JarvisLiveEngine {
       } else {
         if (this.phase === 'LIVE_SPEAKING') {
           this.currentTurn = 'user';
+          this.lastSpeechTimestamp = Date.now();
           this.transitionTo('LIVE_LISTENING', 'Model finished speaking');
         }
       }
@@ -954,6 +955,15 @@ class JarvisLiveEngine {
     if (this.currentSessionId !== sessionId) return;
     if (!this.ws || this.ws.readyState !== WebSocket.OPEN) return;
     if (this.isMuted) return;
+
+    // Echo Suppression: Ignore incoming audio if TTS is currently speaking or in reverberation drain window (1500ms)
+    // This prevents Jarvis from hearing itself and going into an infinite loop.
+    const isBrowserSpeaking = typeof window !== 'undefined' && 'speechSynthesis' in window && window.speechSynthesis.speaking;
+    const isDrainPeriod = Date.now() - this.lastSpeechTimestamp < 1500;
+    
+    if (this.phase === 'LIVE_SPEAKING' || isBrowserSpeaking || isDrainPeriod) {
+      return;
+    }
 
     // Conforms to Gemini Live API realtimeInput audio specification
     const chunkMessage = {
