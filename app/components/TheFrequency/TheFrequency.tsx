@@ -6,10 +6,11 @@ import {
   Search, Play, Pause, SkipForward, SkipBack, Plus, Trash2, 
   Music, ListMusic, Shuffle, Repeat, Repeat1, Volume2, VolumeX, Volume1,
   Maximize2, X, Sparkles, SlidersHorizontal, Check, Disc, 
-  FolderPlus, Waves, ArrowLeft, ChevronLeft
+  FolderPlus, Waves, ArrowLeft, ChevronLeft, Radio
 } from 'lucide-react';
 import { useFrequencyStore, Track } from '../../../hooks/useFrequencyStore';
 import FrequencyPlayer from './FrequencyPlayer';
+import SpotifyBrowser from './SpotifyBrowser';
 import { fetchYouTubeMeta, extractDominantColor } from '../SonicVaultUtils';
 
 const formatTime = (s: number) => {
@@ -216,6 +217,18 @@ export default function TheFrequency({ onBack }: TheFrequencyProps) {
                 <Waves size={15} className={store.activeTab === 'creatives' ? 'text-cyan-400' : ''} />
                 <span>Creatives Lab</span>
               </button>
+
+              <button
+                onClick={() => store.setActiveTab('spotify')}
+                className={`w-full text-left px-3 py-2 rounded-xl text-xs font-medium transition-all flex items-center gap-2.5 cursor-pointer ${
+                  store.activeTab === 'spotify'
+                    ? 'text-white bg-green-500/[0.15] shadow-sm font-semibold border border-green-400/20'
+                    : 'text-white/50 hover:text-white hover:bg-white/[0.04]'
+                }`}
+              >
+                <Radio size={15} className={store.activeTab === 'spotify' ? 'text-green-400' : ''} />
+                <span>Spotify</span>
+              </button>
             </nav>
 
             {/* PLAYLISTS SECTION */}
@@ -411,6 +424,17 @@ export default function TheFrequency({ onBack }: TheFrequencyProps) {
               }`}
             >
               Creatives Lab
+            </button>
+            <button
+              onClick={() => store.setActiveTab('spotify')}
+              className={`px-3 py-1.5 rounded-full text-xs font-medium whitespace-nowrap transition-all flex items-center gap-1.5 ${
+                store.activeTab === 'spotify'
+                  ? 'bg-green-500 text-black font-bold shadow-sm'
+                  : 'bg-white/5 text-white/60 hover:text-white border border-white/5'
+              }`}
+            >
+              <Radio size={12} />
+              Spotify
             </button>
           </div>
 
@@ -945,6 +969,24 @@ export default function TheFrequency({ onBack }: TheFrequencyProps) {
                   </div>
                 ))}
               </div>
+            </div>
+          )}
+
+          {/* TAB 4: SPOTIFY BROWSER */}
+          {store.activeTab === 'spotify' && (
+            <div className="space-y-4">
+              <div className="border-b border-white/[0.06] pb-4">
+                <div className="flex items-center gap-3">
+                  <div className="w-8 h-8 rounded-xl bg-green-500 flex items-center justify-center shadow-lg">
+                    <Radio size={16} className="text-black" />
+                  </div>
+                  <div>
+                    <h1 className="text-3xl font-bold text-white tracking-tight">Spotify</h1>
+                    <p className="text-xs text-white/40 mt-0.5">Browse, discover, and import from the Spotify catalog</p>
+                  </div>
+                </div>
+              </div>
+              <SpotifyBrowser />
             </div>
           )}
 

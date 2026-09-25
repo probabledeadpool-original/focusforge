@@ -1176,6 +1176,24 @@ export default function JarvisVoiceHUD() {
     return null;
   }, [latestMessage, showHistory]);
 
+  // Auto-maximize on wake/listening
+  useEffect(() => {
+    if (voiceState === 'activated' || voiceState === 'listening_for_command' || voiceState === 'wake_candidate') {
+      if (displayMode === 'minimized') {
+        setDisplayMode('expanded');
+      }
+    }
+  }, [voiceState, displayMode, setDisplayMode]);
+
+  // Auto-minimize when done responding (standby or disabled) UNLESS Spot UI is present
+  useEffect(() => {
+    if (voiceState === 'standby' || voiceState === 'disabled') {
+      if (!spotType && !isProcessing && displayMode !== 'minimized') {
+        setDisplayMode('minimized');
+      }
+    }
+  }, [voiceState, spotType, isProcessing, displayMode, setDisplayMode]);
+
   // Process User Input via Centralized Global Command Dispatcher
   const handleUserMessage = useCallback(async (rawText: string) => {
     const text = rawText.trim();

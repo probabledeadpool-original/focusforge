@@ -71,7 +71,7 @@ interface FrequencyState {
   // UI
   isExpanded: boolean;
   isStudioOpen: boolean;
-  activeTab: 'home' | 'playlists' | 'creatives';
+  activeTab: 'home' | 'playlists' | 'creatives' | 'spotify';
   activePlaylistId: string | null;
 
   // Hydrated flag
@@ -120,7 +120,7 @@ interface FrequencyState {
   setVolume: (vol: number) => void;
   setIsPlaying: (playing: boolean) => void;
   setExpanded: (expanded: boolean) => void;
-  setActiveTab: (tab: 'home' | 'playlists' | 'creatives') => void;
+  setActiveTab: (tab: 'home' | 'playlists' | 'creatives' | 'spotify') => void;
   setActivePlaylistId: (id: string | null) => void;
   toggleShuffle: () => void;
   cycleRepeat: () => void;
@@ -276,7 +276,7 @@ export const useFrequencyStore = create<FrequencyState>((set, get) => ({
   repeat: 'none',
   isExpanded: false,
   isStudioOpen: false,
-  activeTab: 'home',
+  activeTab: 'spotify',
   activePlaylistId: initial.activePlaylistId,
   edgeLighting: true,
   edgeLightingMode: 'ambient',
@@ -691,7 +691,7 @@ export const useFrequencyStore = create<FrequencyState>((set, get) => ({
   },
   setIsPlaying: (playing) => set({ isPlaying: playing }),
   setExpanded: (expanded) => set({ isExpanded: expanded }),
-  setActiveTab: (tab: 'home' | 'playlists' | 'creatives') => set({ activeTab: tab }),
+  setActiveTab: (tab: 'home' | 'playlists' | 'creatives' | 'spotify') => set({ activeTab: tab }),
   setActivePlaylistId: (id) => {
     set({ activePlaylistId: id });
     saveToStorage(get());

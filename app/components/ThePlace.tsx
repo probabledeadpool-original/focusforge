@@ -193,6 +193,16 @@ export default function ThePlace() {
           thumbnail: detail.thumbnail || `https://img.youtube.com/vi/${finalId}/maxresdefault.jpg`,
           addedAt: Date.now()
         };
+        
+        setLibrary(prev => {
+          if (!prev.find(i => i.id === item.id)) {
+            const next = [...prev, item];
+            localStorage.setItem('focusforge-theplace-library', JSON.stringify(next));
+            return next;
+          }
+          return prev;
+        });
+
         setActiveItem(item);
         setActivePlaylist(null);
         setViewState('player');

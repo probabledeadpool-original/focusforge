@@ -490,7 +490,7 @@ export default function BatmanHudOverlay() {
   const [inputCommand, setInputCommand] = useState('');
   const [fps, setFps] = useState(60);
   const [elapsedTime, setElapsedTime] = useState('00:00:00');
-  const [activeSpotDismissed, setActiveSpotDismissed] = useState(false);
+  const [dismissedSpotId, setDismissedSpotId] = useState<string | null>(null);
   const [currentTimeStr, setCurrentTimeStr] = useState('');
   const animRef = useRef<number | null>(null);
 
@@ -613,26 +613,29 @@ export default function BatmanHudOverlay() {
   }, [batmanStore.isBatmanMode]);
 
   // Spot UI payload detection across all intelligence types
-  const latestMessage = jarvisStore.messages.length > 0 ? jarvisStore.messages[jarvisStore.messages.length - 1] : null;
+  const spotMessage = [...jarvisStore.messages].reverse().find(m => 
+    (m.mediaResults && m.mediaResults.length > 0) || 
+    m.stockData || m.weatherData || m.cryptoData || m.newsData || m.earthquakeData || m.issData || m.nasaData || m.taskData || m.fxData || m.watchlistData || m.portfolioData
+  );
 
-  // Whenever a new message with spot UI arrives, automatically reset dismissal so it immediately displays!
-  useEffect(() => {
-    if (latestMessage) {
-      setActiveSpotDismissed(false);
-    }
-  }, [latestMessage?.timestamp, latestMessage?.id, latestMessage?.text]);
+  const activeSpotMsg = (spotMessage && spotMessage.id !== dismissedSpotId) ? spotMessage : null;
 
   const spotType = useMemo(() => {
-    if (activeSpotDismissed || !latestMessage) return null;
-    if (latestMessage.mediaResults && latestMessage.mediaResults.length > 0) return 'video';
-    if (latestMessage.stockData) return 'stock';
-    if (latestMessage.weatherData) return 'weather';
-    if (latestMessage.cryptoData) return 'crypto';
-    if (latestMessage.newsData) return 'news';
-    if (latestMessage.earthquakeData) return 'earthquake';
-    if (latestMessage.issData) return 'iss';
+    if (!activeSpotMsg) return null;
+    if (activeSpotMsg.mediaResults && activeSpotMsg.mediaResults.length > 0) return 'video';
+    if (activeSpotMsg.stockData) return 'stock';
+    if (activeSpotMsg.weatherData) return 'weather';
+    if (activeSpotMsg.cryptoData) return 'crypto';
+    if (activeSpotMsg.newsData) return 'news';
+    if (activeSpotMsg.earthquakeData) return 'earthquake';
+    if (activeSpotMsg.issData) return 'iss';
+    if (activeSpotMsg.nasaData) return 'nasa';
+    if (activeSpotMsg.taskData) return 'task';
+    if (activeSpotMsg.fxData) return 'fx';
+    if (activeSpotMsg.watchlistData) return 'watchlist';
+    if (activeSpotMsg.portfolioData) return 'portfolio';
     return null;
-  }, [latestMessage, activeSpotDismissed]);
+  }, [activeSpotMsg]);
 
   const orbState = useMemo(() => {
     return resolveOrbState(
@@ -811,10 +814,10 @@ export default function BatmanHudOverlay() {
         {batmanStore.introPhase === 'active' && (
           <motion.div
             key="active-batman-hud-viewport"
-            initial={{ opacity: 0, scale: 0.98, filter: 'blur(12px)' }}
-            animate={{ opacity: 1, scale: 1, filter: 'blur(0px)' }}
-            exit={{ opacity: 0, scale: 0.98, filter: 'blur(12px)' }}
-            transition={{ duration: 0.85, ease: [0.16, 1, 0.3, 1] }}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 1.2, ease: "easeInOut" }}
             className="w-full h-full"
           >
             <HudFrame className="w-full h-full p-3 sm:p-5 flex flex-col justify-between relative z-20">
@@ -868,7 +871,7 @@ export default function BatmanHudOverlay() {
                 <div className="flex-1 my-3 min-h-0 relative overflow-hidden">
                   
                   {/* SPOT UI INTERCEPTOR OVERLAY */}
-                  {spotType && latestMessage && (
+                  {spotType && activeSpotMsg && (
                     <motion.div 
                       initial={{ opacity: 0, scale: 0.96 }}
                       animate={{ opacity: 1, scale: 1 }}
@@ -884,7 +887,7 @@ export default function BatmanHudOverlay() {
                           </span>
                         </div>
                         <button
-                          onClick={() => setActiveSpotDismissed(true)}
+                          onClick={() => setDismissedSpotId(activeSpotMsg.id)}
                           className="px-2.5 py-1 bg-white text-black hover:bg-zinc-200 text-[9px] font-mono font-bold uppercase transition-colors"
                         >
                           [ CLOSE SPOT INTERCEPT X ]
@@ -892,34 +895,52 @@ export default function BatmanHudOverlay() {
                       </div>
 
                       <div className="flex-1 flex items-center justify-center my-3 overflow-y-auto no-scrollbar">
-                        {spotType === 'video' && latestMessage.mediaResults && (
+                        {spotType === 'video' && activeSpotMsg.mediaResults && (
                           <BatmanSpotVideoWidget 
-                            videos={latestMessage.mediaResults} 
+                            videos={activeSpotMsg.mediaResults} 
                             onWatch={(v) => {
                               setActiveVideoId(v.id);
                               setActiveVideoTitle(v.title);
                               batmanStore.setActiveModule('media');
-                              setActiveSpotDismissed(true);
+                              setDismissedSpotId(activeSpotMsg.id);
                             }} 
                           />
                         )}
-                        {spotType === 'stock' && latestMessage.stockData && (
-                          <BatmanSpotStockWidget stock={latestMessage.stockData} />
+                        {spotType === 'stock' && activeSpotMsg.stockData && (
+                          <BatmanSpotStockWidget stock={activeSpotMsg.stockData} />
                         )}
-                        {spotType === 'weather' && latestMessage.weatherData && (
-                          <BatmanSpotWeatherWidget weather={latestMessage.weatherData} />
+                        {spotType === 'weather' && activeSpotMsg.weatherData && (
+                          <BatmanSpotWeatherWidget weather={activeSpotMsg.weatherData} />
                         )}
-                        {spotType === 'crypto' && latestMessage.cryptoData && (
-                          <BatmanSpotCryptoWidget crypto={latestMessage.cryptoData} />
+                        {spotType === 'crypto' && activeSpotMsg.cryptoData && (
+                          <BatmanSpotCryptoWidget crypto={activeSpotMsg.cryptoData} />
                         )}
-                        {spotType === 'news' && latestMessage.newsData && (
-                          <BatmanSpotNewsWidget news={latestMessage.newsData} />
+                        {spotType === 'news' && activeSpotMsg.newsData && (
+                          <BatmanSpotNewsWidget news={activeSpotMsg.newsData} />
                         )}
-                        {spotType === 'earthquake' && latestMessage.earthquakeData && (
-                          <BatmanSpotEarthquakeWidget data={latestMessage.earthquakeData} />
+                        {spotType === 'earthquake' && activeSpotMsg.earthquakeData && (
+                          <BatmanSpotEarthquakeWidget data={activeSpotMsg.earthquakeData} />
                         )}
-                        {spotType === 'iss' && latestMessage.issData && (
-                          <BatmanSpotIssWidget data={latestMessage.issData} />
+                        {spotType === 'iss' && activeSpotMsg.issData && (
+                          <BatmanSpotIssWidget data={activeSpotMsg.issData} />
+                        )}
+                        {spotType === 'nasa' && activeSpotMsg.nasaData && (
+                          <div className="bg-black border border-white/20 p-4 w-full">
+                            <span className="text-[11px] font-bold text-white mb-2 block">NASA TELEMETRY</span>
+                            <div className="text-[10px] text-white/70">{activeSpotMsg.nasaData.title}</div>
+                          </div>
+                        )}
+                        {spotType === 'task' && activeSpotMsg.taskData && (
+                          <div className="bg-black border border-white/20 p-4 w-full">
+                            <span className="text-[11px] font-bold text-white mb-2 block">TASK DATABASE SYNCED</span>
+                            <div className="text-[10px] text-white/70">Tasks retrieved: {activeSpotMsg.taskData.tasks?.length || 0}</div>
+                          </div>
+                        )}
+                        {spotType === 'fx' && activeSpotMsg.fxData && (
+                          <div className="bg-black border border-white/20 p-4 w-full">
+                            <span className="text-[11px] font-bold text-white mb-2 block">FX RATES</span>
+                            <div className="text-[10px] text-white/70">Pair: {activeSpotMsg.fxData.pair} @ {activeSpotMsg.fxData.rate}</div>
+                          </div>
                         )}
                       </div>
 
@@ -1052,8 +1073,8 @@ export default function BatmanHudOverlay() {
                   {/* ------------------------------------------------------------------------- */}
                   {(batmanStore.activeModule === 'media' || batmanStore.activeModule === 'spot') && (
                     <div className="h-full grid grid-cols-1 lg:grid-cols-12 gap-4">
-                      {/* Left 8 Cols: Main Video Stream Viewport */}
-                      <div className="lg:col-span-8 flex flex-col border border-white/20 bg-white/[0.02] p-3 space-y-2">
+                      {/* Left 9 Cols: Main Video Stream Viewport */}
+                      <div className="lg:col-span-9 flex flex-col border border-white/20 bg-white/[0.02] p-3 space-y-2 h-full">
                         <div className="flex items-center justify-between border-b border-white/20 pb-2">
                           <div className="flex items-center gap-2">
                             <Tv size={14} className="text-white" />
@@ -1074,7 +1095,7 @@ export default function BatmanHudOverlay() {
                         </div>
 
                         {/* Embedded Video Player */}
-                        <div className={`relative flex-1 bg-black border border-white/20 overflow-hidden min-h-[260px] ${
+                        <div className={`relative flex-1 w-full bg-black border border-white/20 overflow-hidden ${
                           isCrtFilterActive ? 'after:absolute after:inset-0 after:bg-[linear-gradient(rgba(18,16,16,0)_50%,rgba(0,0,0,0.4)_50%)] after:bg-[length:100%_4px] after:pointer-events-none' : ''
                         }`}>
                           <iframe
@@ -1117,8 +1138,8 @@ export default function BatmanHudOverlay() {
                         </div>
                       </div>
 
-                      {/* Right 4 Cols: Curated "The Place" Vault & Search */}
-                      <div className="lg:col-span-4 flex flex-col border border-white/20 bg-white/[0.02] p-3 space-y-3">
+                      {/* Right 3 Cols: Curated "The Place" Vault & Search */}
+                      <div className="lg:col-span-3 flex flex-col border border-white/20 bg-white/[0.02] p-3 space-y-3 h-full">
                         {/* Search Bar */}
                         <div className="flex items-center gap-1 bg-black/60 border border-white/20 px-2 py-1">
                           <Search size={11} className="text-white/40" />
@@ -1679,7 +1700,7 @@ export default function BatmanHudOverlay() {
                             key={tab.id}
                             onClick={() => {
                               batmanStore.setActiveModule(tab.id as BatmanActiveModule);
-                              setActiveSpotDismissed(true);
+                              setDismissedSpotId(null);
                             }}
                             className={`flex items-center gap-1.5 px-3 py-1 text-[9px] font-mono uppercase tracking-wider transition-all whitespace-nowrap cursor-pointer ${
                               isActive 

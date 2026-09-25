@@ -25,6 +25,7 @@ import FrequencyAudioEngine from './components/TheFrequency/FrequencyAudioEngine
 import WakeWordTraining from './components/WakeWordTraining';
 import AiModelSelector from './components/AiModelSelector';
 import YouTubeApiConfig from './components/YouTubeApiConfig';
+import SpotifyApiConfig from './components/SpotifyApiConfig';
 import { SiriWave } from '@/components/ui/siri-wave';
 
 
@@ -1014,6 +1015,7 @@ export default function FocusForge() {
   // --- Secondary Effects ---
   useEffect(() => {
     localStorage.setItem('focus-tasks', JSON.stringify(tasks));
+    window.dispatchEvent(new CustomEvent('tasksUpdated', { detail: { source: 'page' } }));
   }, [tasks]);
 
   useEffect(() => {
@@ -1103,6 +1105,57 @@ export default function FocusForge() {
   }, [isRunning, timeLeft === 0, handleNextSegment]);
 
   // Sync isRunning with YouTube Player
+  // --- MCP Command Polling ---
+  useEffect(() => {
+    // Sync state to backend for MCP readers
+    fetch('/api/mcp-state', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ tasks })
+    }).catch(() => {});
+  }, [tasks]);
+
+  useEffect(() => {
+    const pollMcpCommands = async () => {
+      try {
+        const res = await fetch('/api/mcp-queue');
+        if (!res.ok) return;
+        const data = await res.json();
+        
+        if (data.commands && Array.isArray(data.commands)) {
+          for (const cmd of data.commands) {
+            console.log('[MCP Command Received]', cmd);
+            if (cmd.tool === 'create_task') {
+              const { title, desc, priority, category } = cmd.args;
+              const newTask: Task = {
+                id: crypto.randomUUID(),
+                title,
+                desc,
+                priority: priority || 'medium',
+                category: category || 'admin',
+                done: false,
+                created: Date.now()
+              };
+              setTasks(prev => [...prev, newTask]);
+              
+              // Optional: Play a sound or show notification
+              window.dispatchEvent(new CustomEvent('tasksUpdated'));
+            } else if (cmd.tool === 'update_task') {
+              const { taskId, done } = cmd.args;
+              setTasks(prev => prev.map(t => t.id === taskId ? { ...t, done } : t));
+              window.dispatchEvent(new CustomEvent('tasksUpdated'));
+            }
+          }
+        }
+      } catch (err) {
+        // Ignore polling errors
+      }
+    };
+
+    const intervalId = setInterval(pollMcpCommands, 3000);
+    return () => clearInterval(intervalId);
+  }, [setTasks]);
+
   useEffect(() => {
     if (activeTimer) {
       if (isRunning) hubPlayerRef.current?.play();
@@ -1499,7 +1552,7 @@ export default function FocusForge() {
               <h3 className="font-heading text-xl sm:text-2xl font-bold lowercase text-white">Remote Model Context Protocol (MCP)</h3>
             </div>
             <p className="text-white/50 text-xs sm:text-sm font-sans leading-relaxed">
-              Expose Focus Forge's 12 read-only tools directly to Claude, Grok, and Manus over streamable HTTP. Enforces strict Zod validation, user isolation, and Bearer authentication.
+              Expose Focus Forge&apos;s 12 read-only tools directly to Claude, Grok, and Manus over streamable HTTP. Enforces strict Zod validation, user isolation, and Bearer authentication.
             </p>
             <div className="flex items-center gap-3 pt-2 text-[10px] font-mono text-white/40 flex-wrap">
               <span className="text-cyan-300">Endpoint: /api/mcp</span>
@@ -2243,32 +2296,17 @@ export default function FocusForge() {
     const claudeJsonSnippet = JSON.stringify({
       mcpServers: {
         focusforge: {
-          command: "npx",
+          command: "node",
           args: [
-            "-y",
-            "mcp-remote",
-            mcpServerUrl
+            "c:/Users/Vatsal/OneDrive/Documents/BITS/1ST YR/PROBABLEDOOM/focusforge (1)/mcp-server.js"
           ]
         }
       }
     }, null, 2);
 
-    const windsurfJsonSnippet = JSON.stringify({
-      mcpServers: {
-        focusforge: {
-          command: "npx",
-          args: [
-            "-y",
-            "mcp-remote",
-            mcpServerUrl
-          ]
-        }
-      }
-    }, null, 2);
+    const windsurfJsonSnippet = claudeJsonSnippet;
 
-    const curlSnippet = `curl -X POST ${mcpServerUrl} \\
-  -H "Content-Type: application/json" \\
-  -d '{"jsonrpc": "2.0", "id": 1, "method": "tools/list"}'`;
+    const curlSnippet = `Node.js local MCP server bridging Next.js frontend state via stdio.`;
 
     const copyMcpUrl = () => {
       navigator.clipboard.writeText(mcpServerUrl);
@@ -2478,6 +2516,21 @@ export default function FocusForge() {
               <YouTubeApiConfig />
             </motion.section>
 
+            {/* Spotify Web API Configuration */}
+            <motion.section variants={itemVariants} className="space-y-6">
+              <div className="flex items-center justify-between border-b border-white/10 pb-3">
+                <div className="flex items-center gap-3">
+                  <Radio size={22} className="text-green-400" />
+                  <h2 className="font-heading text-xl md:text-2xl font-bold lowercase text-white">Spotify Integrations Engine</h2>
+                </div>
+                <span className="px-2.5 py-0.5 rounded-full text-[9px] font-mono uppercase tracking-widest bg-green-500/10 text-green-400 border border-green-500/30">
+                  SPOTIFY WEB API
+                </span>
+              </div>
+
+              <SpotifyApiConfig />
+            </motion.section>
+
             {/* J.A.R.V.I.S. Voice AI & Wake Word Protocol */}
             <motion.section variants={itemVariants} className="space-y-4">
               <div className="flex items-center justify-between border-b border-white/10 pb-3">
@@ -2485,7 +2538,7 @@ export default function FocusForge() {
                   <Sparkles size={20} className="text-cyan-400 animate-pulse" />
                   <h2 className="font-heading text-xl md:text-2xl font-bold lowercase text-white">J.A.R.V.I.S. Voice AI Protocol</h2>
                 </div>
-                <span className="text-xs font-mono text-cyan-400/80 uppercase tracking-widest font-bold">Wake Word: "JARVIS"</span>
+                <span className="text-xs font-mono text-cyan-400/80 uppercase tracking-widest font-bold">Wake Word: &quot;JARVIS&quot;</span>
               </div>
 
               <div className="bg-zinc-950/80 border border-cyan-500/20 rounded-3xl p-6 md:p-8 space-y-6 backdrop-blur-2xl shadow-[0_0_30px_rgba(34,211,238,0.05)]">
@@ -2493,7 +2546,7 @@ export default function FocusForge() {
                   <div>
                     <h3 className="font-bold text-white text-base">Continuous Hotword Detection</h3>
                     <p className="text-xs text-white/50 font-mono mt-1">
-                      When active, simply say <span className="text-cyan-400 font-bold font-mono">"JARVIS"</span> or <span className="text-cyan-400 font-bold font-mono">"Hey JARVIS"</span> anywhere to trigger holographic voice mode.
+                      When active, simply say <span className="text-cyan-400 font-bold font-mono">&quot;JARVIS&quot;</span> or <span className="text-cyan-400 font-bold font-mono">&quot;Hey JARVIS&quot;</span> anywhere to trigger holographic voice mode.
                     </p>
                   </div>
                   <div className="flex items-center gap-3">

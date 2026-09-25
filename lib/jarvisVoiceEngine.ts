@@ -61,6 +61,14 @@ export type CommandHandler = (commandText: string, sessionId: string) => Promise
 
 /**
  * Universal High-Reliability Continuous-Stream Finite State Machine Voice Engine for JARVIS
+ * 
+ * CRITICAL DESIGN PRINCIPLES:
+ * 1. Recognition must ALWAYS be restarted if it stops unexpectedly in any active state
+ * 2. Self-echo suppression uses a generous 1200ms window after TTS ends
+ * 3. Network errors are ALWAYS transient and never brick the engine
+ * 4. The watchdog heartbeat monitors ALL active states, not just standby
+ * 5. Post-TTS restart always forces a fresh recognition instance
+ * 6. Recognition is explicitly STOPPED before TTS to prevent self-listening
  */
 export class JarvisVoiceEngine {
   private static instance: JarvisVoiceEngine;
@@ -75,7 +83,7 @@ export class JarvisVoiceEngine {
   private recognitionInstance: any = null;
   private isRecognitionRunning: boolean = false;
   private recognitionRestartAttempts: number = 0;
-  private maxRestartAttempts: number = 5;
+  private maxRestartAttempts: number = 12;
 
   // Transcript Data
   private currentInterimTranscript: string = '';
@@ -101,6 +109,7 @@ export class JarvisVoiceEngine {
   private confirmationTimeoutTimer: any = null;
   private restartDebounceTimer: any = null;
   private watchdogTimer: any = null;
+  private ttsResumeTimer: any = null;
 
   // Audio Gating & Self-Echo Suppression
   private isSpeakingTTS: boolean = false;
@@ -108,6 +117,10 @@ export class JarvisVoiceEngine {
   private speechSynthesisUtterance: SpeechSynthesisUtterance | null = null;
   private errorMessage: string | null = null;
   private errorRecoveryHint: string | null = null;
+  private isStartingRecognition: boolean = false;
+
+  // Post-TTS restart lock
+  private postTtsRestartScheduled: boolean = false;
 
   private constructor() {
     if (typeof window !== 'undefined') {
@@ -119,12 +132,22 @@ export class JarvisVoiceEngine {
         setTimeout(() => this.ensureRecognitionRunning(), 300);
       }
 
-      // Keep recognition alive with a watchdog heartbeat
+      // Aggressive watchdog heartbeat - monitors ALL active states
       this.watchdogTimer = setInterval(() => {
-        if (this.state !== 'disabled' && !this.isSpeakingTTS && !this.isRecognitionRunning) {
+        if (this.state === 'disabled') return;
+        if (this.isSpeakingTTS) return;
+        
+        const activeStates: VoiceState[] = [
+          'standby', 'wake_candidate', 'activated', 
+          'listening_for_command', 'transcribing_command'
+        ];
+        
+        if (activeStates.includes(this.state) && !this.isRecognitionRunning) {
+          voiceLog('WATCHDOG', `Recognition dead in ${this.state} state, force-restarting`);
+          this.recognitionRestartAttempts = 0;
           this.ensureRecognitionRunning();
         }
-      }, 5000);
+      }, 3000);
     }
   }
 
@@ -155,7 +178,6 @@ export class JarvisVoiceEngine {
     this.state = nextState;
     this.stateEntryTimestamp = now;
 
-    // Record Structured Diagnostic Event
     const diagEvent: DiagnosticEvent = {
       id: `diag-${now}-${Math.random().toString(36).substring(2, 6)}`,
       timestamp: now,
@@ -178,10 +200,7 @@ export class JarvisVoiceEngine {
       this.diagnosticHistory.pop();
     }
 
-    // State Entry Side Effects
     this.handleStateEntry(nextState, prevState, reason);
-
-    // Notify all UI & Store Subscribers
     this.notifyTelemetry();
     return true;
   }
@@ -204,7 +223,12 @@ export class JarvisVoiceEngine {
         this.isSpeakingTTS = false;
         this.recognitionRestartAttempts = 0;
         this.unduckAudio();
-        this.ensureRecognitionRunning();
+        // Delayed start to avoid overlap with stale recognition instances
+        setTimeout(() => {
+          if (this.state === 'standby' && !this.isSpeakingTTS) {
+            this.ensureRecognitionRunning();
+          }
+        }, 150);
         break;
 
       case 'wake_candidate':
@@ -225,8 +249,6 @@ export class JarvisVoiceEngine {
           jarvisAudio.playWake();
         }
 
-        // If trailing command words were present in the single utterance, transition to transcribing and debounce
-        // without prematurely cutting off remaining speech!
         if (this.currentFinalTranscript.trim().length > 0) {
           setTimeout(() => {
             if (this.state === 'activated') {
@@ -235,7 +257,6 @@ export class JarvisVoiceEngine {
             }
           }, 80);
         } else {
-          // Transition immediately to listening for command
           setTimeout(() => {
             if (this.state === 'activated') {
               this.transitionTo('listening_for_command', 'Waiting for user command utterance');
@@ -249,12 +270,12 @@ export class JarvisVoiceEngine {
         this.currentFinalTranscript = '';
         this.ensureRecognitionRunning();
         
-        // Command Timeout (8 seconds of silence -> returns quietly to standby)
+        // 10 second timeout for silence
         this.commandTimeoutTimer = setTimeout(() => {
           if (this.state === 'listening_for_command' && !this.currentInterimTranscript && !this.currentFinalTranscript) {
-            this.transitionTo('standby', `Command timeout reached (${voiceConfig.commandTimeoutMs}ms silence)`);
+            this.transitionTo('standby', 'Command timeout reached (10s silence)');
           }
-        }, 8000);
+        }, 10000);
         break;
 
       case 'transcribing_command':
@@ -276,6 +297,15 @@ export class JarvisVoiceEngine {
 
       case 'error':
         this.cleanupAllTimers();
+        // Auto-recover from error state after 3 seconds
+        setTimeout(() => {
+          if (this.state === 'error') {
+            this.recognitionRestartAttempts = 0;
+            this.errorMessage = null;
+            this.errorRecoveryHint = null;
+            this.transitionTo('standby', 'Auto-recovery from error state');
+          }
+        }, 3000);
         break;
     }
   }
@@ -289,12 +319,15 @@ export class JarvisVoiceEngine {
   }
 
   private ensureRecognitionRunning(): void {
-    if (this.state === 'disabled' || this.isSpeakingTTS) return;
+    if (this.state === 'disabled') return;
+    if (this.isSpeakingTTS) return;
     if (typeof window === 'undefined') return;
 
+    if (this.isStartingRecognition) return;
     if (this.isRecognitionRunning && this.recognitionInstance) {
-      return; // Already actively streaming
+      return;
     }
+    this.isStartingRecognition = true;
 
     const SpeechRecognition = this.getSpeechRecognitionAPI();
     if (!SpeechRecognition) {
@@ -305,23 +338,31 @@ export class JarvisVoiceEngine {
     }
 
     try {
+      // Always destroy stale instances first
       this.stopSpeechRecognition();
 
       const recognition = new SpeechRecognition();
       recognition.continuous = true;
       recognition.interimResults = true;
       recognition.lang = 'en-US';
-      recognition.maxAlternatives = 4; // Multiple alternatives to catch accents reliably
+      recognition.maxAlternatives = 4;
 
       recognition.onstart = () => {
+        this.isStartingRecognition = false;
         this.isRecognitionRunning = true;
         this.recognitionRestartAttempts = 0;
+        voiceLog('RECOGNITION', 'Started successfully');
         this.notifyTelemetry();
       };
 
       recognition.onresult = (event: any) => {
-        // Self-echo protection: ignore microphone while Jarvis is speaking or immediately after
-        if (this.isSpeakingTTS || Date.now() - this.lastTtsEndTime < 250) {
+        // ═══════════════════════════════════════════════════════════════════
+        // SELF-ECHO PROTECTION: 1200ms guard after TTS ends
+        // 250ms was way too short - the mic easily captures TTS residual audio
+        // ═══════════════════════════════════════════════════════════════════
+        const echoGuardMs = 1200;
+        if (this.isSpeakingTTS || Date.now() - this.lastTtsEndTime < echoGuardMs) {
+          voiceLog('ECHO_GUARD', 'Suppressed input during echo guard window');
           return;
         }
 
@@ -339,7 +380,6 @@ export class JarvisVoiceEngine {
             interimCombined += ' ' + primaryPiece;
           }
 
-          // Gather all alternatives
           for (let j = 0; j < Math.min(res.length, 3); j++) {
             if (res[j]?.transcript) {
               alternativeTexts.push(res[j].transcript.trim());
@@ -350,13 +390,12 @@ export class JarvisVoiceEngine {
         const candidateText = (finalCombined || interimCombined).trim();
         if (!candidateText) return;
 
-        // ---------------------------------------------------------------------
-        // 1. STANDBY / WAKE_CANDIDATE STATE: WAKE WORD DETECTION
-        // ---------------------------------------------------------------------
+        // -------------------------------------------------------------------
+        // 1. STANDBY / WAKE_CANDIDATE: WAKE WORD DETECTION
+        // -------------------------------------------------------------------
         if (this.state === 'standby' || this.state === 'wake_candidate') {
           this.lastWakeCandidate = candidateText;
 
-          // Check primary candidate + all alternatives
           const candidatesToTest = [candidateText, ...alternativeTexts];
           let bestVerification: WakeWordVerificationResult | null = null;
 
@@ -389,11 +428,10 @@ export class JarvisVoiceEngine {
           return;
         }
 
-        // ---------------------------------------------------------------------
-        // 2. LISTENING / TRANSCRIBING COMMAND STATE: MULTI-WORD COMMAND CAPTURE
-        // ---------------------------------------------------------------------
+        // -------------------------------------------------------------------
+        // 2. LISTENING / TRANSCRIBING: MULTI-WORD COMMAND CAPTURE
+        // -------------------------------------------------------------------
         if (this.state === 'listening_for_command' || this.state === 'transcribing_command') {
-          // Strip leading wake-word from captured phrase if still present
           let cleanUtterance = (finalCombined || interimCombined).trim();
           cleanUtterance = cleanUtterance.replace(/^(?:hey|ok|okay|yo|hi|hello|sup)?\s*(?:jarvis|javis|jarves|jervis|travis)\s*[,:\-–]?\s*/i, '').trim();
 
@@ -405,7 +443,6 @@ export class JarvisVoiceEngine {
               this.transitionTo('transcribing_command', 'Speech utterance detected');
             }
 
-            // Check Verbal Cancellation
             const lower = cleanUtterance.toLowerCase();
             if (lower === 'cancel' || lower === 'never mind' || lower === 'nevermind' || lower === 'stop') {
               this.cleanupAllTimers();
@@ -420,7 +457,9 @@ export class JarvisVoiceEngine {
 
       recognition.onerror = (event: any) => {
         const err = event?.error || 'unknown_recognition_error';
-        if (err === 'no-speech') return; // Normal quiet period
+        
+        if (err === 'no-speech') return;
+        if (err === 'aborted') return;
 
         if (err === 'not-allowed' || err === 'service-not-allowed') {
           this.errorMessage = 'Microphone access was denied or blocked.';
@@ -429,19 +468,24 @@ export class JarvisVoiceEngine {
           return;
         }
 
-        if (err === 'network') {
-          // Network errors in WebSpeech are transient socket disconnects; auto-recover without bricking the engine
-          this.handleTransientRecognitionError('Speech service connection reset (network)');
-          return;
-        }
-
-        this.handleTransientRecognitionError(err);
+        // ALL other errors (network, audio-capture, etc.) are transient
+        this.isStartingRecognition = false;
+        voiceLog('TRANSIENT_ERROR', err);
+        this.handleTransientRecognitionError(`Recognition error: ${err}`);
       };
 
       recognition.onend = () => {
+        this.isStartingRecognition = false;
         this.isRecognitionRunning = false;
+        voiceLog('RECOGNITION_END', `State: ${this.state}, TTS: ${this.isSpeakingTTS}`);
         
-        // If in command mode with finalized text, complete execution
+        // ═══════════════════════════════════════════════════════════════════
+        // CRITICAL: Restart recognition in ALL active states.
+        // Chrome's SpeechRecognition frequently fires onend mid-conversation.
+        // We must seamlessly restart to maintain continuous listening.
+        // ═══════════════════════════════════════════════════════════════════
+        
+        // If transcribing and we have text, finalize the command
         if (this.state === 'transcribing_command') {
           const text = (this.currentFinalTranscript || this.currentInterimTranscript).trim();
           if (text.length > 0) {
@@ -451,19 +495,27 @@ export class JarvisVoiceEngine {
           }
         }
         
-        // If in standby, immediately and seamlessly restart recognition
-        if (this.state === 'standby' && !this.isSpeakingTTS) {
+        // For ALL active states: seamlessly restart recognition
+        const restartableStates: VoiceState[] = [
+          'standby', 'wake_candidate', 'listening_for_command', 
+          'activated', 'transcribing_command'
+        ];
+        
+        if (restartableStates.includes(this.state) && !this.isSpeakingTTS) {
           setTimeout(() => {
-            if (this.state === 'standby' && !this.isSpeakingTTS) {
+            if (restartableStates.includes(this.state) && !this.isSpeakingTTS && !this.isRecognitionRunning) {
+              voiceLog('AUTO_RESTART', `Restarting recognition in ${this.state} state`);
               this.ensureRecognitionRunning();
             }
-          }, 100);
+          }, 80);
         }
       };
 
       this.recognitionInstance = recognition;
       recognition.start();
     } catch (e: any) {
+      this.isStartingRecognition = false;
+      voiceLog('START_ERROR', e?.message);
       this.handleTransientRecognitionError(e?.message || 'Failed to start recognition');
     }
   }
@@ -490,9 +542,9 @@ export class JarvisVoiceEngine {
     const fullUtterance = (this.currentFinalTranscript || this.currentInterimTranscript).trim();
     if (!fullUtterance) return;
 
-    // Generous adaptive debounce (1800ms) allows complete sentences, complex commands,
-    // and natural breathing pauses without prematurely cutting off the user!
-    const dynamicDebounceMs = 1800;
+    // 2200ms adaptive debounce - generous enough for multi-word commands,
+    // natural breathing pauses, and thinking gaps
+    const dynamicDebounceMs = 2200;
 
     this.silenceDebounceTimer = setTimeout(() => {
       if (this.state === 'transcribing_command') {
@@ -510,7 +562,6 @@ export class JarvisVoiceEngine {
     this.cleanupAllTimers();
     let text = this.currentFinalTranscript.trim();
 
-    // Strip wake word from beginning of utterance
     text = text.replace(/^(?:hey|ok|okay|yo|hi|hello|sup)?\s*(?:jarvis|javis|jarves|jervis|travis)\s*[,:\-–]?\s*/i, '').trim();
 
     if (!text) {
@@ -542,7 +593,7 @@ export class JarvisVoiceEngine {
   }
 
   // ---------------------------------------------------------------------------
-  // CONFIRMATION CONTROLLER (Destructive / Write Actions)
+  // CONFIRMATION CONTROLLER
   // ---------------------------------------------------------------------------
   public requestConfirmation(
     prompt: string, 
@@ -592,6 +643,12 @@ export class JarvisVoiceEngine {
       return;
     }
 
+    // ═══════════════════════════════════════════════════════════════════════
+    // CRITICAL: Stop recognition BEFORE speaking to prevent self-listening
+    // This is the #1 fix for the "Jarvis listens to itself" bug
+    // ═══════════════════════════════════════════════════════════════════════
+    this.stopSpeechRecognition();
+    
     this.isSpeakingTTS = true;
     this.duckAudio();
     this.transitionTo('speaking_response', `TTS speaking: "${text.slice(0, 35)}..."`);
@@ -603,7 +660,7 @@ export class JarvisVoiceEngine {
         this.isSpeakingTTS = false;
         this.lastTtsEndTime = Date.now();
         this.unduckAudio();
-        this.transitionTo('standby', 'Empty TTS text');
+        this.schedulePostTtsRestart();
         return;
       }
 
@@ -620,21 +677,31 @@ export class JarvisVoiceEngine {
 
       if (premiumVoice) utterance.voice = premiumVoice;
 
+      // Chrome bug workaround: speechSynthesis hangs on long utterances
+      if (this.ttsResumeTimer) clearInterval(this.ttsResumeTimer);
+      this.ttsResumeTimer = setInterval(() => {
+        if (this.isSpeakingTTS && typeof window !== 'undefined') {
+          window.speechSynthesis.resume();
+        }
+      }, 10000);
+
       const finishSpeech = () => {
+        if (this.ttsResumeTimer) {
+          clearInterval(this.ttsResumeTimer);
+          this.ttsResumeTimer = null;
+        }
+
         this.isSpeakingTTS = false;
         this.lastTtsEndTime = Date.now();
         this.speechSynthesisUtterance = null;
         this.unduckAudio();
+        
         if (onComplete) onComplete();
-        setTimeout(() => {
-          if (this.state === 'speaking_response') {
-            this.recognitionRestartAttempts = 0;
-            this.transitionTo('standby', 'TTS completed - resuming continuous listener');
-            this.ensureRecognitionRunning();
-          }
-        }, 150);
+        
+        // Schedule clean recognition restart after echo guard
+        this.schedulePostTtsRestart();
 
-        // Auto-minimize after 2.5s grace period if no Spot UI elements are active on screen
+        // Auto-minimize after 2.5s grace period
         setTimeout(() => {
           if (typeof window !== 'undefined') {
             window.dispatchEvent(new CustomEvent('jarvis-auto-minimize'));
@@ -643,21 +710,56 @@ export class JarvisVoiceEngine {
       };
 
       utterance.onend = finishSpeech;
-      utterance.onerror = finishSpeech;
+      utterance.onerror = (e: any) => {
+        voiceLog('TTS_ERROR', e?.error);
+        finishSpeech();
+      };
 
       this.speechSynthesisUtterance = utterance;
       window.speechSynthesis.speak(utterance);
     } catch (e) {
+      if (this.ttsResumeTimer) {
+        clearInterval(this.ttsResumeTimer);
+        this.ttsResumeTimer = null;
+      }
       this.isSpeakingTTS = false;
       this.lastTtsEndTime = Date.now();
       this.unduckAudio();
-      this.transitionTo('standby', 'TTS exception');
+      this.schedulePostTtsRestart();
     }
+  }
+
+  /**
+   * Schedule a clean recognition restart after TTS finishes.
+   * Uses a delay matching the echo guard window (1200ms) + safety margin
+   * to ensure the mic doesn't pick up residual TTS audio from speakers.
+   */
+  private schedulePostTtsRestart(): void {
+    if (this.postTtsRestartScheduled) return;
+    this.postTtsRestartScheduled = true;
+
+    const restartDelay = 1400;
+    
+    setTimeout(() => {
+      this.postTtsRestartScheduled = false;
+      
+      if (this.state === 'speaking_response' || this.state === 'processing_command') {
+        this.recognitionRestartAttempts = 0;
+        this.transitionTo('standby', 'TTS completed - resuming continuous listener');
+      } else if (this.state === 'standby') {
+        this.recognitionRestartAttempts = 0;
+        this.ensureRecognitionRunning();
+      }
+    }, restartDelay);
   }
 
   public stopSpeaking(): void {
     if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
       window.speechSynthesis.cancel();
+    }
+    if (this.ttsResumeTimer) {
+      clearInterval(this.ttsResumeTimer);
+      this.ttsResumeTimer = null;
     }
     this.isSpeakingTTS = false;
     this.lastTtsEndTime = Date.now();
@@ -690,6 +792,7 @@ export class JarvisVoiceEngine {
   // ---------------------------------------------------------------------------
   private handleTransientRecognitionError(errorDetail: string): void {
     this.recognitionRestartAttempts++;
+    
     if (this.recognitionRestartAttempts > this.maxRestartAttempts) {
       this.errorMessage = `Speech service interrupted: ${errorDetail}`;
       this.errorRecoveryHint = 'Click "Retry Voice" or enter commands via the keyboard.';
@@ -697,12 +800,24 @@ export class JarvisVoiceEngine {
       return;
     }
 
+    // Stop the dead instance
+    this.stopSpeechRecognition();
+
+    // Exponential backoff: 200ms, 400ms, 800ms, 1600ms...
+    const backoffMs = Math.min(200 * Math.pow(2, this.recognitionRestartAttempts - 1), 5000);
+    
     if (this.restartDebounceTimer) clearTimeout(this.restartDebounceTimer);
     this.restartDebounceTimer = setTimeout(() => {
-      if (this.state === 'standby' && !this.isSpeakingTTS) {
+      // ═══════════════════════════════════════════════════════════════════
+      // CRITICAL FIX: Restart in ANY active state, not just standby.
+      // The old code only recovered when state === 'standby', which meant
+      // network errors during listening_for_command bricked the engine.
+      // ═══════════════════════════════════════════════════════════════════
+      if (this.state !== 'disabled' && this.state !== 'error' && !this.isSpeakingTTS) {
+        voiceLog('RECOVERY', `Attempt ${this.recognitionRestartAttempts}, backoff ${backoffMs}ms`);
         this.ensureRecognitionRunning();
       }
-    }, 400);
+    }, backoffMs);
   }
 
   public retryVoice(): void {
